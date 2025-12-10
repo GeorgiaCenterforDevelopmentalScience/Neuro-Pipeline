@@ -1,0 +1,40 @@
+[project]
+name = "GCDS Neuro_Pipeline"
+version = "0.1.0"
+description = "GCDS neuro pipeline project"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" },
+  { name = "Charles Geier"}
+]
+maintainers = [
+  { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" }
+]
+dependencies = [
+  "typer",
+  "PyYAML",
+  "dash",
+  "dash-bootstrap-components",
+  "plotly",
+  "pandas",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+]
+
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["neuro_pipeline*"]
+
+[project.scripts]
+neuropipe = "neuro_pipeline.pipeline.core:app"
+neuropipe-gui = "neuro_pipeline.interface.run_gui:main"

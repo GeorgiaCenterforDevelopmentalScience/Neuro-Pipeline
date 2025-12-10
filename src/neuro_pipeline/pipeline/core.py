@@ -1,0 +1,363 @@
+import typer
+import yaml
+import sys
+import os
+from pathlib import Path
+from typing import List, Optional
+from dataclasses import dataclass
+from .utils.hpc_utils import wait_for_jobs
+from .dag import DAGExecutor, TaskRegistry
+from .utils.config_utils import (
+    PrepChoice,
+    StructuralChoice,
+    RestPrepChoice,
+    RestPostChoice,
+    TaskChoice,
+    MRIQCChoice,
+    clean_all_only,
+    load_project_config,
+)
+from .utils.job_db import log_pipeline_execution, update_pipeline_execution
+
+app = typer.Typer()
+
+# Load global config
+config_path = Path(__file__).parent / "config" / "config.yaml"
+with open(config_path, "r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
+
+@dataclass
+class TaskOptions:
+    # Preprocessing
+    prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps")
+    
+    # Structural
+    structural: Optional[StructuralChoice] = typer.Option(None, help="Structural processing")
+
+    # Quality Control
+    mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing")
+
+    # Session
+    session: Optional[str] = typer.Option('01', help="Session ID")
+
+    # Rest: prep and post
+    rest_prep: Optional[RestPrepChoice] = typer.Option(None, help="Rest preprocessing (fmriprep)")
+    rest_post: Optional[RestPostChoice] = typer.Option(None, help="Rest postprocessing (xcpd)")
+    
+    # Task: prep and post
+    task_prep: Optional[List[TaskChoice]] = typer.Option(None, help="Task preprocessing")
+    task_post: Optional[List[TaskChoice]] = typer.Option(None, help="Task postprocessing")
+
+def collect_and_expand_tasks(registry, options: TaskOptions):
+    """Collect and expand tasks"""
+    requested_tasks, rest_dependencies = parse_and_expand_tasks(registry, **options.__dict__)
+    return requested_tasks, rest_dependencies
+
+# TODO: Optimize the `all` option and `task` argument, check dag file
+def parse_and_expand_tasks(registry, **kwargs):
+    """Parse options and expand to concrete task names"""
+    
+    # Clean 'all' choices
+    if kwargs.get('task_prep'):
+        task_prep = clean_all_only([t.value for t in kwargs['task_prep']], "task_prep")
+        kwargs['task_prep'] = [TaskChoice(t) for t in task_prep]
+    
+    if kwargs.get('task_post'):
+        task_post = clean_all_only([t.value for t in kwargs['task_post']], "task_post")
+        kwargs['task_post'] = [TaskChoice(t) for t in task_post]
+    
+    if kwargs.get('task'):
+        task = clean_all_only([t.value for t in kwargs['task']], "task")
+        kwargs['task'] = [TaskChoice(t) for t in task]
+    
+    requested_tasks = registry.expand_tasks(**kwargs)
+    
+    # Get rest dependencies
+    rest_dependencies = None
+    if kwargs.get('rest_prep') or kwargs.get('rest_post'):
+        rest_dependencies = registry._expand_rest_tasks(kwargs)
+    
+    return requested_tasks, rest_dependencies
+
+@app.command()
+def run(
+    subjects: Optional[str] = typer.Option(..., help="Subject list or txt file path"),
+
+    input_dir: str = typer.Option(..., "--input", help="Input directory"),
+    output_dir: str = typer.Option(..., "--output", help="Output directory"),
+    work_dir: str = typer.Option(..., "--work", help="Work directory"),
+
+    project: str = typer.Option(..., help="Project name"),
+
+    prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps"),
+
+    structural: Optional[StructuralChoice] = typer.Option(None, help="Structural processing"),
+    mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing"),
+    session: Optional[str] = typer.Option('01', help="Session or wave ID"),
+
+    rest_prep: Optional[RestPrepChoice] = typer.Option(None, help="Rest preprocessing (fmriprep)"),
+    rest_post: Optional[RestPostChoice] = typer.Option(None, help="Rest postprocessing (xcpd)"),
+
+    task_prep: Optional[List[str]] = typer.Option(None, help="Task preprocessing (comma-separated or multiple flags)"),
+    task_post: Optional[List[str]] = typer.Option(None, help="Task postprocessing (comma-separated or multiple flags)"),
+    
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show execution plan"),
+
+    wait: bool = typer.Option(False, "--wait", help="Wait for jobs to complete"),
+    polling_interval: int = typer.Option(60, "--polling-interval", help="Polling interval (seconds)")
+):
+
+    execution_id = None
+    db_path = None
+    command_line = " ".join(sys.argv)
+    
+    # TODO: Optimize expand `task` argument
+    try:
+        parsed_task_prep = None
+        parsed_task_post = None
+
+        if task_prep:
+            expanded_prep = []
+            for item in task_prep:
+                expanded_prep.extend([t.strip() for t in item.split(',') if t.strip()])
+            parsed_task_prep = [TaskChoice(t) for t in expanded_prep]
+        
+        if task_post:
+            expanded_post = []
+            for item in task_post:
+                expanded_post.extend([t.strip() for t in item.split(',') if t.strip()])
+            parsed_task_post = [TaskChoice(t) for t in expanded_post]
+        
+        options = TaskOptions(
+            prep=prep,
+            structural=structural,
+            mriqc=mriqc,
+            session=session,
+            rest_prep=rest_prep,
+            rest_post=rest_post,
+            task_prep=parsed_task_prep,
+            task_post=parsed_task_post,
+        )
+                
+        # Validate input
+        if not Path(input_dir).exists():
+            typer.echo(f"Error: Input directory not found: {input_dir}", err=True)
+            raise typer.Exit(1)
+        
+        # Store original work_dir for database
+        original_work_dir = work_dir
+        
+        # Adjust paths for project, input_path/project/
+        if project:
+            work_dir = os.path.join(work_dir, project)
+            output_dir = os.path.join(output_dir, project)
+        
+        Path(work_dir).mkdir(parents=True, exist_ok=True)
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Load project config
+        try:
+            project_config = load_project_config(project)
+            typer.echo(f"Loaded project: {project}")
+        except FileNotFoundError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1)
+        
+        # Extract global parameters
+        global_config = project_config['global']
+        prefix = global_config['prefix']
+        envir_dir = global_config['envir_dir']
+        container_dir = envir_dir.get('container_dir')
+        
+        registry = TaskRegistry()
+
+        # Expand tasks
+        requested_tasks, rest_dependencies = collect_and_expand_tasks(registry, options)
+        if not requested_tasks:
+            typer.echo("Error: No tasks specified", err=True)
+            raise typer.Exit(1)
+        
+        typer.echo(f"Tasks: {requested_tasks}")
+        if rest_dependencies:
+            typer.echo(f"Dependencies: {rest_dependencies}")
+        
+        dag_executor = DAGExecutor(config)
+
+        # Setup context
+        if not subjects:
+            typer.echo("Error: subjects parameter is required", err=True)
+            raise typer.Exit(1)
+
+        # Parse subjects (from file or string)
+        if Path(subjects).is_file():
+            with open(subjects, "r") as f:
+                subjects = f.read().strip()
+
+        user_subjects = [s.strip() for s in subjects.split(",") if s.strip()]
+        context = {'subjects': user_subjects}
+        typer.echo(f"Subjects: {user_subjects}")
+
+        # Setup environment
+        option_env = {
+            "session": options.session,
+            "prefix": prefix,
+            "project": project,
+        }
+        
+        for key, value in envir_dir.items():
+            option_env[f"envir_dir_{key}"] = value
+        
+        option_env = {k: v for k, v in option_env.items() if v is not None}
+
+        # Setup database
+        db_config = project_config.get('database', {})
+
+        # Check if database config exists
+        if not db_config or 'db_path' not in db_config:
+            typer.echo("Error: 'database.db_path' not found in project config", err=True)
+            raise typer.Exit(1)
+
+        db_path = db_config['db_path'].replace('$WORK_DIR', original_work_dir)
+
+        # Create db directory
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        
+        # Log execution start
+        execution_id = log_pipeline_execution(
+            command_line=command_line,
+            project_name=project,
+            session=options.session,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            work_dir=work_dir,
+            subjects=context.get('subjects', []),
+            requested_tasks=requested_tasks,
+            dry_run=dry_run,
+            db_path=db_path
+        )
+        typer.echo(f"Execution ID: {execution_id}")
+
+        # Execute DAG
+        all_job_ids, context = dag_executor.execute(
+            requested_tasks=requested_tasks,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            work_dir=work_dir,
+            container_dir=container_dir,
+            dry_run=dry_run,
+            context=context,
+            option_env=option_env,
+            project_config=project_config,
+            rest_dependencies=rest_dependencies,
+            original_work_dir=original_work_dir,
+            db_path=db_path
+        )
+        # Display summary
+        typer.echo(f"\n=== Summary ===")
+        total_jobs = sum(len(job_list) for job_list in all_job_ids.values())
+        typer.echo(f"Tasks executed: {len(all_job_ids)}")
+        typer.echo(f"Jobs submitted: {total_jobs}")
+        
+        if not dry_run:
+            for task_name, job_ids in all_job_ids.items():
+                if job_ids:
+                    typer.echo(f"  {task_name}: {', '.join(job_ids)}")
+        
+        # Wait for jobs if requested
+        if wait and not dry_run:
+            all_jobs = []
+            for job_list in all_job_ids.values():
+                all_jobs.extend(job_list)
+            
+            if all_jobs:
+                typer.echo(f"\n=== Waiting for jobs ===")
+                wait_for_jobs(all_jobs, polling_interval)
+            else:
+                typer.echo("No jobs to wait for")
+        
+        # Update execution status
+        if execution_id:
+            update_pipeline_execution(
+                execution_id=execution_id,
+                status="COMPLETED",
+                total_jobs=total_jobs,
+                db_path=db_path
+            )
+        
+        typer.echo("\n=== Completed ===")
+    
+    # Record error
+    except Exception as e:
+        # Update execution status on failure
+        if execution_id:
+            update_pipeline_execution(
+                execution_id=execution_id,
+                status="FAILED",
+                error_msg=str(e),
+                db_path=db_path
+            )
+        raise e
+
+@app.command()
+def list_tasks():
+    """List available tasks"""
+    typer.echo("Available tasks:")
+    tasks = config.get('tasks', {})
+    
+    for section_name, section_tasks in tasks.items():
+        typer.echo(f"\n{section_name.upper()}:")
+        for task in section_tasks:
+            name = task.get('name', 'Unknown')
+            scripts = task.get('scripts', [])
+            deps = task.get('input_from', 'None')
+
+            typer.echo(f"  - {name}")
+            typer.echo(f"    Scripts: {', '.join(scripts)}")
+            typer.echo(f"    Dependencies: {deps}")
+
+@app.command()
+def detect_subjects(
+    input_dir: str = typer.Argument(..., help="Input directory to scan"),
+    output_file: Optional[str] = typer.Option(None, "--output", "-o", help="Output file (optional, prints to stdout if not specified)"),
+    prefix: str = typer.Option("sub-", "--prefix", "-p", help="Subject prefix")
+):
+    """
+    Detect subjects in input directory and optionally save to file.
+    
+    Examples:
+      neuro-pipeline detect-subjects /data/BIDS
+      neuro-pipeline detect-subjects /data/BIDS --output subjects.txt
+      neuro-pipeline detect-subjects /data/BIDS --prefix "sub-" --output subjects.txt
+    """
+    from .utils.detect_subjects import detect_subjects as sd
+    
+    if not Path(input_dir).exists():
+        typer.echo(f"Error: Directory not found: {input_dir}", err=True)
+        raise typer.Exit(1)
+    
+    # Detect subjects
+    subjects = sd(input_dir, prefix)
+    
+    if not subjects:
+        typer.echo(f"No subjects found with prefix: {prefix}")
+        raise typer.Exit(0)
+    
+    # Save or print
+    if output_file:
+        output_path = Path(output_file)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(output_file, "w") as f:
+            f.write(",".join(subjects))
+        
+        typer.echo(f"Detected {len(subjects)} subjects")
+        typer.echo(f"Saved to: {output_file}")
+        typer.echo(f"Subjects: {', '.join(subjects[:5])}{'...' if len(subjects) > 5 else ''}")
+    else:
+        typer.echo(f"Detected {len(subjects)} subjects:")
+        typer.echo(",".join(subjects))
+
+if __name__ == "__main__":
+    app()

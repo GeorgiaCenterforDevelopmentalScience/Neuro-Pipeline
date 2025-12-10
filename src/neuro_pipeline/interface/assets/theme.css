@@ -1,0 +1,210 @@
+/* GCDS Neuro Pipeline */
+
+#app-container.theme-dark {
+    --primary-color: #051729;
+    --secondary-color: #4c6979;
+    --accent-color: #d9c37c;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --light-color: #ffffff;
+    --dark-color: #1e293b;
+    --text-color: #ffffff;
+    --bg-color: #0a0a0a;
+    --card-bg: rgba(20, 20, 20, 0.8);
+    --border-color: #ffffff;
+    --sidebar-bg: rgba(30, 30, 40, 0.68);
+    --sidebar-text: #fff;
+    --sidebar-hover: #303f6d;
+}
+#app-container.theme-dark .btn-primary {
+    background-color: var(--accent-color) !important;
+    border-color: var(--accent-color) !important;
+}
+
+/* Body */
+#app-container.theme-dark body {
+    background: linear-gradient(135deg, var(--bg-color) 0%, var(--dark-color) 100%);
+    color: var(--text-color);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    transition: all 0.3s ease;
+}
+
+/* Sidebar */
+#app-container.theme-dark .sidebar {
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    border-right: 1px solid var(--border-color);
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 1000;
+    overflow-y: auto;
+    border-top-right-radius: 12px;
+    border-bottom-right-radius: 12px;
+    backdrop-filter: blur(18px);
+    width: 250px;
+    padding: 24px 0 0 0;
+    transition: width 0.3s ease;
+}
+
+#app-container.theme-dark .sidebar.collapsed {
+    width: 60px !important;
+}
+
+/* Navigation Links */
+#app-container.theme-dark .sidebar .nav-link {
+    color: #fff !important;
+    border-radius: 8px;
+    padding: 10px 18px;
+    margin: 4px 0;
+    font-size: 1.08rem;
+    display: flex;
+    align-items: center;
+    background: none !important;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+#app-container.theme-dark .sidebar .nav-link i {
+    color: #fff !important;
+    margin-right: 10px;
+    font-size: 1.18em;
+    transition: color 0.2s, text-shadow 0.2s;
+}
+
+#app-container.theme-dark .sidebar .nav-link:hover {
+    transform: translateX(5px);
+}
+
+#app-container.theme-dark .sidebar .nav-link:hover i {
+    color: #b6e0ff !important;
+    text-shadow: 0 0 8px #b6e0ff;
+}
+
+#app-container.theme-dark .sidebar .nav-link.active {
+    color: #fff !important;
+    text-shadow: 0 0 14px #b6e0ff, 0 0 2px #fff;
+}
+
+/* Sidebar Title */
+#app-container.theme-dark .sidebar .sidebar-title {
+    color: #fff;
+    font-size: 1.18rem;
+    font-weight: 600;
+    margin-bottom: 24px;
+    margin-left: 18px;
+    letter-spacing: 1.5px;
+}
+
+#app-container.theme-dark .sidebar h2 {
+    font-size: 1.7rem !important;
+    font-weight: 500 !important;
+    color: #fff;
+    font-weight: 300;
+    letter-spacing: 2px;
+}
+
+/* Main Content Area */
+#app-container.theme-dark .main-content {
+    background: transparent;
+    padding: 20px;
+    min-height: 100vh;
+    margin-left: 250px;
+    transition: margin-left 0.3s;
+}
+
+#app-container.theme-dark .sidebar.collapsed ~ .main-content {
+    margin-left: 60px;
+}
+
+/* Background Animation */
+#app-container.theme-dark .tech-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background:
+        radial-gradient(circle at 20% 80%, rgba(0, 255, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(0, 128, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(255, 0, 128, 0.05) 0%, transparent 50%);
+    animation: backgroundShift 20s ease-in-out infinite;
+}
+
+@keyframes backgroundShift {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.1) rotate(1deg); }
+}
+
+/* Tab Background */
+#app-container.theme-dark .tab-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -2;
+    background: radial-gradient(ellipse at center, rgba(0, 255, 255, 0.05) 0%, transparent 70%);
+}
+
+/* Sidebar Toggle Button */
+#app-container.theme-dark .sidebar-toggle {
+    position: fixed;
+    top: 6px;
+    left: 8px;
+    z-index: 1001;
+    background-color: var(--primary-color);
+    border: none;
+    color: var(--light-color);
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#app-container.theme-dark .sidebar-toggle:hover {
+    background-color: var(--secondary-color);
+    transform: translateY(-1px);
+}
+
+/* Transparent Backgrounds */
+body,
+html,
+.app-container,
+.main-content {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    #app-container.theme-dark .sidebar {
+        width: 100% !important;
+        position: relative !important;
+        height: auto !important;
+    }
+    
+    #app-container.theme-dark .main-content {
+        margin-left: 0 !important;
+        padding: 10px !important;
+    }
+    
+    #app-container.theme-dark .sidebar.collapsed {
+        width: 100% !important;
+    }
+    
+    #app-container.theme-dark .card {
+        margin-bottom: 1rem !important;
+    }
+}
