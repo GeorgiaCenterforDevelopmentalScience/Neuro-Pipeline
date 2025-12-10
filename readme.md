@@ -409,11 +409,47 @@ neuropipe run \
   --mriqc all
 ```
 
-### Workflow 2: Reprocessing (Skip Preprocessing)
+### Workflow 2: Preparation (unzip+recon)
+
+Unzip files:
+```bash
+neuropipe run \
+  --subjects 001,002,003 \
+  --input /data/raw_zip_files \
+  --output /data/processed \
+  --work /data/work \
+  --project my_study \
+  --prep unzip
+```
+
+Reconstruct to BIDS:
+```bash
+neuropipe run \
+  --subjects 001,002 \
+  --input /data/raw \
+  --output /data/processed \
+  --work /data/work \
+  --project my_study \
+  --prep recon
+```
+
+### Workflow 3: Reprocessing (Skip preparation phase)
 
 If you already have BIDS data:
 
 **Using CLI**:
+
+Only preprocess structural MRI:
+```bash
+neuropipe run \
+  --subjects 001,002 \
+  --input /data/BIDS \
+  --output /data/processed \
+  --work /data/work \
+  --project my_study \
+  --structural volume
+```
+
 For RS data:
 ```bash
 neuropipe run \
@@ -437,7 +473,7 @@ neuropipe run \
   --task-post kidvid
 ```
 
-### Workflow 3: Only Quality Control
+### Workflow 4: Only Quality Control
 
 Run MRIQC on existing BIDS data:
 
@@ -632,6 +668,6 @@ A: The pipeline is designed for HPC/SLURM environments. Local execution would re
 ---
 
 **Version**: 0.1.0  
-**Last Updated**: December 2024
+**Last Updated**: December 2025
 
 For questions or issues, please contact the pipeline maintainer, [QiuyuYu](https://github.com/QiuyuYu3), or submit an issue to the repository.
