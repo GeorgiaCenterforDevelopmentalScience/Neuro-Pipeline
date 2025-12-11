@@ -665,6 +665,9 @@ A: Work directory (for fMRIPrep and MRIQC) needs ~10-20GB per subject. Output de
 **Q: Can I use this on local computers?**  
 A: The pipeline is designed for HPC/SLURM environments. Local execution would require modifications.
 
+**Q: What if analysis script failed to run?**  
+A: Verify the exported variables and environment settings by checking the contents of the `log/wrapper` folder in the working directory, paying particular attention to paths and submitted Slurm commands. Next, inspect the Slurm logs located under `log/subjects`. Finally, review the analysis script to ensure its code is correct. It is recommended to use `echo` or `print` statements to confirm that variables are being passed as intended.
+
 ---
 
 **Version**: 0.1.0  
