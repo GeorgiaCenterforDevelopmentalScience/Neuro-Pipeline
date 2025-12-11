@@ -18,7 +18,7 @@ prefix="$PREFIX"
 
 # Use the global variables
 input_dir="$INPUT_DIR"
-output_dir="$OUTPUT_DIR"/ses-${SESSION}  # change output_dir based on output_pattern in yaml file
+output_dir="$OUTPUT_DIR"/ses-${SESSION}
 work_dir="$WORK_DIR"
 
 
@@ -113,50 +113,3 @@ done
 
 # Display log contents
 cat "$rename_log"
-
-# TODO: maybe remove in the future
-# ==================
-# Auto Detect Subjects
-# ==================
-echo -e "\n=== Auto-detecting subjects ==="
-
-# Generate auto_subjects.txt file
-auto_subjects_file="$work_dir/ses-${SESSION}/log/auto_subjects.txt"
-echo "Generating auto_subjects.txt at: $auto_subjects_file"
-
-# Scan for renamed subject directories
-subjects=()
-for dir in "$output_dir"/${prefix}*/; do
-    if [[ -d "$dir" ]]; then
-        folder_name=$(basename "$dir")
-        folder_name="${folder_name%/}"
-        subject_id="${folder_name#$prefix}"
-        
-        if [[ -n "$subject_id" ]]; then
-            subjects+=("$subject_id")
-            echo "Found subject: $subject_id"
-        fi
-    fi
-done
-
-# Write to auto_subjects.txt
-if [[ ${#subjects[@]} -gt 0 ]]; then
-    printf "%s" "${subjects[0]}" > "$auto_subjects_file"
-    for ((i=1; i<${#subjects[@]}; i++)); do
-        printf ",%s" "${subjects[$i]}" >> "$auto_subjects_file"
-    done
-    echo ""
-    echo "Success: Detected ${#subjects[@]} subjects"
-    echo "Saved to: $auto_subjects_file"
-    echo ""
-    echo "Subject list (comma-separated):"
-    cat "$auto_subjects_file"
-    echo ""
-    echo "Individual subjects:"
-    for subject in "${subjects[@]}"; do
-        echo "  - $subject"
-    done
-else
-    echo "Warning: No subjects found with prefix: $prefix"
-    echo "" > "$auto_subjects_file"
-fi

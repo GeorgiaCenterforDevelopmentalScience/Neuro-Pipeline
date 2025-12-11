@@ -10,13 +10,13 @@ envir_dir:
   template_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/"
   atlas_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/"
   freesurfer_dir: "/work/cglab/containers/.licenses/freesurfer"
-  config_dir: "/home/$USER/Desktop/scripts/BIDS"
+  config_dir: "/work/cglab/conda_env/config_for_BIDS"
   stimulus_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/processing_scripts"
 
 # Global Python Environment
 global_python:
   - ml Python/3.11.3-GCCcore-12.3.0
-  - . /home/qy49547/virtual_environ/neuro_pipeline/bin/activate
+  - . /home/$USER/virtual_environ/neuro_pipeline/bin/activate
 
 # Environment Modules
 modules:
@@ -44,7 +44,7 @@ setup:
     
     - name: recon_bids
       container: "dcm2bids_3.2.0.sif"
-      config: "config.json"
+      config: "branch_config.json"
 
   # Structural MRI
     - name: afni_volume
