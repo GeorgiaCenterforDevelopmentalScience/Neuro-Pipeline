@@ -71,9 +71,9 @@ def register_callbacks(app):
             if detect_clicks is None:
                 return "", "", [], ""
             
-            if not prefix or not directory:
-                return dbc.Alert("Please provide both prefix and directory", color="warning"), "", [], ""
-            
+            if not directory:
+                return dbc.Alert("Please provide a directory", color="warning"), "", [], ""
+
             try:
                 from ..pipeline.utils.detect_subjects import detect_subjects
                 

@@ -18,12 +18,20 @@ def detect_subjects(input_dir: str, prefix: str = "sub-") -> List[str]:
 
     subjects = []
     for name in os.listdir(input_dir):
+        full_path = os.path.join(input_dir, name)
+
+        if not os.path.isdir(full_path):
+            continue
+
+        if prefix == "":
+            subjects.append(name)
+            continue
+
         if name.startswith(prefix):
-            full_path = os.path.join(input_dir, name)
-            if os.path.isdir(full_path):
-                subject_id = name[len(prefix):]
-                if subject_id:
-                    subjects.append(subject_id)
+            subject_id = name[len(prefix):]
+            if subject_id:
+                subjects.append(subject_id)
+
     
     subjects.sort()
     return subjects
@@ -68,13 +76,10 @@ def main():
         print(f"Error: Input directory does not exist: {input_dir}")
         sys.exit(1)
 
-    # Detect subjects
     subjects = detect_subjects(input_dir, prefix)
     
-    # Save to file
     save_subjects_to_file(subjects, output_file)
     
-    # Print results
     if subjects:
         print(f"Success: Detected {len(subjects)} subjects")
         print(f"Saved to: {output_file}")

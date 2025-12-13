@@ -24,7 +24,6 @@ echo "Output directory: $output_dir"
 echo "Work directory: $work_dir"
 
 # ---------------------------------- Run Processing -------------------------------------
-CONFIG_DIR=/home/$USER/Desktop/scripts/BIDS
 
 singularity run \
                 -e --containall \
