@@ -79,10 +79,7 @@ def ensure_table_exists(conn, table_name: str):
 def get_db_connection(db_path: str):
     """Get database connection and ensure tables exist"""
     ensure_db_dir(db_path)
-    
-    # WAL mode for better concurrency
-    conn = sqlite3.connect(db_path, timeout=30.0)
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn = sqlite3.connect(db_path)
     
     for table in ["job_status", "pipeline_executions", "command_outputs"]:
         ensure_table_exists(conn, table)
