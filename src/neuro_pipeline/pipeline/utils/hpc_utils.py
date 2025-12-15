@@ -327,13 +327,13 @@ def create_wrapper_script(
     # Prepare global Python commands
     global_python_str = ""
     if project_config:
-        global_python = project_config['project'].get('global_python', [])
+        global_python = project_config.get('global_python', [])
         if global_python:
             global_python_str = "\n".join(global_python)
     
     # Prepare global environment variables
     global_env_vars = {}
-    envir_dir = project_config['project'].get('envir_dir') if project_config else None
+    envir_dir = project_config.get('envir_dir') if project_config else None
     if envir_dir:
         global_env_vars.update(envir_dir)
     

@@ -2,6 +2,40 @@
 
 ---
 
+## [0.12.0-alpha] – 2025-12-15
+
+### Added
+- Automatic database file backup:
+  - Each run now creates a backup.
+  - Keeps a maximum of 10 backups; older backups are automatically removed.
+- Default DAG job (`merge_logs`) added to automatically merge all JSON logs into a single database file after all tasks complete (archived JSONL files are excluded).  
+- Standalone scripts for:
+  - Manual backup of database files.
+  - Manual merging of JSON logs into a database file, for flexible user use.  
+
+### Changed
+- Refactored database handling:
+  - Replaced the previous DB file format with JSONL-based storage for safer, more reliable logging.  
+  - Integrated new logging and merging mechanism into DAG execution flow.  
+
+### Fixed
+- Resolved critical issue where canceling jobs (e.g., via `scancel`) could corrupt the database file.  
+- Improved robustness of database operations under incomplete or interrupted runs.  
+
+### Removed
+- Deprecated DB handling code prone to corruption during job interruptions.
+
+## [0.11.1-alpha] – 2025-12-12
+### Changed
+- Updated `config_dir` in project config yaml.
+
+### Fixed
+- Fixed an issue where IDs could not be detected when the prefix was empty.
+
+### Removed
+- Remove WAL mode configuration from database connection setup.
+- Removed hard-coded `config_dir` in dcm2bids script.
+
 ## [0.11.0-alpha] – 2025-12-10
 ### Changed
 - Interface layout and logic were refactored for better clarity and maintainability.

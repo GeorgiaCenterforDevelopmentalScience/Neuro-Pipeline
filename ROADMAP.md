@@ -14,7 +14,7 @@ A robust, modular, reproducible pipeline for neuroimaging preprocessing and anal
 
 # Milestones
 
-## v0.11.x
+## v0.13.x
 ### Core Features
 - Complete DAG visualization and pipeline graph rendering (e.g., `T1 → sswarper → task preprocessing`).
 - Improve argument structure for task-level configurations.
@@ -28,9 +28,9 @@ A robust, modular, reproducible pipeline for neuroimaging preprocessing and anal
 
 ---
 
-## v0.12.x – Modalities Expansion
+## v0.14.x – Modalities Expansion
 ### Pipeline Enhancements
-- Optimize CLI commands and add a database command.
+- Optimize CLI commands.
 - Optimize DAG-related code to reduce hard-coding.
 
 ### Documentation
@@ -38,7 +38,7 @@ A robust, modular, reproducible pipeline for neuroimaging preprocessing and anal
 
 ---
 
-## v0.13.x – Validation & Standards
+## v0.15.x – Validation & Standards
 ### Standards & Interoperability
 - Optimize task-related CLI commands to automatically detect tasks and generate CLI instructions instead of hard-coding them.
 

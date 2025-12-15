@@ -173,7 +173,21 @@ class DAGExecutor:
         self.project_config = project_config
         all_job_ids = {}
         
-        for task_name in self.build_dag(requested_tasks, rest_dependencies):
+        # Build DAG for requested tasks
+        execution_order = self.build_dag(requested_tasks, rest_dependencies)
+        
+        # Add merge_logs with dependencies on all tasks (if not dry_run)
+        if not dry_run:
+            merge_config = self._get_merge_config()
+            if merge_config:
+                self.add_task('merge_logs', merge_config)
+                # Make merge_logs depend on ALL requested tasks
+                for task_name in execution_order:
+                    self.nodes['merge_logs'].add_dependency(task_name)
+                execution_order.append('merge_logs')
+        
+        # Execute all tasks including merge_logs
+        for task_name in execution_order:
             node = self.nodes[task_name]
             wait_jobs = []
             
@@ -182,27 +196,35 @@ class DAGExecutor:
                 if dep_name in all_job_ids:
                     wait_jobs.extend(all_job_ids[dep_name])
             
+            # Use unified submission for all tasks (including merge_logs)
+            if task_name == 'merge_logs':
+                subjects_str = 'dummy'
+            else:
+                subjects_str = ','.join(context['subjects']) if 'subjects' in context else ''
+            
             job_ids = self._execute_single_task(
-                node,
-                subjects=','.join(context['subjects']) if 'subjects' in context else '',
-                input_dir=input_dir,
-                output_dir=output_dir,
-                work_dir=work_dir,
-                container_dir=container_dir,
-                dry_run=dry_run,
-                wait_jobs=wait_jobs,
-                option_env=option_env,
-                project_config=project_config,
-                requested_tasks=requested_tasks,
-                original_work_dir=original_work_dir,
+                node, subjects=subjects_str,
+                input_dir=input_dir, output_dir=output_dir, work_dir=work_dir,
+                container_dir=container_dir, dry_run=dry_run, wait_jobs=wait_jobs,
+                option_env=option_env, project_config=project_config,
+                requested_tasks=requested_tasks, original_work_dir=original_work_dir,
                 db_path=db_path
             )
             
-            all_job_ids[task_name] = job_ids
-            node.job_ids = job_ids
+            all_job_ids[task_name] = job_ids if job_ids else []
+            node.job_ids = job_ids if job_ids else []
             node.completed = True
         
         return all_job_ids, context
+
+    def _get_merge_config(self) -> Optional[Dict[str, Any]]:
+        """Get merge_logs config from tasks sections"""
+        for section in self.config.get('tasks', {}).values():
+            if isinstance(section, list):
+                for task in section:
+                    if task.get('name') == 'merge_logs':
+                        return task
+        return None       
 
     def _execute_single_task(self, node: 'TaskNode', subjects: str, input_dir: str,
                         output_dir: str, work_dir: str, container_dir: str,

@@ -20,9 +20,7 @@ from .config_utils import (
     TaskChoice,
     clean_all_only,
     find_task_config_by_name,
-    find_task_config_by_name_with_project,
-    get_task_params,
-    resolve_template_paths
+    find_task_config_by_name_with_project
 )
 
 __all__ = [
@@ -36,17 +34,12 @@ __all__ = [
     
     # Config utilities
     "PrepChoice",
-    "FieldMapChoice",
     "StructuralChoice", 
     "RestPrepChoice",
     "RestPostChoice",
     "MRIQCChoice",
     "TaskChoice",
-    "YesNoChoice",
-    "TemplateChoice",
     "clean_all_only",
     "find_task_config_by_name",
-    "find_task_config_by_name_with_project",
-    "get_task_params",
-    "resolve_template_paths"
+    "find_task_config_by_name_with_project"
 ]

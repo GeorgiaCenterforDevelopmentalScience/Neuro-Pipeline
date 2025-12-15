@@ -8,8 +8,8 @@ defaults:
 # HPC Resource
 resource_profiles:
   data_manage:
-    memory: "16gb"
-    time: "00:30:00"
+    memory: "2gb"
+    time: "00:20:00"
 
   light_short:
     memory: "16gb"
@@ -118,6 +118,12 @@ tasks:
       input_from: recon_bids # recon_bids is the correct one, not mriqc_individual
       scripts: [mriqc_group.sh]
       output_pattern: "{base_output}/quality_control/mriqc"
+
+  # Database
+  merge_logs:
+    - name: merge_logs
+      profile: data_manage
+      scripts: [merge_logs.py]
 
 # array jobs
 array_config:

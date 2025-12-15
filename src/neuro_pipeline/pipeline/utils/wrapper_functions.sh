@@ -1,33 +1,36 @@
 #!/bin/bash
 
-# Logging functions
-log_start() {
-    local subject="$1"
-    local task_name="$2"
-    local log_path="$3"
-    local job_id="${4:-}"
-    local node_list="${5:-}"
-    local session="${6:-}"
+# Global cleanup handler for signals
+cleanup_on_signal() {
+    local signal_name="$1"
+    local exit_code="$2"
     
-    local session_arg=""
-    if [ -n "$session" ]; then
-        session_arg="--session $session"
+    echo "" | tee -a "$LOG_PATH" 2>/dev/null
+    echo "=== Job Interrupted: $(date) ===" | tee -a "$LOG_PATH" 2>/dev/null
+    echo "Signal: $signal_name (exit code: $exit_code)" | tee -a "$LOG_PATH" 2>/dev/null
+    
+    # Log cancellation to JSON (fast, no timeout needed)
+    if [ -n "$SUBJECT_ID" ] && [ -n "$TASK_NAME" ] && [ -n "$DB_PATH" ]; then
+        echo "Logging cancellation..." | tee -a "$LOG_PATH" 2>/dev/null
+        
+        python3 "$SCRIPT_DIR/utils/job_db.py" log_end \
+            "$SUBJECT_ID" "$TASK_NAME" "CANCELLED" \
+            --exit-code "$exit_code" \
+            --error-msg "Job interrupted by $signal_name" \
+            --session "${SESSION:-}" \
+            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
     fi
     
-    python3 "$SCRIPT_DIR/utils/job_db.py" log_start \
-        "$subject" "$task_name" \
-        --log-file-path "$log_path" \
-        --job-id "$job_id" \
-        --node-list "$node_list" \
-        $session_arg \
-        --db-path "$DB_PATH"
-    
-    if [ $? -ne 0 ]; then
-        echo "WARNING: Failed to log job start to database" >&2
-    fi
+    echo "Cleanup complete, exiting..." | tee -a "$LOG_PATH" 2>/dev/null
+    exit "$exit_code"
 }
 
-# Get SLURM job duration
+# Register signal handlers
+trap 'cleanup_on_signal SIGTERM 143' SIGTERM
+trap 'cleanup_on_signal SIGINT 130' SIGINT
+trap 'cleanup_on_signal SIGHUP 129' SIGHUP
+
+# Get SLURM job duration from accounting
 get_slurm_duration() {
     local job_id="$1"
     
@@ -60,13 +63,14 @@ execute_wrapper() {
     IFS=' ' read -ra subjects_array <<< "$SUBJECTS"
     NUM_SUBJECTS=${#subjects_array[@]}
     
-    # Select subject based on array job or single execution
+    # Select subject based on array task ID
     if [ -n "$SLURM_ARRAY_TASK_ID" ] && [ "$NUM_SUBJECTS" -gt 0 ] && [ "${subjects_array[0]}" != "dummy" ]; then
         subject="${subjects_array[$((SLURM_ARRAY_TASK_ID - 1))]}"
     else
         subject="${subjects_array[0]}"
     fi
     
+    # Export for signal handler access
     export SUBJECT_ID="$subject"
     
     # Setup task name
@@ -89,7 +93,14 @@ execute_wrapper() {
     fi
     mkdir -p "$SUB_LOG_DIR"
     
-    LOG_PATH="$SUB_LOG_DIR/${task_name}.log"
+    # Create log file with timestamp and job_id
+    timestamp=$(date +%Y%m%d_%H%M%S)
+    if [ -n "$SLURM_ARRAY_TASK_ID" ]; then
+        LOG_PATH="$SUB_LOG_DIR/${task_name}_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}_${timestamp}.log"
+    else
+        LOG_PATH="$SUB_LOG_DIR/${task_name}_${SLURM_JOB_ID}_${timestamp}.log"
+    fi
+    
     export SUB_LOG_DIR LOG_PATH
     
     # Setup database path
@@ -106,7 +117,7 @@ execute_wrapper() {
     execute_script_with_logging "$script_path" "$subject" "$task_name"
 }
 
-# Create environment file
+# Create environment file with all necessary variables
 create_env_file() {
     ENV_FILE="$SUB_LOG_DIR/env_${TASK_NAME}_${SLURM_ARRAY_TASK_ID:-0}_${subject}_$RANDOM.sh"
     export ENV_FILE
@@ -173,20 +184,11 @@ execute_script_with_logging() {
     # Verify script exists
     if [ ! -f "$script_path" ]; then
         echo "ERROR: Script not found: $script_path" | tee -a "$LOG_PATH"
-        
-        python3 "$SCRIPT_DIR/utils/job_db.py" log_end \
-            "$subject" "$task_name" "FAILED" \
-            --error-msg "Script not found: $script_path" \
-            --exit-code 127 \
-            --db-path "$DB_PATH"
-        
         return 127
     fi
     
-    # Record bash timing
     local bash_start_time=$(date +%s)
     
-    # Get full SLURM job ID
     local full_job_id="${SLURM_JOB_ID}"
     if [ -n "$SLURM_ARRAY_TASK_ID" ]; then
         full_job_id="${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
@@ -199,8 +201,15 @@ execute_script_with_logging() {
     echo "SLURM Job ID: ${full_job_id:-N/A}" | tee -a "$LOG_PATH"
     echo "===========================================" | tee -a "$LOG_PATH"
     
-    # Log start to database
-    log_start "$subject" "$task_name" "$LOG_PATH" "$full_job_id" "$SLURM_JOB_NODELIST" "$SESSION"
+    # Log start to JSON (no timeout needed)
+    python3 "$SCRIPT_DIR/utils/job_db.py" log_start \
+        "$subject" "$task_name" \
+        --log-file-path "$LOG_PATH" \
+        --job-id "$full_job_id" \
+        --node-list "$SLURM_JOB_NODELIST" \
+        --session "${SESSION:-}" \
+        --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
+    echo "WARNING: Failed to log job start" | tee -a "$LOG_PATH"
     
     # Execute the script
     if [[ "$script_path" == *.py ]]; then
@@ -210,7 +219,6 @@ execute_script_with_logging() {
     fi
     script_status=$?
     
-    # Record bash timing
     local bash_end_time=$(date +%s)
     local bash_duration=$((bash_end_time - bash_start_time))
     
@@ -219,7 +227,7 @@ execute_script_with_logging() {
     echo "Exit code: $script_status" | tee -a "$LOG_PATH"
     echo "Bash measured duration: ${bash_duration} seconds" | tee -a "$LOG_PATH"
     
-    # Try to get SLURM duration (more accurate)
+    # Try to get SLURM duration
     local slurm_duration=""
     local final_duration=$bash_duration
     
@@ -227,7 +235,7 @@ execute_script_with_logging() {
         slurm_duration=$(get_slurm_duration "$full_job_id")
         
         if [ -n "$slurm_duration" ] && [ "$slurm_duration" -gt 0 ]; then
-            echo "SLURM measured duration: ${slurm_duration} seconds ($(awk "BEGIN {printf \"%.2f\", $slurm_duration/60}") minutes)" | tee -a "$LOG_PATH"
+            echo "SLURM measured duration: ${slurm_duration} seconds" | tee -a "$LOG_PATH"
             final_duration=$slurm_duration
         fi
     fi
@@ -235,7 +243,7 @@ execute_script_with_logging() {
     echo "Final recorded duration: ${final_duration} seconds" | tee -a "$LOG_PATH"
     echo "===========================================" | tee -a "$LOG_PATH"
     
-    # Log command output to database (skip for unzip task)
+    # Log command output (skip for unzip task)
     if [ "$task_name" != "unzip" ]; then
         if [ -f "$LOG_PATH" ]; then
             output_content=$(tail -n 50 "$LOG_PATH" 2>/dev/null || echo "")
@@ -250,17 +258,20 @@ execute_script_with_logging() {
             --exit-code "$script_status" \
             --log-file-path "$LOG_PATH" \
             --job-id "$full_job_id" \
-            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
+            --session "${SESSION:-}" \
+            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
+        echo "WARNING: Failed to log command output" | tee -a "$LOG_PATH"
     fi
     
-    # Log end with session
+    # Log end to JSON
     if [ $script_status -eq 0 ]; then
         python3 "$SCRIPT_DIR/utils/job_db.py" log_end \
             "$subject" "$task_name" "SUCCESS" \
             --exit-code "$script_status" \
             --duration-seconds "$final_duration" \
             --session "${SESSION:-}" \
-            --db-path "$DB_PATH"
+            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
+        echo "WARNING: Failed to log job end" | tee -a "$LOG_PATH"
     else
         python3 "$SCRIPT_DIR/utils/job_db.py" log_end \
             "$subject" "$task_name" "FAILED" \
@@ -268,14 +279,8 @@ execute_script_with_logging() {
             --exit-code "$script_status" \
             --duration-seconds "$final_duration" \
             --session "${SESSION:-}" \
-            --db-path "$DB_PATH"
-    fi
-    
-    local db_status=$?
-    if [ $db_status -eq 0 ]; then
-        echo "Database logging: SUCCESS" | tee -a "$LOG_PATH"
-    else
-        echo "WARNING: Database logging failed (exit code: $db_status)" | tee -a "$LOG_PATH"
+            --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
+        echo "WARNING: Failed to log job end" | tee -a "$LOG_PATH"
     fi
     
     return $script_status

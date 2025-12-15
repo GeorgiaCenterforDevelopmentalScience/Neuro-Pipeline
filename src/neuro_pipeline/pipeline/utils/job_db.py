@@ -3,7 +3,10 @@
 import sqlite3
 from datetime import datetime
 import os
+import json
+import time
 from typing import Optional
+from pathlib import Path
 import typer
 
 app = typer.Typer(help="Task database management tool")
@@ -14,7 +17,6 @@ def ensure_db_dir(db_path: str):
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir, exist_ok=True)
 
-# Set up default tables
 def ensure_table_exists(conn, table_name: str):
     """Create table if not exists"""
     c = conn.cursor()
@@ -114,18 +116,32 @@ def log_job_start(
     node_list: Optional[str] = None,
     db_path: str = "pipeline_jobs.db"
 ):
-    """Log job start"""
+    """Log job start to JSON file"""
     try:
-        conn = get_db_connection(db_path)
-        c = conn.cursor()
+        # Setup JSON directory
+        db_dir = os.path.dirname(db_path)
+        json_dir = os.path.join(db_dir, "json", task_name)
+        os.makedirs(json_dir, exist_ok=True)
         
-        c.execute('''
-            INSERT INTO job_status (subject, task_name, session, start_time, status, log_path, job_id, node_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (subject, task_name, session, datetime.now().isoformat(), "RUNNING", log_file_path, job_id, node_list))
+        json_file = os.path.join(json_dir, f"{job_id or 'unknown'}_{int(time.time())}.jsonl")
         
-        conn.commit()
-        conn.close()
+        record = {
+            "event": "start",
+            "timestamp": datetime.now().isoformat(),
+            "subject": subject,
+            "task_name": task_name,
+            "session": session,
+            "log_path": log_file_path,
+            "job_id": job_id,
+            "node_name": node_list
+        }
+        
+        # Write to JSON
+        with open(json_file, 'a') as f:
+            f.write(json.dumps(record) + '\n')
+            f.flush()
+            os.fsync(f.fileno())
+        
         typer.echo(f"Job started: {subject} - {task_name} (session: {session})")
     except Exception as e:
         typer.echo(f"Error logging job start: {e}", err=True)
@@ -143,44 +159,44 @@ def log_job_end(
     exit_code: Optional[int] = None,
     db_path: str = "pipeline_jobs.db"
 ):
-    """Log job end"""
+    """Log job end to JSON file"""
     try:
-        conn = get_db_connection(db_path)
-        c = conn.cursor()
+        # Find most recent JSON file for this task
+        db_dir = os.path.dirname(db_path)
+        json_dir = os.path.join(db_dir, "json", task_name)
         
-        end_time = datetime.now().isoformat()
+        if not os.path.exists(json_dir):
+            typer.echo(f"Warning: JSON dir not found: {json_dir}", err=True)
+            return
         
-        # Calculate duration
+        json_files = sorted(Path(json_dir).glob("*.jsonl"), key=os.path.getmtime, reverse=True)
+        if not json_files:
+            typer.echo(f"Warning: No JSON files found for task: {task_name}", err=True)
+            return
+        
+        json_file = str(json_files[0])
+        
         duration_hours = None
         if duration_seconds is not None:
             duration_hours = round(duration_seconds / 3600, 3)
-        else:
-            where_clause = 'subject=? AND task_name=? AND status="RUNNING"'
-            params = [subject, task_name]
-            if session:
-                where_clause += ' AND session=?'
-                params.append(session)
-            
-            c.execute(f'SELECT start_time FROM job_status WHERE {where_clause}', params)
-            row = c.fetchone()
-            if row and row[0]:
-                duration_hours = calculate_duration_hours(row[0], end_time)
         
-        # Update job status
-        where_clause = 'subject=? AND task_name=? AND status="RUNNING"'
-        params = [end_time, status, error_msg, duration_hours, exit_code, subject, task_name]
-        if session:
-            where_clause += ' AND session=?'
-            params.append(session)
+        record = {
+            "event": "end",
+            "timestamp": datetime.now().isoformat(),
+            "subject": subject,
+            "task_name": task_name,
+            "session": session,
+            "status": status,
+            "error_msg": error_msg,
+            "duration_hours": duration_hours,
+            "exit_code": exit_code
+        }
         
-        c.execute(f'''
-            UPDATE job_status
-            SET end_time=?, status=?, error_msg=?, duration_hours=?, exit_code=?
-            WHERE {where_clause}
-        ''', params)
-        
-        conn.commit()
-        conn.close()
+        # Append to JSON
+        with open(json_file, 'a') as f:
+            f.write(json.dumps(record) + '\n')
+            f.flush()
+            os.fsync(f.fileno())
         
         duration_str = f" ({duration_hours:.3f}h)" if duration_hours else ""
         typer.echo(f"Job ended: {subject} - {task_name} ({status}){duration_str}")
@@ -202,39 +218,59 @@ def log_pipeline_execution(
     total_jobs: int = 0,
     db_path: str = "pipeline_jobs.db"
 ):
-    """Log pipeline execution"""
-    conn = get_db_connection(db_path)
-    c = conn.cursor()
-    
-    # Convert list to comma-separated string
-    if isinstance(subjects, list):
-        subjects_str = ','.join(subjects)
-    elif isinstance(subjects, str):
-        subjects_str = subjects
-    else:
-        subjects_str = None
-    
-    if isinstance(requested_tasks, list):
-        tasks_str = ','.join(requested_tasks)
-    elif isinstance(requested_tasks, str):
-        tasks_str = requested_tasks
-    else:
-        tasks_str = None
-    
-    c.execute('''
-        INSERT INTO pipeline_executions 
-        (command_line, project_name, session, input_dir, output_dir, work_dir, 
-         subjects, requested_tasks, dry_run, total_jobs)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (command_line, project_name, session, input_dir, output_dir, work_dir,
-          subjects_str, tasks_str, dry_run, total_jobs))
-    
-    execution_id = c.lastrowid
-    conn.commit()
-    conn.close()
-    
-    typer.echo(f"Pipeline execution logged, ID: {execution_id}")
-    return execution_id
+    """Log pipeline execution to JSON file"""
+    try:
+        # Setup JSON directory
+        db_dir = os.path.dirname(db_path)
+        json_dir = os.path.join(db_dir, "json", "_pipeline")
+        os.makedirs(json_dir, exist_ok=True)
+        
+        execution_id = int(time.time() * 1000)
+        json_file = os.path.join(json_dir, f"execution_{execution_id}.jsonl")
+        
+        # Convert lists to strings
+        if isinstance(subjects, list):
+            subjects_str = ','.join(subjects)
+        elif isinstance(subjects, str):
+            subjects_str = subjects
+        else:
+            subjects_str = None
+        
+        if isinstance(requested_tasks, list):
+            tasks_str = ','.join(requested_tasks)
+        elif isinstance(requested_tasks, str):
+            tasks_str = requested_tasks
+        else:
+            tasks_str = None
+        
+        record = {
+            "event": "pipeline_start",
+            "execution_id": execution_id,
+            "timestamp": datetime.now().isoformat(),
+            "command_line": command_line,
+            "project_name": project_name,
+            "session": session,
+            "input_dir": input_dir,
+            "output_dir": output_dir,
+            "work_dir": work_dir,
+            "subjects": subjects_str,
+            "requested_tasks": tasks_str,
+            "dry_run": dry_run,
+            "total_jobs": total_jobs,
+            "status": "RUNNING"
+        }
+        
+        # Write to JSON
+        with open(json_file, 'a') as f:
+            f.write(json.dumps(record) + '\n')
+            f.flush()
+            os.fsync(f.fileno())
+        
+        typer.echo(f"Pipeline execution logged, ID: {execution_id}")
+        return execution_id
+    except Exception as e:
+        typer.echo(f"Error logging pipeline execution: {e}", err=True)
+        return None
 
 @app.command("update_pipeline_execution")
 def update_pipeline_execution(
@@ -244,32 +280,35 @@ def update_pipeline_execution(
     total_jobs: Optional[int] = None,
     db_path: str = "pipeline_jobs.db"
 ):
-    """Update pipeline execution status"""
-    conn = get_db_connection(db_path)
-    c = conn.cursor()
-    
-    update_fields = ["status=?"]
-    params = [status]
-    
-    if error_msg is not None:
-        update_fields.append("error_msg=?")
-        params.append(error_msg)
-    
-    if total_jobs is not None:
-        update_fields.append("total_jobs=?")
-        params.append(total_jobs)
-    
-    params.append(execution_id)
-    
-    c.execute(f'''
-        UPDATE pipeline_executions 
-        SET {', '.join(update_fields)}
-        WHERE id=?
-    ''', params)
-    
-    conn.commit()
-    conn.close()
-    typer.echo(f"Pipeline execution updated: {execution_id} -> {status}")
+    """Update pipeline execution status to JSON file"""
+    try:
+        # Find the execution JSON file
+        db_dir = os.path.dirname(db_path)
+        json_dir = os.path.join(db_dir, "json", "_pipeline")
+        json_file = os.path.join(json_dir, f"execution_{execution_id}.jsonl")
+        
+        if not os.path.exists(json_file):
+            typer.echo(f"Warning: Execution file not found: {json_file}", err=True)
+            return
+        
+        record = {
+            "event": "pipeline_update",
+            "execution_id": execution_id,
+            "timestamp": datetime.now().isoformat(),
+            "status": status,
+            "error_msg": error_msg,
+            "total_jobs": total_jobs
+        }
+        
+        # Append update to JSON
+        with open(json_file, 'a') as f:
+            f.write(json.dumps(record) + '\n')
+            f.flush()
+            os.fsync(f.fileno())
+        
+        typer.echo(f"Pipeline execution updated: {execution_id} -> {status}")
+    except Exception as e:
+        typer.echo(f"Error updating pipeline execution: {e}", err=True)
 
 @app.command("query_pipeline_executions")
 def query_pipeline_executions(
@@ -279,7 +318,7 @@ def query_pipeline_executions(
     status: Optional[str] = None,
     db_path: str = "pipeline_jobs.db"
 ):
-    """Query pipeline execution records"""
+    """Query pipeline execution records from database"""
     conn = get_db_connection(db_path)
     c = conn.cursor()
     
@@ -340,30 +379,55 @@ def log_command_output(
     job_id: Optional[str] = None,
     db_path: str = "pipeline_jobs.db"
 ):
-    """Log command output (truncated to 50 lines)"""
-    conn = get_db_connection(db_path)
-    c = conn.cursor()
-    
-    # Truncate stdout and stderr to last 50 lines
-    if stdout:
-        lines = stdout.split('\n')
-        if len(lines) > 50:
-            stdout = '\n'.join(lines[-50:])
-    
-    if stderr:
-        lines = stderr.split('\n')
-        if len(lines) > 50:
-            stderr = '\n'.join(lines[-50:])
-    
-    c.execute('''
-        INSERT INTO command_outputs 
-        (subject, task_name, session, script_name, command, stdout, stderr, exit_code, log_file_path, job_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (subject, task_name, session, script_name, command, stdout, stderr, exit_code, log_file_path, job_id))
-    
-    conn.commit()
-    conn.close()
-    typer.echo(f"Command output logged: {subject} - {task_name}")
+    """Log command output to JSON file"""
+    try:
+        db_dir = os.path.dirname(db_path)
+        json_dir = os.path.join(db_dir, "json", task_name)
+        
+        if not os.path.exists(json_dir):
+            return
+        
+        json_files = sorted(Path(json_dir).glob("*.jsonl"), key=os.path.getmtime, reverse=True)
+        if not json_files:
+            return
+        
+        json_file = str(json_files[0])
+        
+        # Truncate stdout and stderr to last 50 lines
+        if stdout:
+            lines = stdout.split('\n')
+            if len(lines) > 50:
+                stdout = '\n'.join(lines[-50:])
+        
+        if stderr:
+            lines = stderr.split('\n')
+            if len(lines) > 50:
+                stderr = '\n'.join(lines[-50:])
+        
+        record = {
+            "event": "command_output",
+            "timestamp": datetime.now().isoformat(),
+            "subject": subject,
+            "task_name": task_name,
+            "session": session,
+            "script_name": script_name,
+            "command": command,
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": exit_code,
+            "log_file_path": log_file_path,
+            "job_id": job_id
+        }
+        
+        # Append to JSON
+        with open(json_file, 'a') as f:
+            f.write(json.dumps(record) + '\n')
+            f.flush()
+            os.fsync(f.fileno())
+        
+        typer.echo(f"Command output logged: {subject} - {task_name}")
+    except Exception as e:
+        typer.echo(f"Error logging command output: {e}", err=True)
 
 # TODO: Integrate with cli? or remove?
 
@@ -376,7 +440,7 @@ def query_jobs(
     status: Optional[str] = None,
     db_path: str = "pipeline_jobs.db"
 ):
-    """Query job status records"""
+    """Query job status records from database"""
     conn = get_db_connection(db_path)
     c = conn.cursor()
     

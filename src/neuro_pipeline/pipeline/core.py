@@ -18,6 +18,7 @@ from .utils.config_utils import (
     load_project_config,
 )
 from .utils.job_db import log_pipeline_execution, update_pipeline_execution
+import shutil
 
 app = typer.Typer()
 
@@ -163,12 +164,17 @@ def run(
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1)
         
-        # Extract global parameters
-        global_config = project_config['global']
-        prefix = global_config['prefix']
-        envir_dir = global_config['envir_dir']
+        # Extract global parameters (root-level config)
+        prefix = project_config.get('prefix', '')
+        envir_dir = project_config.get('envir_dir', {})
         container_dir = envir_dir.get('container_dir')
-        
+        if not container_dir:
+            raise ValueError("container_dir not found in envir_dir config")
+
+        if not prefix:
+            typer.echo("Error: 'prefix' not found in project config", err=True)
+            raise typer.Exit(1)
+    
         registry = TaskRegistry()
 
         # Expand tasks
@@ -223,7 +229,16 @@ def run(
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
-        
+
+        # Auto-backup database before execution
+        if Path(db_path).exists():
+            from .utils.db_backup import backup_database
+            try:
+                backup_path = backup_database(db_path, backup_dir=None)
+                typer.echo(f"Database backed up to: {backup_path}")
+            except Exception as e:
+                typer.echo(f"Warning: Backup failed: {e}", err=True)
+
         # Log execution start
         execution_id = log_pipeline_execution(
             command_line=command_line,
@@ -358,6 +373,15 @@ def detect_subjects(
     else:
         typer.echo(f"Detected {len(subjects)} subjects:")
         typer.echo(",".join(subjects))
+
+@app.command("merge-logs")
+def merge_logs_cmd(
+    work_dir: str = typer.Argument(..., help="Work directory"),
+    db_path: Optional[str] = typer.Option(None, help="Database path (auto-detect if not provided)")
+):
+    """Merge JSON logs to database manually"""
+    from .utils.merge_logs_create_db import merge_once
+    merge_once(work_dir, db_path)
 
 if __name__ == "__main__":
     app()
