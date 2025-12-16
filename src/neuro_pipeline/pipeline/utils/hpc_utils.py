@@ -162,10 +162,6 @@ def submit_slurm_job(
     else:
         actual_output_dir = output_dir
     
-    # Create subject directories (only for array jobs)
-    subjects_dir = Path(work_dir) / "log" / "subjects"
-    subjects_dir.mkdir(parents=True, exist_ok=True)
-    
     # Parse subjects
     subjects_list = []
     subjects_path = Path(subjects)
@@ -174,14 +170,17 @@ def submit_slurm_job(
             subjects_list = [line.strip() for line in f if line.strip()]
     else:
         subjects_list = [s.strip() for s in subjects.split(',') if s.strip()]
-    
+
     if not subjects_list:
         typer.echo("Error: No subjects provided", err=True)
         return None
 
-    # Create subject directories (only for array jobs)
+    # Create subject directories for array jobs
     is_array_job = task_config and 'array' in task_config and task_config['array']
     if is_array_job:
+        subjects_dir = Path(work_dir) / "log" / "subjects"
+        subjects_dir.mkdir(parents=True, exist_ok=True)
+        
         for subject in subjects_list:
             subject_dir = subjects_dir / f"sub-{subject}"
             subject_dir.mkdir(parents=True, exist_ok=True)

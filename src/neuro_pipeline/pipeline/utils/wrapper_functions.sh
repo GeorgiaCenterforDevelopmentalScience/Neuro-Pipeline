@@ -119,7 +119,8 @@ execute_wrapper() {
 
 # Create environment file with all necessary variables
 create_env_file() {
-    ENV_FILE="$SUB_LOG_DIR/env_${TASK_NAME}_${SLURM_ARRAY_TASK_ID:-0}_${subject}_$RANDOM.sh"
+    # ENV_FILE="$SUB_LOG_DIR/env_${TASK_NAME}_${SLURM_ARRAY_TASK_ID:-0}_${subject}_$RANDOM.sh"
+    ENV_FILE="/tmp/env_${TASK_NAME}_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-0}_${subject}_$RANDOM.sh"
     export ENV_FILE
     
     cat > "$ENV_FILE" << 'ENV_EOF'
@@ -180,6 +181,22 @@ execute_script_with_logging() {
     local script_path="$1"
     local subject="$2"
     local task_name="$3"
+    
+    # Skip database logging for specific meta tasks
+    if [ "$task_name" = "merge_logs" ]; then
+        echo "=== Meta Task (no DB logging): $task_name ===" | tee -a "$LOG_PATH"
+        
+        # Simple execution
+        if [[ "$script_path" == *.py ]]; then
+            python "$script_path" "$subject" >> "$LOG_PATH" 2>&1
+        else
+            bash "$script_path" "$subject" >> "$LOG_PATH" 2>&1
+        fi
+        local exit_code=$?
+        
+        echo "=== Meta Task Completed (exit: $exit_code) ===" | tee -a "$LOG_PATH"
+        return $exit_code
+    fi
     
     # Verify script exists
     if [ ! -f "$script_path" ]; then
