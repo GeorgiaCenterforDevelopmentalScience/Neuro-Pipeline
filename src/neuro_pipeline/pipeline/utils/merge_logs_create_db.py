@@ -92,7 +92,7 @@ def _merge_jobs(task_dir, conn, job_ids=None):
     Args:
         task_dir: Task directory containing JSON files
         conn: Database connection
-        job_ids: Optional list of job IDs to filter
+        job_ids: Optional list of job IDs to filter (supports base job_id for array jobs)
     
     Returns:
         int: Number of job logs merged
@@ -107,19 +107,27 @@ def _merge_jobs(task_dir, conn, job_ids=None):
                         r = json.loads(line)
                         records[r.get("event")] = r
             
-            # Only merge if job has start event
+            # Only merge complete logs
             if "start" not in records:
                 continue
             
-            # Only merge complete logs (must have end event)
             if "end" not in records:
                 continue
             
             job_id = records["start"].get("job_id")
             
             # Filter by job_ids if provided
-            if job_ids is not None and job_id not in job_ids:
-                continue
+            if job_ids is not None:
+                # Support both exact match and prefix match (for array jobs)
+                # e.g., job_id='41693293_1' matches filter='41693293'
+                matched = False
+                for filter_id in job_ids:
+                    if job_id == filter_id or job_id.startswith(filter_id + '_'):
+                        matched = True
+                        break
+                
+                if not matched:
+                    continue
             
             # Insert job start
             r = records["start"]
