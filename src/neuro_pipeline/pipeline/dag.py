@@ -186,36 +186,46 @@ class DAGExecutor:
                     self.nodes['merge_logs'].add_dependency(task_name)
                 execution_order.append('merge_logs')
         
-        # Execute all tasks including merge_logs
+        # Execute all tasks
         for task_name in execution_order:
             node = self.nodes[task_name]
             wait_jobs = []
-            
-            # Collect dependency job IDs
             for dep_name in node.dependencies:
                 if dep_name in all_job_ids:
                     wait_jobs.extend(all_job_ids[dep_name])
             
-            # Use unified submission for all tasks (including merge_logs)
-            if task_name == 'merge_logs':
-                subjects_str = 'dummy'
-            else:
-                subjects_str = ','.join(context['subjects']) if 'subjects' in context else ''
+            # Prepare execution parameters
+            is_merge_task = (task_name == 'merge_logs')
+            subjects_str = 'dummy' if is_merge_task else ','.join(context.get('subjects', []))
+            task_env = self._prepare_task_env(option_env, all_job_ids if is_merge_task else None)
             
+            # Execute task
             job_ids = self._execute_single_task(
                 node, subjects=subjects_str,
                 input_dir=input_dir, output_dir=output_dir, work_dir=work_dir,
-                container_dir=container_dir, dry_run=dry_run, wait_jobs=wait_jobs,
-                option_env=option_env, project_config=project_config,
-                requested_tasks=requested_tasks, original_work_dir=original_work_dir,
-                db_path=db_path
+                container_dir=container_dir, dry_run=(False if is_merge_task else dry_run),
+                wait_jobs=wait_jobs, option_env=task_env,
+                project_config=project_config, requested_tasks=requested_tasks,
+                original_work_dir=original_work_dir, db_path=db_path
             )
             
-            all_job_ids[task_name] = job_ids if job_ids else []
-            node.job_ids = job_ids if job_ids else []
+            # Record results
+            all_job_ids[task_name] = job_ids or []
+            node.job_ids = job_ids or []
             node.completed = True
         
         return all_job_ids, context
+
+    def _prepare_task_env(self, option_env: Optional[Dict], all_job_ids: Optional[Dict] = None) -> Dict:
+        """Prepare environment variables for task execution"""
+        task_env = dict(option_env or {})  # Simplify
+        
+        # Add job_ids for merge_logs task
+        if all_job_ids:
+            all_jobs = [job for jobs in all_job_ids.values() for job in jobs]
+            task_env['JOB_IDS'] = ','.join(all_jobs)
+        
+        return task_env
 
     def _get_merge_config(self) -> Optional[Dict[str, Any]]:
         """Get merge_logs config from tasks sections"""
@@ -240,10 +250,6 @@ class DAGExecutor:
         if not scripts:
             return []
         
-        task_env_vars = {}
-        if option_env:
-            task_env_vars.update(option_env)
-        
         from .utils.hpc_utils import submit_slurm_job
         
         job_ids = []
@@ -255,11 +261,11 @@ class DAGExecutor:
                 output_dir=output_dir,
                 work_dir=work_dir,
                 container_dir=container_dir,
-                env_vars=task_env_vars,
+                env_vars=None,
                 wait_jobs=wait_jobs,
                 task_config=task_config,
                 dry_run=dry_run,
-                option_env=task_env_vars,
+                option_env=option_env,
                 project_config=project_config,
                 requested_tasks=requested_tasks,
                 original_work_dir=original_work_dir,

@@ -6,8 +6,17 @@ import typer
 
 app = typer.Typer()
 
-def merge_json_to_db(json_base_dir: str, db_path: str):
-    """Merge all JSON logs to database"""
+def merge_json_to_db(json_base_dir: str, db_path: str, job_ids: list = None):
+    """Merge JSON logs to database
+    
+    Args:
+        json_base_dir: Base directory containing JSON logs
+        db_path: Database file path
+        job_ids: Optional list of job IDs to filter (only merge logs for these jobs)
+    
+    Returns:
+        int: Number of files merged
+    """
     from .job_db import get_db_connection
     
     conn = get_db_connection(db_path)
@@ -19,18 +28,31 @@ def merge_json_to_db(json_base_dir: str, db_path: str):
         
         # Handle pipeline executions
         if task_dir.name == "_pipeline":
-            merged_count += _merge_pipeline(task_dir, conn)
+            merged_count += _merge_pipeline(task_dir, conn, job_ids)
         else:
-            merged_count += _merge_jobs(task_dir, conn)
+            merged_count += _merge_jobs(task_dir, conn, job_ids)
     
     conn.close()
     return merged_count
 
-def _merge_pipeline(task_dir, conn):
-    """Merge pipeline executions"""
+def _merge_pipeline(task_dir, conn, job_ids=None):
+    """Merge pipeline executions
+    
+    Args:
+        task_dir: Pipeline task directory
+        conn: Database connection
+        job_ids: Optional job IDs filter (not used for pipeline logs)
+    
+    Returns:
+        int: Number of pipeline logs merged
+    """
     count = 0
     for json_file in task_dir.glob("*.jsonl"):
         try:
+            # Skip if job_ids filter is active (pipeline logs don't have job_ids)
+            if job_ids is not None:
+                continue
+                
             records = {}
             with open(json_file) as f:
                 for line in f:
@@ -54,17 +76,27 @@ def _merge_pipeline(task_dir, conn):
                       r.get("dry_run"), u.get("total_jobs", r.get("total_jobs")),
                       u.get("status", r.get("status")), u.get("error_msg")))
                 conn.commit()
-            
-            archived = task_dir / "archived"
-            archived.mkdir(exist_ok=True)
-            shutil.move(str(json_file), str(archived / json_file.name))
-            count += 1
+                
+                # Archive the file
+                archived = task_dir / "archived"
+                archived.mkdir(exist_ok=True)
+                shutil.move(str(json_file), str(archived / json_file.name))
+                count += 1
         except Exception as e:
             print(f"Error: {json_file}: {e}")
     return count
 
-def _merge_jobs(task_dir, conn):
-    """Merge job status"""
+def _merge_jobs(task_dir, conn, job_ids=None):
+    """Merge job status logs
+    
+    Args:
+        task_dir: Task directory containing JSON files
+        conn: Database connection
+        job_ids: Optional list of job IDs to filter
+    
+    Returns:
+        int: Number of job logs merged
+    """
     count = 0
     for json_file in task_dir.glob("*.jsonl"):
         try:
@@ -75,26 +107,41 @@ def _merge_jobs(task_dir, conn):
                         r = json.loads(line)
                         records[r.get("event")] = r
             
-            if "start" in records:
-                r = records["start"]
-                conn.execute('''
-                    INSERT INTO job_status 
-                    (subject, task_name, session, start_time, status, log_path, job_id, node_name)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (r.get("subject"), r.get("task_name"), r.get("session"),
-                      r.get("timestamp"), "RUNNING", r.get("log_path"),
-                      r.get("job_id"), r.get("node_name")))
+            # Only merge if job has start event
+            if "start" not in records:
+                continue
             
-            if "end" in records:
-                r = records["end"]
-                conn.execute('''
-                    UPDATE job_status
-                    SET end_time=?, status=?, error_msg=?, duration_hours=?, exit_code=?
-                    WHERE subject=? AND task_name=? AND session=? AND status='RUNNING'
-                ''', (r.get("timestamp"), r.get("status"), r.get("error_msg"),
-                      r.get("duration_hours"), r.get("exit_code"),
-                      r.get("subject"), r.get("task_name"), r.get("session")))
+            # Only merge complete logs (must have end event)
+            if "end" not in records:
+                continue
             
+            job_id = records["start"].get("job_id")
+            
+            # Filter by job_ids if provided
+            if job_ids is not None and job_id not in job_ids:
+                continue
+            
+            # Insert job start
+            r = records["start"]
+            conn.execute('''
+                INSERT INTO job_status 
+                (subject, task_name, session, start_time, status, log_path, job_id, node_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (r.get("subject"), r.get("task_name"), r.get("session"),
+                  r.get("timestamp"), "RUNNING", r.get("log_path"),
+                  r.get("job_id"), r.get("node_name")))
+            
+            # Update job end
+            r = records["end"]
+            conn.execute('''
+                UPDATE job_status
+                SET end_time=?, status=?, error_msg=?, duration_hours=?, exit_code=?
+                WHERE subject=? AND task_name=? AND session=? AND status='RUNNING'
+            ''', (r.get("timestamp"), r.get("status"), r.get("error_msg"),
+                  r.get("duration_hours"), r.get("exit_code"),
+                  r.get("subject"), r.get("task_name"), r.get("session")))
+            
+            # Insert command output if available
             if "command_output" in records:
                 r = records["command_output"]
                 conn.execute('''
@@ -109,6 +156,7 @@ def _merge_jobs(task_dir, conn):
             
             conn.commit()
             
+            # Archive the file
             archived = task_dir / "archived"
             archived.mkdir(exist_ok=True)
             shutil.move(str(json_file), str(archived / json_file.name))
