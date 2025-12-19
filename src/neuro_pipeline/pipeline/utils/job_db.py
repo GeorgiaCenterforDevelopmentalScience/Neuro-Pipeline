@@ -157,11 +157,12 @@ def log_job_end(
     error_msg: Optional[str] = None,
     duration_seconds: Optional[float] = None,
     exit_code: Optional[int] = None,
+    job_id: Optional[str] = None,
     db_path: str = "pipeline_jobs.db"
 ):
     """Log job end to JSON file"""
     try:
-        # Find most recent JSON file for this task
+        # Locate JSON directory
         db_dir = os.path.dirname(db_path)
         json_dir = os.path.join(db_dir, "json", task_name)
         
@@ -169,13 +170,23 @@ def log_job_end(
             typer.echo(f"Warning: JSON dir not found: {json_dir}", err=True)
             return
         
-        json_files = sorted(Path(json_dir).glob("*.jsonl"), key=os.path.getmtime, reverse=True)
-        if not json_files:
-            typer.echo(f"Warning: No JSON files found for task: {task_name}", err=True)
-            return
+        # Find JSON file by job_id
+        json_file = None
+        if job_id:
+            matches = list(Path(json_dir).glob(f"{job_id}_*.jsonl"))
+            if matches:
+                json_file = str(matches[0])
         
-        json_file = str(json_files[0])
+        # Fallback to mtime-based search if job_id not provided or not found
+        if not json_file:
+            json_files = sorted(Path(json_dir).glob("*.jsonl"), 
+                              key=os.path.getmtime, reverse=True)
+            if not json_files:
+                typer.echo(f"Warning: No JSON files found for task: {task_name}", err=True)
+                return
+            json_file = str(json_files[0])
         
+        # Calculate duration
         duration_hours = None
         if duration_seconds is not None:
             duration_hours = round(duration_seconds / 3600, 3)
@@ -387,11 +398,20 @@ def log_command_output(
         if not os.path.exists(json_dir):
             return
         
-        json_files = sorted(Path(json_dir).glob("*.jsonl"), key=os.path.getmtime, reverse=True)
-        if not json_files:
-            return
+        # Find JSON file by job_id
+        json_file = None
+        if job_id:
+            matches = list(Path(json_dir).glob(f"{job_id}_*.jsonl"))
+            if matches:
+                json_file = str(matches[0])
         
-        json_file = str(json_files[0])
+        # Fallback to mtime-based search
+        if not json_file:
+            json_files = sorted(Path(json_dir).glob("*.jsonl"), 
+                              key=os.path.getmtime, reverse=True)
+            if not json_files:
+                return
+            json_file = str(json_files[0])
         
         # Truncate stdout and stderr to last 50 lines
         if stdout:
@@ -428,8 +448,6 @@ def log_command_output(
         typer.echo(f"Command output logged: {subject} - {task_name}")
     except Exception as e:
         typer.echo(f"Error logging command output: {e}", err=True)
-
-# TODO: Integrate with cli? or remove?
 
 @app.command("query_jobs")
 def query_jobs(

@@ -49,10 +49,6 @@ def _merge_pipeline(task_dir, conn, job_ids=None):
     count = 0
     for json_file in task_dir.glob("*.jsonl"):
         try:
-            # Skip if job_ids filter is active (pipeline logs don't have job_ids)
-            if job_ids is not None:
-                continue
-                
             records = {}
             with open(json_file) as f:
                 for line in f:

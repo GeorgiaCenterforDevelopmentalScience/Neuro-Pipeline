@@ -9,15 +9,24 @@ cleanup_on_signal() {
     echo "=== Job Interrupted: $(date) ===" | tee -a "$LOG_PATH" 2>/dev/null
     echo "Signal: $signal_name (exit code: $exit_code)" | tee -a "$LOG_PATH" 2>/dev/null
     
-    # Log cancellation to JSON (fast, no timeout needed)
+    # Log cancellation to JSON
     if [ -n "$SUBJECT_ID" ] && [ -n "$TASK_NAME" ] && [ -n "$DB_PATH" ]; then
         echo "Logging cancellation..." | tee -a "$LOG_PATH" 2>/dev/null
+        
+        # Get full job ID
+        local full_job_id="${SLURM_JOB_ID}"
+        if [ -n "$SLURM_ARRAY_JOB_ID" ] && [ -n "$SLURM_ARRAY_TASK_ID" ]; then
+            full_job_id="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+        else
+            full_job_id="${SLURM_JOB_ID}"
+        fi
         
         python3 "$SCRIPT_DIR/utils/job_db.py" log_end \
             "$SUBJECT_ID" "$TASK_NAME" "CANCELLED" \
             --exit-code "$exit_code" \
             --error-msg "Job interrupted by $signal_name" \
             --session "${SESSION:-}" \
+            --job-id "$full_job_id" \
             --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH"
     fi
     
@@ -119,7 +128,6 @@ execute_wrapper() {
 
 # Create environment file with all necessary variables
 create_env_file() {
-    # ENV_FILE="$SUB_LOG_DIR/env_${TASK_NAME}_${SLURM_ARRAY_TASK_ID:-0}_${subject}_$RANDOM.sh"
     ENV_FILE="/tmp/env_${TASK_NAME}_${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID:-0}_${subject}_$RANDOM.sh"
     export ENV_FILE
     
@@ -207,8 +215,10 @@ execute_script_with_logging() {
     local bash_start_time=$(date +%s)
     
     local full_job_id="${SLURM_JOB_ID}"
-    if [ -n "$SLURM_ARRAY_TASK_ID" ]; then
-        full_job_id="${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+    if [ -n "$SLURM_ARRAY_JOB_ID" ] && [ -n "$SLURM_ARRAY_TASK_ID" ]; then
+        full_job_id="${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+    else
+        full_job_id="${SLURM_JOB_ID}"
     fi
     
     echo "=== Job Start: $(date) ===" | tee -a "$LOG_PATH"
@@ -218,7 +228,7 @@ execute_script_with_logging() {
     echo "SLURM Job ID: ${full_job_id:-N/A}" | tee -a "$LOG_PATH"
     echo "===========================================" | tee -a "$LOG_PATH"
     
-    # Log start to JSON (no timeout needed)
+    # Log start to JSON
     python3 "$SCRIPT_DIR/utils/job_db.py" log_start \
         "$subject" "$task_name" \
         --log-file-path "$LOG_PATH" \
@@ -280,13 +290,14 @@ execute_script_with_logging() {
         echo "WARNING: Failed to log command output" | tee -a "$LOG_PATH"
     fi
     
-    # Log end to JSON
+    # Log end to JSON with job_id
     if [ $script_status -eq 0 ]; then
         python3 "$SCRIPT_DIR/utils/job_db.py" log_end \
             "$subject" "$task_name" "SUCCESS" \
             --exit-code "$script_status" \
             --duration-seconds "$final_duration" \
             --session "${SESSION:-}" \
+            --job-id "$full_job_id" \
             --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
         echo "WARNING: Failed to log job end" | tee -a "$LOG_PATH"
     else
@@ -296,6 +307,7 @@ execute_script_with_logging() {
             --exit-code "$script_status" \
             --duration-seconds "$final_duration" \
             --session "${SESSION:-}" \
+            --job-id "$full_job_id" \
             --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
         echo "WARNING: Failed to log job end" | tee -a "$LOG_PATH"
     fi
