@@ -300,7 +300,18 @@ def run(
                 total_jobs=total_jobs,
                 db_path=db_path
             )
-        
+            
+        if not dry_run and all_job_ids:
+            typer.echo("\n" + "="*60)
+            typer.echo(f"\nJSON logs location:")
+            typer.echo(f"  {work_dir}/log/database/json/")
+            typer.echo(f"\nTo check job status, run:")
+            typer.echo(f"  python -m neuro_pipeline.utils.job_db query-jobs --db-path {db_path}")
+            typer.echo(f"\nOr check recent jobs:")
+            typer.echo(f"  python -m neuro_pipeline.utils.job_db query-jobs --limit 20 --db-path {db_path}")
+            typer.echo(f"\nTo manually merge logs (optional):")
+            typer.echo(f"  neuro-pipeline merge-logs {original_work_dir or work_dir}")
+
         typer.echo("\n=== Completed ===")
     
     # Record error

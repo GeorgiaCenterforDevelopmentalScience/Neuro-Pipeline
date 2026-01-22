@@ -120,10 +120,10 @@ tasks:
       output_pattern: "{base_output}/quality_control/mriqc"
 
   # Database
-  merge_logs:
-    - name: merge_logs
-      profile: data_manage
-      scripts: [merge_logs.py]
+  # merge_logs:
+  #   - name: merge_logs
+  #     profile: data_manage
+  #     scripts: [merge_logs.py]
 
 # array jobs
 array_config:

@@ -11,6 +11,9 @@ work_dir="$WORK_DIR"/mriqc/sub-${subject}
 mkdir -p ${work_dir}
 mkdir -p ${output_dir}
 
+echo "$INPUT_DIR"
+echo "$OUTPUT_DIR"
+
 # ---------------------------------- Run Processing -------------------------------------
 
 singularity run \

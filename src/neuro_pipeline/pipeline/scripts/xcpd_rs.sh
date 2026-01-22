@@ -6,7 +6,7 @@ subject="$1"
 
 input_dir="$INPUT_DIR"
 output_dir="$OUTPUT_DIR"
-work_dir="$WORK_DIR"/sub-${subject}
+work_dir="$WORK_DIR"/xcpd/sub-${subject}
 
 mkdir -p ${work_dir}
 mkdir -p ${output_dir}

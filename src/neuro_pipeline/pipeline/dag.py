@@ -176,15 +176,16 @@ class DAGExecutor:
         # Build DAG for requested tasks
         execution_order = self.build_dag(requested_tasks, rest_dependencies)
         
-        # Add merge_logs with dependencies on all tasks (if not dry_run)
-        if not dry_run:
-            merge_config = self._get_merge_config()
-            if merge_config:
-                self.add_task('merge_logs', merge_config)
-                # Make merge_logs depend on ALL requested tasks
-                for task_name in execution_order:
-                    self.nodes['merge_logs'].add_dependency(task_name)
-                execution_order.append('merge_logs')
+        # # DEPRECATED: merge_logs removed, use manual merge if needed        
+        # # Add merge_logs with dependencies on all tasks (if not dry_run)
+        # if not dry_run:
+        #     merge_config = self._get_merge_config()
+        #     if merge_config:
+        #         self.add_task('merge_logs', merge_config)
+        #         # Make merge_logs depend on ALL requested tasks
+        #         for task_name in execution_order:
+        #             self.nodes['merge_logs'].add_dependency(task_name)
+        #         execution_order.append('merge_logs')
         
         # Execute all tasks
         for task_name in execution_order:
