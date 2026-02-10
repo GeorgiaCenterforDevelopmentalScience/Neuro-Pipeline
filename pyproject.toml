@@ -1,6 +1,6 @@
 [project]
 name = "GCDS_Neuro_Pipeline"
-version = "0.12.0_alpha"
+version = "0.12.1_alpha"
 description = "GCDS neuro pipeline project"
 readme = "README.md"
 requires-python = ">=3.10"

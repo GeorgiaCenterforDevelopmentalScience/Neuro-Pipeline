@@ -2,6 +2,10 @@
 
 ---
 
+## [0.12.1-alpha] – 2026-01-21
+### Removed
+- Deprecated DB function completely.
+
 ## [0.12.0-alpha] – 2025-12-15
 
 ### Added
