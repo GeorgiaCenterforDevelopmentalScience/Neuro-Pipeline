@@ -123,10 +123,12 @@ class DAGExecutor:
         """Handle preprocess dependencies on structural tasks"""
         if not requested_tasks or not task_name.endswith('_preprocess'):
             return
-            
-        if not ('kidvid' in task_name or 'cards' in task_name):
+        
+        # Check if it's a task_afni task
+        from .utils.config_utils import get_all_task_names
+        if task_name not in get_all_task_names('task_afni'):
             return
-            
+        
         structural_tasks = [task for task in requested_tasks if task.startswith('afni_')]
         for structural_task in structural_tasks:
             self.nodes[task_name].add_dependency(structural_task)
@@ -328,10 +330,13 @@ class TaskRegistry:
             rest_tasks = self._expand_rest_tasks(kwargs)
             tasks.extend([task_name for task_name, _ in rest_tasks])
         
-        # Task-based fMRI - simplified
-        if kwargs.get('task_prep') or kwargs.get('task_post'):
-            task_tasks = self._expand_task_tasks(kwargs)
-            tasks.extend(task_tasks)
+        # Task prep
+        if kwargs.get('task_prep'):
+            tasks.extend(kwargs['task_prep'])
+        
+        # Task post
+        if kwargs.get('task_post'):
+            tasks.extend(kwargs['task_post'])
         
         return tasks
     
@@ -362,31 +367,9 @@ class TaskRegistry:
         
         return tasks
     
-    def _expand_task_tasks(self, kwargs) -> List[str]:
-        """Expand task processing with simplified options"""
-        from .utils.config_utils import TaskChoice
+    def _expand_task_args(self, kwargs):
+        """Expand task arguments"""
+        if kwargs.get('task'):
+            return kwargs['task']
         
-        task_prep = kwargs.get('task_prep', [])
-        task_post = kwargs.get('task_post', [])
-        
-        tasks = []
-        
-        # Handle --task-prep
-        if task_prep:
-            task_prep_values = [t.value for t in task_prep]
-            if 'all' in task_prep_values:
-                task_prep_values = ['kidvid', 'cards']
-            
-            for task_type in task_prep_values:
-                tasks.append(f'{task_type}_preprocess')
-        
-        # Handle --task-post
-        if task_post:
-            task_post_values = [t.value for t in task_post]
-            if 'all' in task_post_values:
-                task_post_values = ['kidvid', 'cards']
-            
-            for task_type in task_post_values:
-                tasks.append(f'{task_type}_postprocess')
-        
-        return tasks
+        return []

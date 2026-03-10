@@ -12,7 +12,6 @@ from .utils.config_utils import (
     StructuralChoice,
     RestPrepChoice,
     RestPostChoice,
-    TaskChoice,
     MRIQCChoice,
     clean_all_only,
     load_project_config,
@@ -46,8 +45,8 @@ class TaskOptions:
     rest_post: Optional[RestPostChoice] = typer.Option(None, help="Rest postprocessing (xcpd)")
     
     # Task: prep and post
-    task_prep: Optional[List[TaskChoice]] = typer.Option(None, help="Task preprocessing")
-    task_post: Optional[List[TaskChoice]] = typer.Option(None, help="Task postprocessing")
+    task_prep: Optional[List[str]] = typer.Option(None, help="Task preprocessing")
+    task_post: Optional[List[str]] = typer.Option(None, help="Task postprocessing")
 
 def collect_and_expand_tasks(registry, options: TaskOptions):
     """Collect and expand tasks"""
@@ -60,16 +59,16 @@ def parse_and_expand_tasks(registry, **kwargs):
     
     # Clean 'all' choices
     if kwargs.get('task_prep'):
-        task_prep = clean_all_only([t.value for t in kwargs['task_prep']], "task_prep")
-        kwargs['task_prep'] = [TaskChoice(t) for t in task_prep]
+        task_prep = clean_all_only([t for t in kwargs['task_prep']], "task_prep")
+        kwargs['task_prep'] = task_prep
     
     if kwargs.get('task_post'):
-        task_post = clean_all_only([t.value for t in kwargs['task_post']], "task_post")
-        kwargs['task_post'] = [TaskChoice(t) for t in task_post]
+        task_post = clean_all_only([t for t in kwargs['task_post']], "task_post")
+        kwargs['task_post'] = task_post
     
     if kwargs.get('task'):
-        task = clean_all_only([t.value for t in kwargs['task']], "task")
-        kwargs['task'] = [TaskChoice(t) for t in task]
+        task = clean_all_only([t for t in kwargs['task']], "task")
+        kwargs['task'] = task
     
     requested_tasks = registry.expand_tasks(**kwargs)
     
@@ -112,7 +111,6 @@ def run(
     db_path = None
     command_line = " ".join(sys.argv)
     
-    # TODO: Optimize expand `task` argument
     try:
         parsed_task_prep = None
         parsed_task_post = None
@@ -121,13 +119,36 @@ def run(
             expanded_prep = []
             for item in task_prep:
                 expanded_prep.extend([t.strip() for t in item.split(',') if t.strip()])
-            parsed_task_prep = [TaskChoice(t) for t in expanded_prep]
+            
+            # Add suffix
+            from .utils.config_utils import expand_task_names
+            parsed_task_prep = expand_task_names(expanded_prep, '_preprocess')
         
         if task_post:
             expanded_post = []
             for item in task_post:
                 expanded_post.extend([t.strip() for t in item.split(',') if t.strip()])
-            parsed_task_post = [TaskChoice(t) for t in expanded_post]
+            
+            # Add suffix
+            from .utils.config_utils import expand_task_names
+            parsed_task_post = expand_task_names(expanded_post, '_postprocess')
+        
+        # Validate
+        from .utils.config_utils import validate_task_name, get_all_task_names
+        
+        if parsed_task_prep:
+            for task in parsed_task_prep:
+                if not validate_task_name(task):
+                    typer.echo(f"Error: Unknown task '{task}'", err=True)
+                    typer.echo(f"Available tasks: {', '.join(get_all_task_names())}", err=True)
+                    raise typer.Exit(1)
+        
+        if parsed_task_post:
+            for task in parsed_task_post:
+                if not validate_task_name(task):
+                    typer.echo(f"Error: Unknown task '{task}'", err=True)
+                    typer.echo(f"Available tasks: {', '.join(get_all_task_names())}", err=True)
+                    raise typer.Exit(1)
         
         options = TaskOptions(
             prep=prep,
