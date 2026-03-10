@@ -1,6 +1,7 @@
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 import os
+from ...pipeline.utils.config_utils import get_task_options
 
 def create_analysis_control_layout():
     """Create the analysis control layout with subject selection and pipeline options"""
@@ -270,10 +271,7 @@ def create_pipeline_modules_section():
                             dbc.Label("Preprocessing:", html_for="task-prep"),
                             dbc.Checklist(
                                 id="task-prep",
-                                options=[
-                                    {"label": "KidVid", "value": "kidvid"},
-                                    {"label": "Cards", "value": "cards"}
-                                ],
+                                options=get_task_options('_preprocess'),
                                 value=[],
                                 inline=True
                             )
@@ -282,10 +280,7 @@ def create_pipeline_modules_section():
                             dbc.Label("Postprocessing:", html_for="task-post"),
                             dbc.Checklist(
                                 id="task-post",
-                                options=[
-                                    {"label": "KidVid", "value": "kidvid"},
-                                    {"label": "Cards", "value": "cards"}
-                                ],
+                                options=get_task_options('_postprocess'),
                                 value=[],
                                 inline=True
                             )

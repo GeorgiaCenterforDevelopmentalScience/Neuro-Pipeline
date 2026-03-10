@@ -17,7 +17,6 @@ from .config_utils import (
     RestPostChoice,
     RestPostChoice,
     MRIQCChoice,
-    TaskChoice,
     clean_all_only,
     find_task_config_by_name,
     find_task_config_by_name_with_project
@@ -38,7 +37,6 @@ __all__ = [
     "RestPrepChoice",
     "RestPostChoice",
     "MRIQCChoice",
-    "TaskChoice",
     "clean_all_only",
     "find_task_config_by_name",
     "find_task_config_by_name_with_project"

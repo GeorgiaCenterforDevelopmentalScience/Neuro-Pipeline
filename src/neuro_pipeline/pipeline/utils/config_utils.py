@@ -34,18 +34,49 @@ class RestPostChoice(str, Enum):
     xcpd = "xcpd"
 
 
-class TaskChoice(str, Enum):
-    """Task types"""
-    kidvid = "kidvid"
-    cards = "cards"
-    all = "all"
-
-
 class MRIQCChoice(str, Enum):
     group = "group"
     individual = "individual"
     all = "all"
 
+def get_task_options(suffix):
+    """Load task options from config dynamically"""
+    config_path = Path(__file__).parent.parent / "config" / "config.yaml"
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+    
+    # For postprocessing, use the same options as preprocessing
+    if suffix == '_postprocess':
+        suffix = '_preprocess'
+    
+    tasks = config.get('tasks', {}).get('task_afni', [])
+    options = []
+    for task in tasks:
+        if suffix in task['name']:
+            # Remove suffix to get short name
+            short_name = task['name'].replace(suffix, '')
+            label = short_name.capitalize()
+            options.append({"label": label, "value": short_name})
+    
+    return options
+
+def get_tasks_by_suffix(suffix: str, category: str = 'task_afni') -> List[str]:
+    """Get task names by suffix pattern"""
+    all_tasks = config.get('tasks', {}).get(category, [])
+    return [t['name'] for t in all_tasks if suffix in t['name']]
+
+def get_all_task_names(category: str = 'task_afni') -> List[str]:
+    """Get all task names in category"""
+    all_tasks = config.get('tasks', {}).get(category, [])
+    return [t['name'] for t in all_tasks]
+
+def validate_task_name(task_name: str, category: str = 'task_afni') -> bool:
+    """Check if task exists"""
+    return task_name in get_all_task_names(category)
+
+def expand_task_names(task_list: List[str], suffix: str) -> List[str]:
+    """Expand short names to full task names"""
+    return [f"{task}{suffix}" for task in task_list]
 
 def clean_all_only(argval: List[str], name: str) -> List[str]:
     """Clean up 'all' when mixed with other options"""
