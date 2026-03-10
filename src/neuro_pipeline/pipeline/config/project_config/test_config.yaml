@@ -1,7 +1,7 @@
 prefix: "sub-"
 
 # Scripts directory
-scripts_dir: "scripts/branch"
+scripts_dir: "scripts/test"
 
 # Database configuration
 database:

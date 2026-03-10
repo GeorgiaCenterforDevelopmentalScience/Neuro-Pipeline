@@ -88,6 +88,23 @@ def get_environment_commands(task_config: Dict[str, Any], project_config: Dict[s
     
     return env_commands
 
+def get_script_with_validation(script_name: str, scripts_dir: str) -> Optional[Path]:
+    """Validate and return script path, with helpful error messages"""
+    script_path = Path(__file__).parent.parent / scripts_dir / script_name
+    
+    if script_path.exists():
+        return script_path
+    
+    scripts_dir_path = Path(__file__).parent.parent / scripts_dir
+    if scripts_dir_path.exists():
+        available = [f.name for f in scripts_dir_path.iterdir() if f.is_file()]
+        typer.echo(f"[ERROR] Script '{script_name}' not found in {scripts_dir}. Available: {', '.join(sorted(available))}", err=True)
+    else:
+        typer.echo(f"[ERROR] Script '{script_name}' not found. Scripts directory {scripts_dir_path} does not exist.", err=True)
+    
+    return None
+
+
 def submit_slurm_job(
     script_name: str,
     subjects: str,
@@ -107,9 +124,12 @@ def submit_slurm_job(
 ) -> Optional[str]:
     """Submit a SLURM job for the given script and subjects"""
 
-    # Locate script
-    from ..scripts import SCRIPTS_DIR
-    script_path = Path(SCRIPTS_DIR) / script_name
+    # Locate and validate script
+    scripts_dir = project_config.get('scripts_dir', 'scripts/template') if project_config else 'scripts/template'
+    script_path = get_script_with_validation(script_name, scripts_dir)
+    
+    if not script_path:
+        return None
 
     if task_config:
         resources = get_hpc_resources(task_config)
