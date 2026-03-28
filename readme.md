@@ -145,126 +145,44 @@ An example of [config file](src/neuro_pipeline/pipeline/config/project_config/br
 
 A project configuration file (YAML) contains three main sections:
 
-**1. Basic Settings**
+**1. Basic Settings & Paths**
 ```yaml
 prefix: "sub-"                    # Subject identifier prefix
-scripts_dir: "scripts/branch"     # Directory containing task scripts
-database:
-  db_path: "$WORK_DIR/database/pipeline_jobs.db"  # Job tracking database
-```
-
-**2. Directory Environment (`envir_dir`)**
-Specifies paths for containers, virtual environments, templates, and other resources:
-```yaml
+scripts_dir: "scripts/branch"     # Task script directory
 envir_dir:
-  container_dir: "/work/cglab/containers"           # Singularity/Docker containers
-  virtual_envir: "/work/cglab/conda_env"            # Python environment
-  template_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/"  # Anatomical templates
-  atlas_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/"     # Atlas files
-  freesurfer_dir: "/work/cglab/containers/.licenses/freesurfer"   # FreeSurfer license
-  config_dir: "/work/cglab/conda_env/config_for_BIDS"             # Analysis configs
-  stimulus_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/processing_scripts"  # Stimulus files
+  container_dir: "/path/to/containers"
+  template_dir: "/path/to/templates"
+  # ... other paths
 ```
+For a complete example, see [branch_config.yaml](src/neuro_pipeline/pipeline/config/project_config/branch_config.yaml).
 
-**3. Global Python Environment (`global_python`)**
-Commands to load Python environment on HPC compute nodes:
+**2. HPC Environment Setup**
 ```yaml
-global_python:
-  - ml Python/3.11.3-GCCcore-12.3.0           # Load Python module
-  - . /home/$USER/virtual_environ/for_AFNI/bin/activate  # Activate venv
-```
-These commands are executed **before** any processing tasks to ensure:
-- Correct Python version is available
-- Required packages (typer, pandas, etc.) are accessible
-- Database logging functions properly
+global_python:                    # Python env for all jobs
+  - ml Python/3.11.3-GCCcore-12.3.0
+  - . /home/$USER/venv/bin/activate
 
-**4. HPC Environment Modules (`modules`)**
-Predefined sets of HPC modules for different software:
-```yaml
-modules:
+modules:                           # Software environments
   afni_25.1.01:
-    - ml Flask/2.3.3-GCCcore-12.3.0
-    - ml netpbm/10.73.43-GCC-12.3.0
     - ml AFNI/24.3.06-foss-2023a
-  
-  fsl_6.0.7.14:
-    - ml FSL/6.0.7.14-foss-2023a
-    - '[ -n "$FSLDIR" ] && source ${FSLDIR}/etc/fslconf/fsl.sh'
-  
-  freesurfer_7.4.1:
-    - ml FreeSurfer/7.4.1-GCCcore-12.3.0
 ```
-Reference these modules in task definitions to automatically load required software.
 
-**5. Task Setup Configuration (`setup`)**
-Define which modules to load for each task:
+**3. Task Configuration & Parameters**
 ```yaml
 setup:
   prep:
     - name: unzip
-      environ: ["data_manage_1", "afni_25.1.01"]  # Modules to load for this task
-    
-    - name: recon_bids
-      container: "dcm2bids_3.2.0.sif"   # Or use containers instead of modules
-      config: "branch_config.json"
+      environ: ["data_manage_1"]
+
+task_params:                       # Passed to scripts as env vars
+  BLUR_SIZE: "4.0"
+  CENSOR_MOTION: "0.3"
+  TEMPLATE: "HaskinsPeds_NL_template1.0_SSW.nii"
 ```
-
-**6. Task Parameters Configuration (`task_params`)**
-Define task-specific parameters that will be passed as environment variables to your scripts:
-
-```yaml
-task_params:
-  # AFNI preprocessing parameters
-  REMOVE_TRS: "2"                              # Remove first N TRs from scan
-  TEMPLATE: "HaskinsPeds_NL_template1.0_SSW.nii"  # Standard space template
-  BLUR_SIZE: "4.0"                            # Smoothing kernel size (mm)
-  CENSOR_MOTION: "0.3"                        # Motion threshold for censoring (mm)
-  CENSOR_OUTLIERS: "0.05"                     # Outlier threshold for censoring
-  
-  # You can add task-specific parameters
-  CARDS_TASK_PARAMS: "param1,param2"
-  KIDVID_TASK_PARAMS: "param1,param2"
-```
-
-**How task parameters work**:
-1. You define parameters in `task_params` section of your project config
-2. During job submission, the pipeline automatically creates environment variables for each parameter
-3. Your analysis scripts can access these as `$VARIABLE_NAME`
-4. These are injected into the wrapper script and passed to all processing tasks
-
-**Example in your analysis script**:
-```bash
-#!/bin/bash
-
-echo "Using template: $TEMPLATE"
-echo "Blur kernel: ${BLUR_SIZE} mm"
-echo "Motion threshold: ${CENSOR_MOTION} mm"
-
-# Use the parameters in your command
-afni_proc.py \
-  -blur_size "$BLUR_SIZE" \
-  -tlrc_base "$TEMPLATE" \
-  -regress_censor_motion "$CENSOR_MOTION" \
-  -regress_censor_outliers "$CENSOR_OUTLIERS" \
-  ...
-```
+Task parameters are automatically exported and available in your scripts as `$BLUR_SIZE`, `$CENSOR_MOTION`, etc.
 
 > [!NOTE]
-> If you are familiar with the analysis process, you can modify the corresponding analysis scripts. Otherwise, please use the default configuration.
-> Additionally, the [global configuration file](src/neuro_pipeline/pipeline/config/config.yaml) provides a place for modifying analysis scripts and adjusting HPC resource allocation. However, unless you have specific requirements, it is recommended to use the default configuration.
-
-#### Advanced Configuration: Global Configuration File
-
-The [global config.yaml](src/neuro_pipeline/pipeline/config/config.yaml) defines:
-- **Default HPC resources** (partition, memory, CPU, time)
-- **Resource profiles** for different task types (light_short, standard, heavy_long)
-- **Global task definitions** with input patterns and dependencies
-- **Default environment modules** for analysis software
-
-Edit this file to:
-- Adjust default time limits and memory allocations
-- Add new software modules
-- Modify task dependencies and data flow
+> For advanced customization, see [global config.yaml](src/neuro_pipeline/pipeline/config/config.yaml) to adjust HPC resources, task definitions, and default modules. For most users, the project-level configuration above is sufficient.
 
 ### Step 2: Select Subjects
 
@@ -399,75 +317,23 @@ neuropipe run [OPTIONS]
 
 ### How Task Options Connect to Configuration Files
 
-When you specify `--task-prep kidvid,cards`, the pipeline internally performs these steps:
+When you specify `--task-prep cards,kidvid`, the pipeline:
+1. Loads your project config: `{project_name}_config.yaml`
+2. Searches for task definitions matching the names
+3. Finds corresponding scripts in `scripts_dir`
+4. Loads HPC modules and task parameters from config
+5. Generates wrapper scripts and submits jobs
 
-**1. Parse CLI Arguments**
-```bash
-neuropipe run --project my_study --task-prep kidvid,cards
-                          ↓
-                  Read: my_study_config.yaml
-```
-
-**2. Load Project Configuration**
-Pipeline reads `src/neuro_pipeline/pipeline/config/project_config/my_study_config.yaml`:
+**Example Config**:
 ```yaml
 # my_study_config.yaml
-prefix: "sub-"
-scripts_dir: "scripts/branch"  # Points to where task scripts are located
-
-setup:
-  analysis:          # Group name (used internally)
-    - name: cards    # Task name (matches "cards" in --task-prep)
-      environ: ["afni_25.1.01"]
-    
-    - name: kidvid   # Task name (matches "kidvid" in --task-prep)
-      environ: ["afni_25.1.01"]
-```
-
-**3. Match Tasks to Definitions**
-The pipeline searches for:
-- `cards`: Looks for config matching `name: cards` in `setup.analysis`
-- `kidvid`: Looks for config matching `name: kidvid` in `setup.analysis`
-
-**4. Find Task Scripts**
-For each matched task, locates the script file:
-```bash
-# For "cards" task:
-scripts_dir = "scripts/branch"
-script_file = "{scripts_dir}/afni_cards_preprocessing.sh"
-             = "src/neuro_pipeline/pipeline/scripts/branch/afni_cards_preprocessing.sh"
-
-# For "kidvid" task:
-script_file = "{scripts_dir}/afni_kidvid_preprocess.sh"
-             = "src/neuro_pipeline/pipeline/scripts/branch/afni_kidvid_preprocess.sh"
-```
-
-**5. Apply Global Configuration**
-Pipeline also reads the global config to get:
-- Task definitions from `src/neuro_pipeline/pipeline/config/config.yaml`
-- Default HPC resource profiles
-- Environment module definitions
-
-**6. Generate Wrapper Scripts**
-Combines project config + global config to create wrapper scripts that:
-- Set up HPC environment (modules from setup section)
-- Export task parameters
-- Execute the actual analysis script
-
-**Complete Example**
-
-Here's what happens when you run: `neuropipe run --project my_study --task-prep cards,kidvid`
-
-```yaml
-# Step 1: Load my_study_config.yaml
-prefix: "sub-"
 scripts_dir: "scripts/branch"
 
 setup:
   analysis:
-    - name: cards
+    - name: cards      # Matches --task-prep cards
       environ: ["afni_25.1.01"]
-    - name: kidvid  
+    - name: kidvid     # Matches --task-prep kidvid
       environ: ["afni_25.1.01"]
 
 task_params:
@@ -475,97 +341,11 @@ task_params:
   CENSOR_MOTION: "0.3"
 ```
 
-```yaml
-# Step 2: Load global config.yaml
-resource_profiles:
-  standard:
-    memory: "32gb"
-    time: "20:00:00"
-
-tasks:
-  analysis:
-    - name: cards
-      profile: standard
-      scripts: [afni_cards_preprocessing.sh]
-    - name: kidvid
-      profile: standard
-      scripts: [afni_kidvid_preprocess.sh]
-
-modules:
-  afni_25.1.01:
-    - ml AFNI/24.3.06-foss-2023a
-```
-
-```bash
-# Step 3: Generate wrapper script for cards task
-# Generated wrapper will:
-# - Load afni_25.1.01 environment modules
-# - Export task parameters (BLUR_SIZE, CENSOR_MOTION, etc.)
-# - Execute afni_cards_preprocessing.sh for each subject
-# - Submit to SLURM with standard profile (32gb, 20:00:00)
-
-# Step 4: Generate wrapper script for kidvid task
-# Same process for kidvid task
-```
-
-### Task Configuration Checklist
-
-When using `--task-prep kidvid,cards`, ensure your project config has:
-
-- **Project config file exists**: `src/neuro_pipeline/pipeline/config/project_config/{project_name}_config.yaml`
-- **Task definitions in setup**: Each task name matches CLI option value
-  ```yaml
-  setup:
-    analysis:
-      - name: cards      # Matches --task-prep cards
-      - name: kidvid     # Matches --task-prep kidvid
-  ```
-- **Scripts exist in scripts_dir**: 
-  - `src/neuro_pipeline/pipeline/scripts/{scripts_dir}/afni_cards_preprocessing.sh`
-  - `src/neuro_pipeline/pipeline/scripts/{scripts_dir}/afni_kidvid_preprocess.sh`
-- **HPC modules defined** (if using environ):
-  ```yaml
-  modules:
-    afni_25.1.01:
-      - ml AFNI/24.3.06-foss-2023a
-  ```
-- **Task parameters configured** (optional but recommended):
-  ```yaml
-  task_params:
-    BLUR_SIZE: "4.0"
-    CENSOR_MOTION: "0.3"
-  ```
-
-### Troubleshooting Task Resolution
-
-**Problem**: "Task 'cards' not found"
-
-**Solution**: Check that:
-1. Project config file exists with correct name pattern
-2. Task name in setup section exactly matches CLI argument
-   ```yaml
-   # These must match exactly:
-   setup:
-     analysis:
-       - name: cards  # Must match --task-prep cards
-   ```
-3. Script file exists in the scripts directory
-
-**Example**:
-```bash
-# If you get "cards not found" error:
-
-# 1. Verify config file
-ls src/neuro_pipeline/pipeline/config/project_config/my_study_config.yaml
-
-# 2. Check task name in config
-grep "name: cards" src/neuro_pipeline/pipeline/config/project_config/my_study_config.yaml
-
-# 3. Verify script exists
-ls src/neuro_pipeline/pipeline/scripts/branch/afni_cards_preprocessing.sh
-
-# 4. Check for typos (YAML is case-sensitive)
-```
+**When something goes wrong**:
+- Verify config file name: `{project_name}_config.yaml` in `src/neuro_pipeline/pipeline/config/project_config/`
+- Check task name matches exactly (case-sensitive)
+- Ensure script exists: `src/neuro_pipeline/pipeline/scripts/{scripts_dir}/{task_name}*.sh`
+- Verify HPC modules are available on your system: `module avail`
 
 ### Execution Options
 

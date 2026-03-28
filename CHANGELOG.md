@@ -2,6 +2,11 @@
 
 ---
 
+## [0.12.2-alpha] – 2026-03-10
+### Added
+- Enhanced task parameter usage: CLI commands now support flexiable `--task-prep` options (e.g., `--task-prep cards`) after configuration in config files, with support for task-specific configurations like `task_afni`.
+- Configurable script directories: Each project can now specify its own `script_dir` path for greater flexibility in script management.
+
 ## [0.12.1-alpha] – 2026-01-21
 ### Removed
 - Deprecated DB function completely.
