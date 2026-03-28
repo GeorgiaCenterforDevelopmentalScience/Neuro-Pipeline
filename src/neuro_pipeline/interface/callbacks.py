@@ -118,6 +118,8 @@ def register_callbacks(app):
         State("structural-options", "value"),
         State("rest-prep", "value"),
         State("rest-post", "value"),
+        State("dwi-prep", "value"),
+        State("dwi-post", "value"),
         State("task-prep", "value"),
         State("task-post", "value"),
         State("mriqc-options", "value"),
@@ -125,7 +127,8 @@ def register_callbacks(app):
     )
     def generate_command_callback(n_clicks, subjects, input_dir, output_dir, work_dir,
                                 project_name, session, prep_option, structural_option,
-                                rest_prep, rest_post, task_prep, task_post,
+                                rest_prep, rest_post, dwi_prep, dwi_post,
+                                task_prep, task_post,
                                 mriqc_option, dry_run):
         if n_clicks is None:
             return "Click 'Generate Command' to preview the pipeline command", {}
@@ -183,6 +186,13 @@ def register_callbacks(app):
             if rest_post and rest_post != "none":
                 cmd_parts.append(f'  --rest-post {rest_post} \\')
             
+            # Add DWI options
+            if dwi_prep and dwi_prep != "none":
+                cmd_parts.append(f'  --dwi-prep {dwi_prep} \\')
+            
+            if dwi_post and dwi_post != "none":
+                cmd_parts.append(f'  --dwi-post {dwi_post} \\')
+            
             # Add task options - now support comma-separated format
             if task_prep:
                 # Convert list to comma-separated string
@@ -217,6 +227,8 @@ def register_callbacks(app):
                 "structural_option": structural_option,
                 "rest_prep": rest_prep,
                 "rest_post": rest_post,
+                "dwi_prep": dwi_prep,
+                "dwi_post": dwi_post,
                 "task_prep": task_prep,
                 "task_post": task_post,
                 "mriqc_option": mriqc_option,
@@ -285,6 +297,13 @@ def register_callbacks(app):
             
             if command_data.get("rest_post") and command_data["rest_post"] != "none":
                 cmd.extend(["--rest-post", command_data["rest_post"]])
+            
+            # Add DWI
+            if command_data.get("dwi_prep") and command_data["dwi_prep"] != "none":
+                cmd.extend(["--dwi-prep", command_data["dwi_prep"]])
+            
+            if command_data.get("dwi_post") and command_data["dwi_post"] != "none":
+                cmd.extend(["--dwi-post", command_data["dwi_post"]])
             
             # Add task - now pass as comma-separated string
             if command_data.get("task_prep"):

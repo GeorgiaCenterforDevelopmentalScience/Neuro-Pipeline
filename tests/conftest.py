@@ -107,6 +107,24 @@ MOCK_CONFIG = {
                 "output_pattern": "{base_output}/AFNI_derivatives",
             },
         ],
+        "task_dti": [
+            {
+                "name": "dwi_preprocess",
+                "profile": "standard",
+                "array": True,
+                "input_from": "recon_bids",
+                "scripts": ["qsiprep.sh"],
+                "output_pattern": "{base_output}/DTI_derivatives/qsiprep",
+            },
+            {
+                "name": "dwi_post",
+                "profile": "standard",
+                "array": True,
+                "input_from": "dwi_preprocess",
+                "scripts": ["qsirecon.sh"],
+                "output_pattern": "{base_output}/DTI_derivatives/qsirecon",
+            },
+        ],
         "qc": [
             {
                 "name": "mriqc_individual",
@@ -209,6 +227,16 @@ MOCK_PROJECT_CONFIG = {
                 "censor_outliers": "0.05",
             },
         ],
+        "task_dti": [
+            {
+                "name": "dwi_preprocess",
+                "container": "qsiprep_0.23.0.sif",
+            },
+            {
+                "name": "dwi_post",
+                "container": "qsirecon_0.23.0.sif",
+            },
+        ],
         "qc": [
             {"name": "mriqc_individual", "container": "mriqc_24.0.2.sif"},
             {"name": "mriqc_group",      "container": "mriqc_24.0.2.sif"},
@@ -261,6 +289,8 @@ def scripts_dir(tmp_path):
         "afni_kidvid_preprocess.sh",
         "mriqc_individual.sh",
         "mriqc_group.sh",
+        "qsiprep.sh",
+        "qsirecon.sh",
     ]
     for name in script_names:
         (s_dir / name).write_text("#!/bin/bash\necho mock script\n")

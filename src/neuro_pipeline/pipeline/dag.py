@@ -1,3 +1,9 @@
+"""
+The dependency chain is declared via input_from in config.yaml. 
+For example, dwi_preprocess has input_from: recon_bids, which means if dwi_preprocess is requested, 
+recon_bids will be added as a dependency.
+"""
+
 import os
 from typing import List, Optional, Dict, Any, Set
 from dataclasses import dataclass, field
@@ -37,26 +43,33 @@ class DAGExecutor:
         )
         self.nodes[task_name] = node
     
-    def build_dag(self, requested_tasks: List[str], rest_dependencies: List[tuple] = None) -> List[str]:
+    def build_dag(self, requested_tasks: List[str], rest_dependencies: List[tuple] = None,
+                  dwi_dependencies: List[tuple] = None) -> List[str]:
         """Build DAG from requested tasks"""
         for task_name in requested_tasks:
             self._add_task_with_dependencies(task_name, requested_tasks)
         
-        # Handle rest dependencies
-        if rest_dependencies:
-            for dependency_item in rest_dependencies:
-                if isinstance(dependency_item, tuple) and len(dependency_item) == 2:
-                    task_name, deps = dependency_item
-                    if task_name in self.nodes:
-                        for dep in deps:
-                            if dep in self.nodes:
-                                self.nodes[task_name].add_dependency(dep)
+        # Register explicit inter-task dependencies for each pipeline
+        self._register_dependencies(rest_dependencies)
+        self._register_dependencies(dwi_dependencies)
         
         # Debug output
         if os.environ.get('DEBUG_DEPENDENCIES'):
             self.print_dependency_graph()
         
         return self._topological_sort()
+
+    def _register_dependencies(self, dep_list: List[tuple] = None):
+        """Register explicit dependencies from a pipeline dependency list"""
+        if not dep_list:
+            return
+        for dependency_item in dep_list:
+            if isinstance(dependency_item, tuple) and len(dependency_item) == 2:
+                task_name, deps = dependency_item
+                if task_name in self.nodes:
+                    for dep in deps:
+                        if dep in self.nodes:
+                            self.nodes[task_name].add_dependency(dep)
     
     def _add_task_with_dependencies(self, task_name: str, requested_tasks: List[str] = None):
         """Add task and its dependencies to DAG"""
@@ -100,6 +113,7 @@ class DAGExecutor:
             'mriqc': 'mriqc_individual',
             'mriqc_individual': 'mriqc_individual',
             'rest_fmriprep_preprocess': 'rest_fmriprep_preprocess',
+            'dwi_preprocess': 'dwi_preprocess',
         }
         
         dep_task = dependency_mapping.get(input_from)
@@ -166,8 +180,8 @@ class DAGExecutor:
     
     def execute(self, requested_tasks, input_dir, output_dir, work_dir, container_dir,
                 dry_run, context=None, option_env=None, project_config=None, 
-                rest_dependencies: List[tuple] = None, original_work_dir=None,
-                db_path: Optional[str] = None):
+                rest_dependencies: List[tuple] = None, dwi_dependencies: List[tuple] = None,
+                original_work_dir=None, db_path: Optional[str] = None):
         """Execute tasks in DAG order"""
         if context is None:
             context = {}
@@ -176,7 +190,7 @@ class DAGExecutor:
         all_job_ids = {}
         
         # Build DAG for requested tasks
-        execution_order = self.build_dag(requested_tasks, rest_dependencies)
+        execution_order = self.build_dag(requested_tasks, rest_dependencies, dwi_dependencies)
         
         # # DEPRECATED: merge_logs removed, use manual merge if needed        
         # # Add merge_logs with dependencies on all tasks (if not dry_run)
@@ -330,6 +344,11 @@ class TaskRegistry:
             rest_tasks = self._expand_rest_tasks(kwargs)
             tasks.extend([task_name for task_name, _ in rest_tasks])
         
+        # DWI tasks
+        if kwargs.get('dwi_prep') or kwargs.get('dwi_post'):
+            dwi_tasks = self._expand_dwi_tasks(kwargs)
+            tasks.extend([task_name for task_name, _ in dwi_tasks])
+        
         # Task prep
         if kwargs.get('task_prep'):
             tasks.extend(kwargs['task_prep'])
@@ -366,7 +385,30 @@ class TaskRegistry:
                 tasks.append(('rest_fmriprep_post_fc', ['rest_fmriprep_preprocess']))
         
         return tasks
-    
+
+    def _expand_dwi_tasks(self, kwargs) -> List[tuple]:
+        """Expand DWI tasks with dependencies, mirroring the rest pipeline pattern.
+        Dependency chain: recon_bids -> dwi_preprocess -> dwi_post
+        """
+        from .utils.config_utils import DwiPrepChoice, DwiPostChoice
+
+        dwi_prep = kwargs.get('dwi_prep')
+        dwi_post = kwargs.get('dwi_post')
+
+        tasks = []
+
+        # DWI preprocessing
+        if dwi_prep:
+            if dwi_prep == DwiPrepChoice.qsiprep:
+                tasks.append(('dwi_preprocess', []))
+
+        # DWI postprocessing - must wait for preprocessing to complete
+        if dwi_post:
+            if dwi_post == DwiPostChoice.qsirecon:
+                tasks.append(('dwi_post', ['dwi_preprocess']))
+
+        return tasks
+
     def _expand_task_args(self, kwargs):
         """Expand task arguments"""
         if kwargs.get('task'):

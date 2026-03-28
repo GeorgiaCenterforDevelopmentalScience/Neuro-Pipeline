@@ -12,6 +12,8 @@ from .utils.config_utils import (
     StructuralChoice,
     RestPrepChoice,
     RestPostChoice,
+    DwiPrepChoice,
+    DwiPostChoice,
     MRIQCChoice,
     clean_all_only,
     load_project_config,
@@ -48,10 +50,14 @@ class TaskOptions:
     task_prep: Optional[List[str]] = typer.Option(None, help="Task preprocessing")
     task_post: Optional[List[str]] = typer.Option(None, help="Task postprocessing")
 
+    # DWI: prep and post
+    dwi_prep: Optional[DwiPrepChoice] = typer.Option(None, help="DWI preprocessing (qsiprep)")
+    dwi_post: Optional[DwiPostChoice] = typer.Option(None, help="DWI postprocessing (qsirecon)")
+
 def collect_and_expand_tasks(registry, options: TaskOptions):
     """Collect and expand tasks"""
-    requested_tasks, rest_dependencies = parse_and_expand_tasks(registry, **options.__dict__)
-    return requested_tasks, rest_dependencies
+    requested_tasks, pipeline_dependencies = parse_and_expand_tasks(registry, **options.__dict__)
+    return requested_tasks, pipeline_dependencies
 
 # TODO: Optimize the `all` option and `task` argument, check dag file
 def parse_and_expand_tasks(registry, **kwargs):
@@ -72,12 +78,12 @@ def parse_and_expand_tasks(registry, **kwargs):
     
     requested_tasks = registry.expand_tasks(**kwargs)
     
-    # Get rest dependencies
-    rest_dependencies = None
-    if kwargs.get('rest_prep') or kwargs.get('rest_post'):
-        rest_dependencies = registry._expand_rest_tasks(kwargs)
+    pipeline_dependencies = {
+        'rest': registry._expand_rest_tasks(kwargs) if kwargs.get('rest_prep') or kwargs.get('rest_post') else None,
+        'dwi': registry._expand_dwi_tasks(kwargs) if kwargs.get('dwi_prep') or kwargs.get('dwi_post') else None,
+    }
     
-    return requested_tasks, rest_dependencies
+    return requested_tasks, pipeline_dependencies
 
 @app.command()
 def run(
@@ -100,7 +106,10 @@ def run(
 
     task_prep: Optional[List[str]] = typer.Option(None, help="Task preprocessing (comma-separated or multiple flags)"),
     task_post: Optional[List[str]] = typer.Option(None, help="Task postprocessing (comma-separated or multiple flags)"),
-    
+
+    dwi_prep: Optional[DwiPrepChoice] = typer.Option(None, help="DWI preprocessing (qsiprep)"),
+    dwi_post: Optional[DwiPostChoice] = typer.Option(None, help="DWI postprocessing (qsirecon)"),
+
     dry_run: bool = typer.Option(False, "--dry-run", help="Show execution plan"),
 
     wait: bool = typer.Option(False, "--wait", help="Wait for jobs to complete"),
@@ -159,6 +168,8 @@ def run(
             rest_post=rest_post,
             task_prep=parsed_task_prep,
             task_post=parsed_task_post,
+            dwi_prep=dwi_prep,
+            dwi_post=dwi_post,
         )
                 
         # Validate input
@@ -199,14 +210,16 @@ def run(
         registry = TaskRegistry()
 
         # Expand tasks
-        requested_tasks, rest_dependencies = collect_and_expand_tasks(registry, options)
+        requested_tasks, pipeline_dependencies = collect_and_expand_tasks(registry, options)
         if not requested_tasks:
             typer.echo("Error: No tasks specified", err=True)
             raise typer.Exit(1)
         
         typer.echo(f"Tasks: {requested_tasks}")
-        if rest_dependencies:
-            typer.echo(f"Dependencies: {rest_dependencies}")
+        if pipeline_dependencies.get('rest'):
+            typer.echo(f"Rest dependencies: {pipeline_dependencies['rest']}")
+        if pipeline_dependencies.get('dwi'):
+            typer.echo(f"DWI dependencies: {pipeline_dependencies['dwi']}")
         
         dag_executor = DAGExecutor(config)
 
@@ -286,7 +299,8 @@ def run(
             context=context,
             option_env=option_env,
             project_config=project_config,
-            rest_dependencies=rest_dependencies,
+            rest_dependencies=pipeline_dependencies.get('rest'),
+            dwi_dependencies=pipeline_dependencies.get('dwi'),
             original_work_dir=original_work_dir,
             db_path=db_path
         )

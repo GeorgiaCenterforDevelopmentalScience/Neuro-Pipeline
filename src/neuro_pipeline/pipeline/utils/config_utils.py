@@ -33,6 +33,13 @@ class RestPostChoice(str, Enum):
     """Rest postprocessing tool"""
     xcpd = "xcpd"
 
+class DwiPrepChoice(str, Enum):
+    """DWI processing tool"""
+    qsiprep = "qsiprep"
+
+class DwiPostChoice(str, Enum):
+    """DWI postprocessing tool"""
+    qsirecon = "qsirecon"
 
 class MRIQCChoice(str, Enum):
     group = "group"
