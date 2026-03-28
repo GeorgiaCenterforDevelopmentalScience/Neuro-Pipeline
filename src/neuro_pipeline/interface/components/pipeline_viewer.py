@@ -66,6 +66,7 @@ def create_pipeline_viewer_layout():
                                         {"label": "Preprocessing", "value": "prep"},
                                         {"label": "Structural", "value": "structural"},
                                         {"label": "Rest fMRI", "value": "rest"},
+                                        {"label": "DWI", "value": "dwi"},
                                         {"label": "Task fMRI", "value": "task"},
                                         {"label": "Quality Control", "value": "qc"}
                                     ],
@@ -232,4 +233,4 @@ def create_json_view(commands):
     return html.Pre(
         json.dumps(commands, indent=2, default=str),
         className="bg-light p-3 rounded"
-    ) 
+    )

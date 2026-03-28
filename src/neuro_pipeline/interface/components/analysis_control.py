@@ -262,6 +262,39 @@ def create_pipeline_modules_section():
                 ])
             ], className="mb-3"),
             
+            # DWI
+            dbc.Card([
+                dbc.CardHeader("DWI (Diffusion Weighted Imaging)"),
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Preprocessing:"),
+                            dbc.RadioItems(
+                                id="dwi-prep",
+                                options=[
+                                    {"label": "None", "value": "none"},
+                                    {"label": "QSIPrep", "value": "qsiprep"}
+                                ],
+                                value="none",
+                                inline=True
+                            )
+                        ], width=6),
+                        dbc.Col([
+                            dbc.Label("Postprocessing:"),
+                            dbc.RadioItems(
+                                id="dwi-post",
+                                options=[
+                                    {"label": "None", "value": "none"},
+                                    {"label": "QSIRecon", "value": "qsirecon"}
+                                ],
+                                value="none",
+                                inline=True
+                            )
+                        ], width=6)
+                    ])
+                ])
+            ], className="mb-3"),
+            
             # Task fMRI
             dbc.Card([
                 dbc.CardHeader("Task fMRI"),

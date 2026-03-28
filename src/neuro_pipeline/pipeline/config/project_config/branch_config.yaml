@@ -93,7 +93,18 @@ setup:
       environ: ["afni_25.1.01"]
       censor_motion: "0.3"
       censor_outliers: "0.05"
-      
+
+  task_dwi:
+      - name: dwi_preprocess
+        template: "HaskinsPeds_NL_template1.0_SSW.nii"
+        environ: ["fsl_6.0.7.14"]
+        container: "qsiprep_0.15.0.sif"
+        license: "license.txt"
+
+      - name: dwi_post
+        template: "HaskinsPeds_NL_template1.0_SSW.nii"
+        environ: ["fsl_6.0.7.14"]
+
   # Quality control
   qc:
     - name: mriqc_individual
