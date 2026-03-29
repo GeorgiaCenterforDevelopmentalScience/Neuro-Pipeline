@@ -111,6 +111,7 @@ def run(
     dwi_post: Optional[DwiPostChoice] = typer.Option(None, help="DWI postprocessing (qsirecon)"),
 
     dry_run: bool = typer.Option(False, "--dry-run", help="Show execution plan"),
+    resume: bool = typer.Option(False, "--resume", help="Skip subjects whose outputs already exist"),
 
     wait: bool = typer.Option(False, "--wait", help="Wait for jobs to complete"),
     polling_interval: int = typer.Option(60, "--polling-interval", help="Polling interval (seconds)")
@@ -288,6 +289,18 @@ def run(
         )
         typer.echo(f"Execution ID: {execution_id}")
 
+        # Resume: locate per-project checks config
+        checks_config_path = None
+        if resume:
+            from .utils.output_checker import load_checks_config
+            try:
+                checks_config_path = load_checks_config(project)
+                typer.echo(f"[resume] Loaded output checks: {checks_config_path}")
+            except FileNotFoundError as e:
+                typer.echo(f"Warning: {e}", err=True)
+                typer.echo("Warning: --resume requested but no checks config found. "
+                           "Proceeding without skipping.", err=True)
+
         # Execute DAG
         all_job_ids, context = dag_executor.execute(
             requested_tasks=requested_tasks,
@@ -302,7 +315,9 @@ def run(
             rest_dependencies=pipeline_dependencies.get('rest'),
             dwi_dependencies=pipeline_dependencies.get('dwi'),
             original_work_dir=original_work_dir,
-            db_path=db_path
+            db_path=db_path,
+            resume=resume,
+            checks_config_path=checks_config_path,
         )
         # Display summary
         typer.echo(f"\n=== Summary ===")
@@ -431,3 +446,75 @@ def merge_logs_cmd(
 
 if __name__ == "__main__":
     app()
+
+@app.command("check-outputs")
+def check_outputs_cmd(
+    project: str = typer.Option(..., help="Project name"),
+    work_dir: str = typer.Option(..., "--work", help="Work/output directory"),
+    subjects: str = typer.Option(..., help="Subject list or txt file path"),
+    session: Optional[str] = typer.Option("01", help="Session ID"),
+    tasks: Optional[List[str]] = typer.Option(None, "--task",
+        help="Task(s) to check (repeatable). Defaults to all configured tasks."),
+    checks_dir: Optional[str] = typer.Option(None,
+        help="Override directory for *_checks.yaml files"),
+):
+    """
+    Check whether task outputs exist for each subject.
+
+    Prints a summary of problematic subjects to the terminal and saves
+    a full CSV report to <work_dir>/check_results_<timestamp>.csv.
+
+    Example:
+      neuropipe check-outputs --project test --work /data/processed \\
+          --subjects sub-001,sub-002 --session 01
+    """
+    from .utils.output_checker import OutputChecker, load_checks_config
+
+    try:
+        checks_config_path = load_checks_config(project, checks_dir)
+        typer.echo(f"Loaded checks config: {checks_config_path}")
+    except FileNotFoundError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+    try:
+        project_config = load_project_config(project)
+        prefix = project_config.get('prefix', 'sub-')
+    except FileNotFoundError:
+        prefix = 'sub-'
+
+    subjects_path = Path(subjects)
+    if subjects_path.is_file():
+        with open(subjects_path) as f:
+            subject_list = [s.strip() for s in f.read().split(',') if s.strip()]
+    else:
+        subject_list = [s.strip() for s in subjects.split(',') if s.strip()]
+
+    if not subject_list:
+        typer.echo("Error: no subjects provided", err=True)
+        raise typer.Exit(1)
+
+    checker = OutputChecker(
+        config_path=checks_config_path,
+        work_dir=work_dir,
+        prefix=prefix,
+        session=session,
+    )
+
+    all_configured_tasks = list(checker._config.keys())
+    task_names = tasks if tasks else all_configured_tasks
+
+    checker.warn_missing_configs(task_names)
+    task_names = [t for t in task_names if t in checker._config]
+
+    if not task_names:
+        typer.echo("No tasks to check (none have output check configs).")
+        raise typer.Exit(0)
+
+    typer.echo(f"Checking {len(task_names)} task(s) × {len(subject_list)} subject(s)...")
+
+    df = checker.check_all(task_names, subject_list)
+    checker.print_terminal_summary(df)
+
+    csv_path = checker.save_csv(df, work_dir)
+    typer.echo(f"Full report saved to: {csv_path}")

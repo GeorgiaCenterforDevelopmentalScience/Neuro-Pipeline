@@ -1,0 +1,115 @@
+# test_checks.yaml
+# Per-project output check configuration for resume / check-outputs.
+#
+# Each key is a task name (must match the task names in config.yaml).
+# Two check types are supported and can be combined freely:
+#
+#   required_files:
+#     - pattern: "glob pattern relative to output_path"
+#       min_size_kb: 500          # optional – omit to skip size check
+#
+#   count_check:
+#     <data_type_label>:
+#       pattern: "glob pattern relative to output_path"
+#       expected_count: 2
+#       tolerance: 1              # abs(actual - expected) <= tolerance → PASS
+#
+# Path variables available in output_path:
+#   {work_dir}  – the project work/output directory
+#   {subject}   – subject ID without prefix, e.g. "001"
+#   {session}   – session label, e.g. "01"
+#   {prefix}    – subject prefix, e.g. "sub-"
+
+# Prep
+
+recon_bids:
+  output_path: "{work_dir}/BIDS/sub-{subject}/ses-{session}/"
+  count_check:
+    anat:
+      pattern: "anat/*.nii.gz"
+      expected_count: 1
+      tolerance: 0
+    fmap:
+      pattern: "fmap/*.nii.gz"
+      expected_count: 4
+      tolerance: 1
+    rest:
+      pattern: "func/*rest*.nii.gz"
+      expected_count: 2
+      tolerance: 1
+    kidvid:
+      pattern: "func/*kidvid*.nii.gz"
+      expected_count: 1
+      tolerance: 0
+    cards:
+      pattern: "func/*cards*.nii.gz"
+      expected_count: 1
+      tolerance: 0
+    dwi:
+      pattern: "dwi/*.nii.gz"
+      expected_count: 1
+      tolerance: 0
+
+# Structural
+
+afni_volume:
+  output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/ses-{session}/sswarp2/T1_results"
+  required_files:
+    - pattern: "QC_anatSS.{prefix}{subject}.jpg"
+      min_size_kb: 50
+
+# Resting-state fMRI
+
+rest_fmriprep_preprocess:
+  output_path: "{work_dir}/BIDS_derivatives/fmriprep/"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 500
+
+rest_fmriprep_post_fc:
+  output_path: "{work_dir}/BIDS_derivatives/xcpd/sub-{subject}/ses-{session}"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 200
+
+# Task fMRI – AFNI
+
+cards_preprocess:
+  output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/ses-{session}/cards_output/{prefix}{subject}.results/QC_{prefix}{subject}"
+  required_files:
+    - pattern: "index.html"
+      min_size_kb: 50
+
+kidvid_preprocess:
+  output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/ses-{session}/kidvid_output/{prefix}{subject}.results/QC_{prefix}{subject}"
+  required_files:
+    - pattern: "index.html"
+      min_size_kb: 50
+
+# DWI
+
+dwi_preprocess:
+  output_path: "{work_dir}/DTI_derivatives/qsiprep"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 200
+
+dwi_post:
+  output_path: "{work_dir}/DTI_derivatives/qsirecon"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 200
+
+# Quality Control
+
+mriqc_individual:
+  output_path: "{work_dir}/quality_control/mriqc"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 100
+
+mriqc_group:
+  output_path: "{work_dir}/quality_control/mriqc"
+  required_files:
+    - pattern: "group_*.html"
+      min_size_kb: 50

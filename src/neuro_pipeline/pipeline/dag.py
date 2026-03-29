@@ -181,27 +181,31 @@ class DAGExecutor:
     def execute(self, requested_tasks, input_dir, output_dir, work_dir, container_dir,
                 dry_run, context=None, option_env=None, project_config=None, 
                 rest_dependencies: List[tuple] = None, dwi_dependencies: List[tuple] = None,
-                original_work_dir=None, db_path: Optional[str] = None):
+                original_work_dir=None, db_path: Optional[str] = None,
+                resume: bool = False, checks_config_path: Optional[str] = None):
         """Execute tasks in DAG order"""
         if context is None:
             context = {}
         
         self.project_config = project_config
         all_job_ids = {}
+
+        # Resume: initialise OutputChecker once if --resume was requested
+        checker = None
+        if resume and checks_config_path:
+            from .utils.output_checker import OutputChecker
+            prefix = (project_config or {}).get('prefix', 'sub-')
+            session = (option_env or {}).get('session', '01')
+            checker = OutputChecker(
+                config_path=checks_config_path,
+                work_dir=work_dir,
+                prefix=prefix,
+                session=session,
+            )
+            checker.warn_missing_configs(requested_tasks)
         
         # Build DAG for requested tasks
         execution_order = self.build_dag(requested_tasks, rest_dependencies, dwi_dependencies)
-        
-        # # DEPRECATED: merge_logs removed, use manual merge if needed        
-        # # Add merge_logs with dependencies on all tasks (if not dry_run)
-        # if not dry_run:
-        #     merge_config = self._get_merge_config()
-        #     if merge_config:
-        #         self.add_task('merge_logs', merge_config)
-        #         # Make merge_logs depend on ALL requested tasks
-        #         for task_name in execution_order:
-        #             self.nodes['merge_logs'].add_dependency(task_name)
-        #         execution_order.append('merge_logs')
         
         # Execute all tasks
         for task_name in execution_order:
@@ -213,7 +217,26 @@ class DAGExecutor:
             
             # Prepare execution parameters
             is_merge_task = (task_name == 'merge_logs')
-            subjects_str = 'dummy' if is_merge_task else ','.join(context.get('subjects', []))
+            all_subjects = context.get('subjects', [])
+
+            # Resume: filter already-completed subjects
+            if checker and not is_merge_task and not dry_run:
+                pending = checker.get_pending_subjects(task_name, all_subjects)
+                if len(pending) < len(all_subjects):
+                    skipped = sorted(set(all_subjects) - set(pending))
+                    typer.echo(
+                        f"[resume] {task_name}: skipping {len(skipped)} completed subject(s): "
+                        f"{', '.join(skipped)}"
+                    )
+                if not pending:
+                    typer.echo(f"[resume] {task_name}: all subjects complete, skipping task.")
+                    all_job_ids[task_name] = []
+                    node.completed = True
+                    continue
+                subjects_str = ','.join(pending)
+            else:
+                subjects_str = 'dummy' if is_merge_task else ','.join(all_subjects)
+
             task_env = self._prepare_task_env(option_env, all_job_ids if is_merge_task else None)
             
             # Execute task
