@@ -563,6 +563,91 @@ neuropipe run \
   --project my_study \
   --mriqc all
 ```
+---
+
+## Resume & Output Checking
+
+### Resume Mode
+
+By default, `neuropipe run` submits all requested subjects regardless of prior runs.
+Add `--resume` to skip subjects whose outputs already exist on disk — useful when a
+pipeline run was interrupted or when adding new subjects to an existing dataset.
+
+```bash
+neuropipe run --project test --prep recon --subjects 001,002,003 --resume
+```
+
+Before submitting each task, the pipeline checks the expected output files for every
+subject (defined in `config/results_check/<project>_checks.yaml`). Subjects that have
+already produced valid outputs are silently excluded from the SLURM array job.
+Subjects with missing or incomplete outputs are submitted as normal.
+DAG dependency order is fully preserved — for example, if preprocessing is still
+pending, postprocessing will wait for it via SLURM's `--dependency=afterok` mechanism,
+exactly as it would in a fresh run.
+
+> **Note:** `--resume` requires a `<project>_checks.yaml` file in
+> `config/results_check/`. If the file is missing, the pipeline will warn and proceed
+> without skipping any subjects. Tasks that have no entry in the checks file are also
+> submitted in full, with a warning printed to the terminal.
+
+
+### Checking Outputs
+
+Use `check-outputs` at any time to inspect which subjects have completed a given task,
+without submitting any jobs. This is independent of `--resume` and can be run while
+jobs are still running or after a pipeline has finished.
+
+```bash
+# Check all configured tasks for a set of subjects
+neuropipe check-outputs --project test --work /data/processed \
+    --subjects 001,002,003 --session 01
+
+# Narrow the check to specific tasks
+neuropipe check-outputs --project test --work /data/processed \
+    --subjects 001,002,003 \
+    --task rest_fmriprep_preprocess \
+    --task afni_volume
+```
+
+The terminal prints only the subject IDs that have issues, grouped by task:
+
+```
+[check-outputs] Issues found:
+  rest_fmriprep_preprocess: 002, 003
+  afni_volume: 003
+```
+
+A full CSV report is saved to `<work_dir>/check_results_<timestamp>.csv` with one row
+per check item, including the output path, expected vs. actual file count, and the
+pass/fail status. Open it to diagnose exactly which files are missing or undersized.
+
+### Configuring Output Checks
+
+Checks are defined per project in `config/results_check/<project>_checks.yaml`.
+Each task entry supports two check types, which can be used independently or combined:
+
+```yaml
+rest_fmriprep_preprocess:
+  output_path: "{work_dir}/BIDS_derivatives/fmriprep/"
+  required_files:
+    - pattern: "sub-{subject}*.html"
+      min_size_kb: 500        # omit to check existence only
+
+recon_bids:
+  output_path: "{work_dir}/BIDS/sub-{subject}/ses-{session}/"
+  count_check:
+    anat:
+      pattern: "anat/*.nii.gz"
+      expected_count: 1
+      tolerance: 0            # abs(actual - expected) <= tolerance → pass
+    func:
+      pattern: "func/*rest*.nii.gz"
+      expected_count: 2
+      tolerance: 1
+```
+
+Available path variables: `{work_dir}`, `{subject}`, `{session}`, `{prefix}`.
+
 
 ---
 
