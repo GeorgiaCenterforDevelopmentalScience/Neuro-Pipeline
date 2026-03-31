@@ -355,7 +355,7 @@ class TestCreateWrapperScript:
 
     def test_slurm_submission_comment_present(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert "SLURM Submission Command" in content
+        assert "Submission Command" in content
         assert "--partition=batch" in content
 
     # ---- wrapper template sourced and executed -----------------------------

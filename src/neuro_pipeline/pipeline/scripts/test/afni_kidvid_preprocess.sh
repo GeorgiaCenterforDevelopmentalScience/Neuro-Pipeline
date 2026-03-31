@@ -62,6 +62,8 @@ echo "version: ${version}"
 
 export AFNI_NO_X11=1
 
+# https://afni.nimh.nih.gov/pub/dist/doc/htmldoc/programs/alpha/afni_proc.py_sphx.html#example-2-very-simple
+
 afni_proc.py \
 -subj_id $subj \
 -script proc."${subj}" -scr_overwrite \
@@ -69,13 +71,15 @@ afni_proc.py \
 -copy_anat "${t1_dir}"/T1_results/anatSS."${subj}".nii \
 -anat_has_skull no \
 -dsets "${nifti_dir}"/sub-"${subject}"_ses-"${session}"_task-kidvid*.nii* \
--blocks tshift align volreg blur mask scale regress \
--volreg_tlrc_warp \
+-blocks tshift align tlrc volreg mask blur scale regress \
+-radial_correlate_blocks  tcat volreg regress \
 -tcat_remove_first_trs "${REMOVE_TRS}" \
+- -align_unifize_epi local \
 -align_opts_aea -cost lpc+ZZ -giant_move \
 -tlrc_base "${template}" \
 -volreg_align_to MIN_OUTLIER \
 -volreg_align_e2a \
+-volreg_tlrc_warp \
 -volreg_compute_tsnr yes \
 -mask_epi_anat yes \
 -blur_size "${BLUR_SIZE}" \
@@ -91,5 +95,7 @@ afni_proc.py \
 -regress_3dD_stop \
 -regress_reml_exec \
 -regress_compute_fitts \
+-regress_make_ideal_sum sum_ideal.1D \
+-regress_run_clustsim no \
 -html_review_style pythonic \
 -execute \

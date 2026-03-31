@@ -2,6 +2,8 @@ import sys
 import os
 import subprocess
 import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 import typer
@@ -9,16 +11,183 @@ import yaml
 
 # Load global configuration
 config_path = Path(__file__).parent.parent / "config" / "config.yaml"
+with open(config_path, "r", encoding="utf-8") as f:
+    config = yaml.safe_load(f)
 
-try:
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-except FileNotFoundError:
-    raise FileNotFoundError(
-        f"config.yaml not found at {config_path}"
-    )
+# Load HPC scheduler configuration
+hpc_config_path = Path(__file__).parent.parent / "config" / "hpc_config.yaml"
+with open(hpc_config_path, "r", encoding="utf-8") as f:
+    hpc_config = yaml.safe_load(f)
 
-from dataclasses import dataclass
+
+class HPCBackend(ABC):
+    """Abstract base class for HPC scheduler backends.
+    
+    Subclass this to add support for a new scheduler (PBS, LSF, etc.).
+    Only three methods need to be implemented:
+      - build_job_args   → scheduler-specific submission flags
+      - submit_job       → submit and return job id
+      - wait_for_jobs    → poll until all jobs finish
+    """
+
+    @abstractmethod
+    def build_job_args(
+        self,
+        resources: "HPCResources",
+        array_param: Optional[str],
+        wait_jobs: Optional[List[str]],
+        job_name: str,
+        log_output: str,
+        log_error: str,
+    ) -> List[str]:
+        """Build the scheduler-specific argument list for job submission."""
+
+    @abstractmethod
+    def submit_job(self, args: List[str], wrapper_script: Path) -> Optional[str]:
+        """Submit a job and return the job id string, or None on failure."""
+
+    @abstractmethod
+    def wait_for_jobs(self, job_ids: List[str], polling_interval: int = 60) -> None:
+        """Block until all given job ids have left the active state."""
+
+
+class SLURMBackend(HPCBackend):
+    """SLURM scheduler backend (sbatch / squeue / scancel)."""
+
+    def __init__(self, scheduler_cfg: Dict[str, Any]):
+        self._cfg = scheduler_cfg
+        self._flags = scheduler_cfg.get("resource_flags", {})
+
+    def _fmt(self, key: str, value: Any) -> str:
+        """Format a resource flag using the template from hpc_config.yaml."""
+        template = self._flags[key]
+        return template.format(value=value)
+
+    def build_job_args(
+        self,
+        resources: "HPCResources",
+        array_param: Optional[str],
+        wait_jobs: Optional[List[str]],
+        job_name: str,
+        log_output: str,
+        log_error: str,
+    ) -> List[str]:
+        args = [
+            self._fmt("partition",     resources.partition),
+            self._fmt("nodes",         resources.nodes),
+            self._fmt("ntasks",        resources.ntasks),
+            self._fmt("cpus_per_task", resources.cpus_per_task),
+            self._fmt("time",          resources.time),
+            self._fmt("job_name",      job_name),
+            self._fmt("output",        log_output),
+            self._fmt("error",         log_error),
+        ]
+
+        if resources.memory_per_cpu:
+            args.append(self._fmt("mem_per_cpu", resources.memory_per_cpu))
+        else:
+            args.append(self._fmt("mem", resources.memory))
+
+        if array_param:
+            array_flag = self._cfg["array_flag"].format(array=array_param)
+            args.append(array_flag)
+
+        if resources.additional_args:
+            args.extend(resources.additional_args)
+
+        if wait_jobs:
+            dep_flag = self._cfg["dependency_flag"].format(jobs=":".join(wait_jobs))
+            args.append(dep_flag)
+
+        return args
+
+    def submit_job(self, args: List[str], wrapper_script: Path) -> Optional[str]:
+        submit_cmd = self._cfg["submit_cmd"]
+        cmd = [submit_cmd] + args + [str(wrapper_script)]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            # Parse job id according to hpc_config job_id_parse strategy
+            parse = self._cfg.get("job_id_parse", "last_word")
+            if parse == "last_word":
+                job_id = result.stdout.strip().split()[-1]
+            elif parse == "first_word":
+                job_id = result.stdout.strip().split()[0]
+            else:
+                job_id = result.stdout.strip()
+            typer.echo(f"Job submitted: {job_id}")
+            return job_id
+        except subprocess.CalledProcessError as e:
+            typer.echo(f"Job submission failed: {e}", err=True)
+            if e.stdout:
+                typer.echo(f"STDOUT: {e.stdout}", err=True)
+            if e.stderr:
+                typer.echo(f"STDERR: {e.stderr}", err=True)
+            return None
+
+    def wait_for_jobs(self, job_ids: List[str], polling_interval: int = 60) -> None:
+        if not job_ids:
+            return
+
+        typer.echo(f"Waiting for jobs: {', '.join(job_ids)}")
+        status_cmd = self._cfg["status_cmd"]
+        status_args = self._cfg.get("status_args", ["--noheader", "--format=%i %T"])
+        active_states = set(self._cfg.get("active_states", ["PENDING", "RUNNING"]))
+
+        while True:
+            try:
+                result = subprocess.run(
+                    [status_cmd, "--job", ",".join(job_ids)] + status_args,
+                    capture_output=True, text=True, check=True
+                )
+
+                if not result.stdout.strip():
+                    typer.echo("All jobs completed")
+                    break
+
+                running_jobs = []
+                for line in result.stdout.strip().split("\n"):
+                    if line.strip():
+                        parts = line.strip().split()
+                        if len(parts) >= 2:
+                            job_id, status = parts[0], parts[1]
+                            if status in active_states:
+                                running_jobs.append(f"{job_id}({status})")
+
+                if running_jobs:
+                    typer.echo(f"Waiting for: {', '.join(running_jobs)}")
+                    time.sleep(polling_interval)
+                else:
+                    typer.echo("All jobs completed")
+                    break
+
+            except subprocess.CalledProcessError:
+                typer.echo("All jobs completed (not found in queue)")
+                break
+
+
+def get_hpc_backend() -> HPCBackend:
+    """Factory function: read hpc_config.yaml and return the appropriate backend.
+
+    To add a new scheduler, add its config block to hpc_config.yaml and
+    register it here with a new elif branch.
+    """
+    scheduler = hpc_config.get("scheduler", "slurm").lower()
+    scheduler_cfg = hpc_config.get(scheduler)
+
+    if scheduler_cfg is None:
+        raise ValueError(
+            f"Scheduler '{scheduler}' selected in hpc_config.yaml "
+            f"but has no config block defined."
+        )
+
+    if scheduler == "slurm":
+        return SLURMBackend(scheduler_cfg)
+    else:
+        raise NotImplementedError(
+            f"Scheduler '{scheduler}' is not yet implemented. "
+            f"See HPCBackend in hpc_utils.py to add support."
+        )
+
 
 @dataclass
 class HPCResources:
@@ -400,11 +569,12 @@ def create_wrapper_script(
         f.write(f"# Number of subjects: {len(subjects_list)}\n")
         f.write(f"# Array job: {'Yes' if use_array else 'No'}\n")
         
-        # ADD SLURM SUBMISSION COMMAND
+        # Submission command reference (for debugging)
         if slurm_args:
+            submit_cmd = hpc_config.get(hpc_config.get("scheduler", "slurm"), {}).get("submit_cmd", "sbatch")
             f.write("#\n")
-            f.write("# SLURM Submission Command:\n")
-            f.write(f"# sbatch {' '.join(slurm_args)} {wrapper_path}\n")
+            f.write("# Submission Command:\n")
+            f.write(f"# {submit_cmd} {' '.join(slurm_args)} {wrapper_path}\n")
         
         f.write("\n")
         
@@ -454,37 +624,6 @@ def create_wrapper_script(
     return wrapper_path
 
 def wait_for_jobs(job_ids: List[str], polling_interval: int = 60):
-    """Wait for SLURM jobs to complete"""
-    if not job_ids:
-        return
-
-    typer.echo(f"Waiting for jobs: {', '.join(job_ids)}")
-
-    while True:
-        try:
-            result = subprocess.run(
-                ["squeue", "--job", ",".join(job_ids), "--noheader", "--format=%i %T"],
-                capture_output=True, text=True, check=True
-            )
-
-            if not result.stdout.strip():
-                typer.echo("All jobs completed")
-                break
-
-            running_jobs = []
-            for line in result.stdout.strip().split('\n'):
-                if line.strip():
-                    job_id, status = line.strip().split()
-                    if status in ['PENDING', 'RUNNING']:
-                        running_jobs.append(f"{job_id}({status})")
-
-            if running_jobs:
-                typer.echo(f"Waiting for: {', '.join(running_jobs)}")
-                time.sleep(polling_interval)
-            else:
-                typer.echo("All jobs completed")
-                break
-
-        except subprocess.CalledProcessError:
-            typer.echo("All jobs completed (not found in queue)")
-            break
+    """Wait for jobs to complete using the configured HPC backend."""
+    backend = get_hpc_backend()
+    backend.wait_for_jobs(job_ids, polling_interval)

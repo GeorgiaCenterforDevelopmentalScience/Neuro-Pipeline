@@ -1,0 +1,41 @@
+# HPC Scheduler Configuration
+# Set `scheduler` to match your cluster's job scheduler.
+# Currently supported: slurm
+# To add a new scheduler, implement HPCBackend in hpc_utils.py and add a
+# config block here following the same structure as the slurm block below.
+
+scheduler: slurm
+
+slurm:
+  # Submission
+  submit_cmd: sbatch
+  # job_id_parse: how to extract job id from submit stdout
+  #   last_word  → "Submitted batch job 12345"  →  "12345"
+  job_id_parse: last_word
+
+  # Dependency between jobs (use {jobs} as placeholder for colon-joined ids)
+  dependency_flag: "--dependency=afterany:{jobs}"
+
+  # Array jobs (use {array} as placeholder for the expanded pattern)
+  array_flag: "--array={array}"
+
+  # Resource flags (use {value} as placeholder)
+  resource_flags:
+    partition:    "--partition={value}"
+    nodes:        "--nodes={value}"
+    ntasks:       "--ntasks={value}"
+    cpus_per_task: "--cpus-per-task={value}"
+    time:         "--time={value}"
+    mem:          "--mem={value}"
+    mem_per_cpu:  "--mem-per-cpu={value}"
+    job_name:     "--job-name={value}"
+    output:       "--output={value}"
+    error:        "--error={value}"
+
+  # Job monitoring
+  status_cmd: squeue
+  status_args: ["--noheader", "--format=%i %T"]
+  active_states: [PENDING, RUNNING]
+
+  # Job cancellation
+  cancel_cmd: scancel
