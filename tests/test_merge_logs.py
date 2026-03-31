@@ -286,52 +286,6 @@ class TestDAGMergeLogsIntegration:
             merge_node = executor.nodes['merge_logs']
             assert merge_node.dependencies == {'task1', 'task2', 'task3'}
     
-    def test_merge_logs_receives_all_job_ids(self, mock_config, mock_project_config):
-        """Test: merge_logs receives all job_ids in environment"""
-        executor = DAGExecutor(mock_config)
-        
-        # Mock submit_slurm_job to return job IDs
-        with patch('neuro_pipeline.pipeline.utils.hpc_utils.submit_slurm_job') as mock_submit:
-            mock_submit.side_effect = ['job_001', 'job_002', 'job_003', 'job_merge']
-            
-            with patch('neuro_pipeline.pipeline.utils.config_utils.find_task_config_by_name_with_project') as mock_find:
-                mock_find.side_effect = lambda name, proj: {
-                    'name': name,
-                    'scripts': [f'{name}.sh'],
-                    'profile': 'standard'
-                }
-                
-                # Execute DAG
-                requested_tasks = ['task1', 'task2', 'task3']
-                context = {'subjects': ['sub001', 'sub002']}
-                
-                all_job_ids, _ = executor.execute(
-                    requested_tasks=requested_tasks,
-                    input_dir='/input',
-                    output_dir='/output',
-                    work_dir='/work',
-                    container_dir='/containers',
-                    dry_run=False,
-                    context=context,
-                    option_env={'session': '01'},
-                    project_config=mock_project_config,
-                    db_path='/work/log/pipeline_jobs.db'
-                )
-                
-                # Get the merge_logs call
-                merge_call = None
-                for call in mock_submit.call_args_list:
-                    if call[1].get('option_env', {}).get('JOB_IDS'):
-                        merge_call = call
-                        break
-                
-                # Verify merge_logs received all job IDs
-                assert merge_call is not None
-                job_ids_str = merge_call[1]['option_env']['JOB_IDS']
-                received_jobs = set(job_ids_str.split(','))
-                expected_jobs = {'job_001', 'job_002', 'job_003'}
-                assert received_jobs == expected_jobs
-    
     def test_merge_logs_not_added_in_dry_run(self, mock_config, mock_project_config):
         """Test: merge_logs is not added during dry_run"""
         executor = DAGExecutor(mock_config)

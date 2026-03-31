@@ -222,11 +222,11 @@ class TestCountCheck:
         assert "too few" in anat_row["status"]
 
     def test_fail_too_many(self, checker, tmp_path):
-        """3 func files when expected=2 tolerance=1 → FAIL (exceeds)."""
+        """4 func files when expected=2 tolerance=1 → FAIL (abs(4-2)=2 > 1)."""
         subject = "004"
         base = self._bids_dir(tmp_path, subject)
         _make_file(base / "anat" / "sub-004_T1w.nii.gz")
-        for i in range(3):
+        for i in range(4):
             _make_file(base / "func" / f"sub-004_task-rest_run-{i}_bold.nii.gz")
 
         rows = checker.check_subject("recon_bids", subject)
@@ -603,7 +603,7 @@ class TestDAGExecutorResume:
         # post_fc submitted with wait_jobs containing preprocess job id
         calls = mock_execute.call_args_list
         post_fc_call = next(
-            (c for c in calls if c[1]["node"].name == "rest_fmriprep_post_fc"), None
+            (c for c in calls if c[0][0].name == "rest_fmriprep_post_fc"), None
         )
         assert post_fc_call is not None
         wait_jobs = post_fc_call[1]["wait_jobs"]

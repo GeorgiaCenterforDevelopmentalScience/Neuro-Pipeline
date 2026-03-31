@@ -146,6 +146,18 @@ def create_analysis_control_layout():
                                     id="dry-run-checkbox",
                                     options=[{"label": "Dry Run (Show commands without execution)", "value": "dry_run"}],
                                     value=["dry_run"],
+                                    className="mb-2"
+                                ),
+                                dbc.Checklist(
+                                    id="resume-checkbox",
+                                    options=[{
+                                        "label": [
+                                            "Resume Mode ",
+                                            dbc.Badge("skip completed subjects", color="secondary", className="ms-1")
+                                        ],
+                                        "value": "resume"
+                                    }],
+                                    value=[],
                                     className="mb-3"
                                 )
                             ], width=4),

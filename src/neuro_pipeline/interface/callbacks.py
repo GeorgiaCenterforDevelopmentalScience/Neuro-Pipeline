@@ -123,13 +123,14 @@ def register_callbacks(app):
         State("task-prep", "value"),
         State("task-post", "value"),
         State("mriqc-options", "value"),
-        State("dry-run-checkbox", "value")]
+        State("dry-run-checkbox", "value"),
+        State("resume-checkbox", "value")]
     )
     def generate_command_callback(n_clicks, subjects, input_dir, output_dir, work_dir,
                                 project_name, session, prep_option, structural_option,
                                 rest_prep, rest_post, dwi_prep, dwi_post,
                                 task_prep, task_post,
-                                mriqc_option, dry_run):
+                                mriqc_option, dry_run, resume):
         if n_clicks is None:
             return "Click 'Generate Command' to preview the pipeline command", {}
         
@@ -206,7 +207,11 @@ def register_callbacks(app):
             
             # Add dry run flag if enabled
             if dry_run and "dry_run" in dry_run:
-                cmd_parts.append(f'  --dry-run')
+                cmd_parts.append(f'  --dry-run \\')
+            
+            # Add resume flag if enabled
+            if resume and "resume" in resume:
+                cmd_parts.append(f'  --resume')
             else:
                 # Remove trailing backslash from last option
                 if cmd_parts[-1].endswith(' \\'):
@@ -232,7 +237,8 @@ def register_callbacks(app):
                 "task_prep": task_prep,
                 "task_post": task_post,
                 "mriqc_option": mriqc_option,
-                "dry_run": dry_run
+                "dry_run": dry_run,
+                "resume": resume
             }
             
             return command_str, command_data
@@ -246,10 +252,11 @@ def register_callbacks(app):
         Output("execution-status", "children"),
         [Input("execute-pipeline-btn", "n_clicks")],
         [State("pipeline-commands-store", "data"),
-        State("dry-run-checkbox", "value")],
+        State("dry-run-checkbox", "value"),
+        State("resume-checkbox", "value")],
         prevent_initial_call=True
     )
-    def execute_pipeline_callback(n_clicks, command_data, dry_run):
+    def execute_pipeline_callback(n_clicks, command_data, dry_run, resume):
         if n_clicks is None:
             return ""
         
@@ -317,6 +324,11 @@ def register_callbacks(app):
             # Add dry run
             if is_dry_run:
                 cmd.append("--dry-run")
+            
+            # Add resume flag
+            is_resume = "resume" in (resume or []) or "resume" in (command_data.get("resume") or [])
+            if is_resume:
+                cmd.append("--resume")
             
             # Execute command
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -467,3 +479,234 @@ def register_callbacks(app):
                 html.I(className="fas fa-exclamation-triangle me-2"),
                 f"Error saving configuration: {str(e)}"
             ], color="danger")
+
+    # ── Results Check: auto-fill path when project name is typed ─────────────
+    @app.callback(
+        Output("checks-file-path", "value"),
+        Input("checks-project-name", "value"),
+        prevent_initial_call=True
+    )
+    def autofill_checks_path(project_name):
+        if not project_name:
+            return ""
+        return f"config/results_check/{project_name}_checks.yaml"
+
+    # ── Results Check: load existing checks YAML ──────────────────────────────
+    @app.callback(
+        [Output("checks-yaml-editor", "value"),
+         Output("checks-validation-result", "children", allow_duplicate=True)],
+        [Input("load-checks-btn", "n_clicks"),
+         Input("new-checks-btn", "n_clicks")],
+        State("checks-file-path", "value"),
+        prevent_initial_call=True
+    )
+    def load_checks_callback(load_clicks, new_clicks, checks_path):
+        ctx = callback_context
+        if not ctx.triggered:
+            return "", ""
+
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        if trigger_id == "new-checks-btn":
+            template = (
+                "# Results check configuration\n"
+                "# Keys must match task names defined in config.yaml\n\n"
+                "# Example — required_files check:\n"
+                "# rest_fmriprep_preprocess:\n"
+                "#   output_path: \"{work_dir}/BIDS_derivatives/fmriprep/\"\n"
+                "#   required_files:\n"
+                "#     - pattern: \"sub-{subject}*.html\"\n"
+                "#       min_size_kb: 500\n\n"
+                "# Example — count_check:\n"
+                "# recon_bids:\n"
+                "#   output_path: \"{work_dir}/BIDS/sub-{subject}/ses-{session}/\"\n"
+                "#   count_check:\n"
+                "#     anat:\n"
+                "#       pattern: \"anat/*.nii.gz\"\n"
+                "#       expected_count: 1\n"
+                "#       tolerance: 0\n"
+            )
+            return template, dbc.Alert(
+                "New template loaded. Fill in your task checks and save.",
+                color="info", className="mt-2"
+            )
+
+        # Load button
+        if not checks_path:
+            return "", dbc.Alert("Please provide a file path.", color="warning")
+
+        if not os.path.exists(checks_path):
+            return "", dbc.Alert(
+                f"File not found: {checks_path}. "
+                "Click 'New' to start from a template.",
+                color="warning"
+            )
+
+        try:
+            with open(checks_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return content, dbc.Alert(
+                [html.I(className="fas fa-check-circle me-2"),
+                 f"Loaded: {checks_path}"],
+                color="success", className="mt-2"
+            )
+        except Exception as e:
+            return "", dbc.Alert(f"Error loading file: {e}", color="danger")
+
+    # ── Results Check: save + validate checks YAML ────────────────────────────
+    @app.callback(
+        Output("checks-validation-result", "children"),
+        [Input("save-checks-btn", "n_clicks"),
+         Input("validate-checks-btn", "n_clicks")],
+        [State("checks-file-path", "value"),
+         State("checks-yaml-editor", "value")],
+        prevent_initial_call=True
+    )
+    def save_checks_callback(save_clicks, validate_clicks, checks_path, yaml_content):
+        ctx = callback_context
+        if not ctx.triggered:
+            return ""
+
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        if not yaml_content:
+            return dbc.Alert("Editor is empty.", color="warning")
+
+        # Validate YAML first
+        try:
+            import yaml as _yaml
+            parsed = _yaml.safe_load(yaml_content)
+        except _yaml.YAMLError as e:
+            return dbc.Alert([
+                html.I(className="fas fa-exclamation-triangle me-2"),
+                f"Invalid YAML: {e}"
+            ], color="danger")
+
+        if trigger_id == "validate-checks-btn":
+            # Just validate — check keys look like task names
+            if not isinstance(parsed, dict):
+                return dbc.Alert("Top-level must be a YAML mapping (task_name: ...).", color="warning")
+            return dbc.Alert([
+                html.I(className="fas fa-check-circle me-2"),
+                f"Valid YAML · {len(parsed)} task(s) defined: {', '.join(parsed.keys())}"
+            ], color="success")
+
+        # Save
+        if not checks_path:
+            return dbc.Alert("Please provide a file path before saving.", color="warning")
+
+        try:
+            os.makedirs(os.path.dirname(checks_path), exist_ok=True)
+            with open(checks_path, "w", encoding="utf-8") as f:
+                f.write(yaml_content)
+            return dbc.Alert([
+                html.I(className="fas fa-check-circle me-2"),
+                f"Saved to {checks_path}"
+            ], color="success")
+        except Exception as e:
+            return dbc.Alert(f"Error saving: {e}", color="danger")
+
+    # ── Global config.yaml: load ──────────────────────────────────────────────
+    @app.callback(
+        [Output("global-config-editor", "value"),
+         Output("global-config-result", "children", allow_duplicate=True)],
+        Input("load-global-config-btn", "n_clicks"),
+        prevent_initial_call=True
+    )
+    def load_global_config_callback(n_clicks):
+        if not n_clicks:
+            return "", ""
+
+        # Resolve path relative to this file (callbacks.py lives in dashboard/)
+        from pathlib import Path
+        config_path = (
+            Path(__file__).parent.parent  # neuro_pipeline/
+            / "pipeline" / "config" / "config.yaml"
+        )
+
+        if not config_path.exists():
+            return "", dbc.Alert(
+                f"config.yaml not found at: {config_path}",
+                color="danger"
+            )
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return content, dbc.Alert(
+                [html.I(className="fas fa-check-circle me-2"),
+                 f"Loaded: {config_path}"],
+                color="success", className="mt-2"
+            )
+        except Exception as e:
+            return "", dbc.Alert(f"Error loading config.yaml: {e}", color="danger")
+
+    # ── Global config.yaml: validate + save ───────────────────────────────────
+    @app.callback(
+        Output("global-config-result", "children"),
+        [Input("save-global-config-btn", "n_clicks"),
+         Input("validate-global-config-btn", "n_clicks")],
+        State("global-config-editor", "value"),
+        prevent_initial_call=True
+    )
+    def save_global_config_callback(save_clicks, validate_clicks, yaml_content):
+        ctx = callback_context
+        if not ctx.triggered:
+            return ""
+
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        if not yaml_content:
+            return dbc.Alert("Editor is empty.", color="warning")
+
+        # Validate
+        try:
+            import yaml as _yaml
+            parsed = _yaml.safe_load(yaml_content)
+        except _yaml.YAMLError as e:
+            return dbc.Alert([
+                html.I(className="fas fa-exclamation-triangle me-2"),
+                f"Invalid YAML: {e}"
+            ], color="danger")
+
+        # Check expected top-level keys
+        expected_keys = {"defaults", "resource_profiles", "tasks", "array_config"}
+        present = set(parsed.keys()) if isinstance(parsed, dict) else set()
+        missing = expected_keys - present
+
+        if trigger_id == "validate-global-config-btn":
+            if missing:
+                return dbc.Alert([
+                    html.I(className="fas fa-exclamation-triangle me-2"),
+                    f"Valid YAML but missing expected top-level keys: {', '.join(sorted(missing))}"
+                ], color="warning")
+            task_count = sum(
+                len(v) for v in parsed.get("tasks", {}).values()
+                if isinstance(v, list)
+            )
+            return dbc.Alert([
+                html.I(className="fas fa-check-circle me-2"),
+                f"Valid YAML · {task_count} task(s) across "
+                f"{len(parsed.get('tasks', {}))} section(s) · "
+                f"{len(parsed.get('resource_profiles', {}))} resource profile(s)"
+            ], color="success")
+
+        # Save
+        from pathlib import Path
+        config_path = (
+            Path(__file__).parent.parent
+            / "pipeline" / "config" / "config.yaml"
+        )
+
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                f.write(yaml_content)
+            return dbc.Alert([
+                html.I(className="fas fa-check-circle me-2"),
+                f"Saved to {config_path}",
+                html.Br(),
+                html.Small("Restart the pipeline process for changes to take effect.",
+                           className="text-muted")
+            ], color="success")
+        except Exception as e:
+            return dbc.Alert(f"Error saving config.yaml: {e}", color="danger")

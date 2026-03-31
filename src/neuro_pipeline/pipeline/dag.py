@@ -9,7 +9,7 @@ from typing import List, Optional, Dict, Any, Set
 from dataclasses import dataclass, field
 from collections import deque
 import typer
-
+from .utils.output_checker import OutputChecker
 
 @dataclass
 class TaskNode:
@@ -193,7 +193,6 @@ class DAGExecutor:
         # Resume: initialise OutputChecker once if --resume was requested
         checker = None
         if resume and checks_config_path:
-            from .utils.output_checker import OutputChecker
             prefix = (project_config or {}).get('prefix', 'sub-')
             session = (option_env or {}).get('session', '01')
             checker = OutputChecker(
