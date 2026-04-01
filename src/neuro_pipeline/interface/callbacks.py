@@ -512,7 +512,7 @@ def register_callbacks(app):
                 "# Results check configuration\n"
                 "# Keys must match task names defined in config.yaml\n\n"
                 "# Example — required_files check:\n"
-                "# rest_fmriprep_preprocess:\n"
+                "# rest_preprocess:\n"
                 "#   output_path: \"{work_dir}/BIDS_derivatives/fmriprep/\"\n"
                 "#   required_files:\n"
                 "#     - pattern: \"sub-{subject}*.html\"\n"

@@ -18,7 +18,7 @@ Tests for:
       - all-complete task is skipped entirely
       - task with no checks config still runs normally
       - DAG dependency order preserved under resume
-        (post_fc waits for preprocess even when recon is skipped)
+        (rest_post waits for rest_preprocess even when recon is skipped)
 """
 
 import os
@@ -37,7 +37,7 @@ CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
 # ---------------------------------------------------------------------------
 
 MOCK_CHECKS = {
-    "rest_fmriprep_preprocess": {
+    "rest_preprocess": {
         "output_path": "{work_dir}/fmriprep/",
         "required_files": [
             {"pattern": "sub-{subject}*.html", "min_size_kb": 1},
@@ -138,7 +138,7 @@ class TestRequiredFilesCheck:
         out_dir = tmp_path / "fmriprep"
         _make_file(out_dir / f"sub-{subject}_report.html", size_kb=2)
 
-        rows = checker.check_subject("rest_fmriprep_preprocess", subject)
+        rows = checker.check_subject("rest_preprocess", subject)
         assert rows[0]["status"] == "PASS"
 
     def test_fail_when_file_too_small(self, checker, tmp_path):
@@ -148,7 +148,7 @@ class TestRequiredFilesCheck:
         # write a file that is definitely < 1 KB
         _make_file(out_dir / f"sub-{subject}_report.html", size_kb=0.1)
 
-        rows = checker.check_subject("rest_fmriprep_preprocess", subject)
+        rows = checker.check_subject("rest_preprocess", subject)
         assert rows[0]["status"].startswith("FAIL")
         assert "too small" in rows[0]["status"]
 
@@ -272,7 +272,7 @@ class TestMixedChecks:
 class TestCompletedPendingSubjects:
 
     def _make_passing_fmriprep(self, tmp_path, subject):
-        """Create the output file that makes rest_fmriprep_preprocess pass."""
+        """Create the output file that makes rest_preprocess pass."""
         out_dir = tmp_path / "fmriprep"
         _make_file(out_dir / f"sub-{subject}_report.html", size_kb=2)
 
@@ -281,7 +281,7 @@ class TestCompletedPendingSubjects:
             self._make_passing_fmriprep(tmp_path, sub)
 
         completed = checker.get_completed_subjects(
-            "rest_fmriprep_preprocess", ["001", "002", "003"]
+            "rest_preprocess", ["001", "002", "003"]
         )
         assert set(completed) == {"001", "002"}
 
@@ -289,7 +289,7 @@ class TestCompletedPendingSubjects:
         self._make_passing_fmriprep(tmp_path, "001")
 
         pending = checker.get_pending_subjects(
-            "rest_fmriprep_preprocess", ["001", "002", "003"]
+            "rest_preprocess", ["001", "002", "003"]
         )
         assert set(pending) == {"002", "003"}
 
@@ -298,13 +298,13 @@ class TestCompletedPendingSubjects:
             self._make_passing_fmriprep(tmp_path, sub)
 
         pending = checker.get_pending_subjects(
-            "rest_fmriprep_preprocess", ["001", "002"]
+            "rest_preprocess", ["001", "002"]
         )
         assert pending == []
 
     def test_none_complete_returns_all_pending(self, checker):
         pending = checker.get_pending_subjects(
-            "rest_fmriprep_preprocess", ["001", "002"]
+            "rest_preprocess", ["001", "002"]
         )
         assert set(pending) == {"001", "002"}
 
@@ -323,19 +323,19 @@ class TestWarnMissingConfigs:
     def test_warns_for_unknown_task(self, checker):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            missing = checker.warn_missing_configs(["rest_fmriprep_preprocess", "ghost_task"])
+            missing = checker.warn_missing_configs(["rest_preprocess", "ghost_task"])
         assert "ghost_task" in missing
         assert any("ghost_task" in str(warning.message) for warning in w)
 
     def test_no_warning_for_known_tasks(self, checker):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            missing = checker.warn_missing_configs(["rest_fmriprep_preprocess", "afni_volume"])
+            missing = checker.warn_missing_configs(["rest_preprocess", "afni_volume"])
         assert missing == []
         assert len(w) == 0
 
     def test_returns_list_of_missing_names(self, checker):
-        missing = checker.warn_missing_configs(["a", "b", "rest_fmriprep_preprocess"])
+        missing = checker.warn_missing_configs(["a", "b", "rest_preprocess"])
         assert set(missing) == {"a", "b"}
 
 
@@ -347,7 +347,7 @@ class TestCheckAll:
 
     def test_returns_dataframe_with_correct_columns(self, checker):
         import pandas as pd
-        df = checker.check_all(["rest_fmriprep_preprocess"], ["001"])
+        df = checker.check_all(["rest_preprocess"], ["001"])
         assert isinstance(df, pd.DataFrame)
         for col in ["task", "subject", "session", "check_type", "status"]:
             assert col in df.columns
@@ -360,14 +360,14 @@ class TestCheckAll:
 
     def test_rows_per_subject_per_check(self, checker, tmp_path):
         """Two subjects × one check each = 2 rows."""
-        df = checker.check_all(["rest_fmriprep_preprocess"], ["001", "002"])
+        df = checker.check_all(["rest_preprocess"], ["001", "002"])
         assert len(df) == 2
         assert set(df["subject"].tolist()) == {"001", "002"}
 
     def test_skips_unconfigured_tasks_silently(self, checker):
         """Tasks not in config are silently skipped in check_all."""
-        df = checker.check_all(["ghost_task", "rest_fmriprep_preprocess"], ["001"])
-        assert all(df["task"] == "rest_fmriprep_preprocess")
+        df = checker.check_all(["ghost_task", "rest_preprocess"], ["001"])
+        assert all(df["task"] == "rest_preprocess")
 
 
 # ===========================================================================
@@ -379,7 +379,7 @@ class TestPrintTerminalSummary:
     def test_prints_all_passed(self, checker, capsys):
         import pandas as pd
         df = pd.DataFrame([
-            {"task": "rest_fmriprep_preprocess", "subject": "001",
+            {"task": "rest_preprocess", "subject": "001",
              "session": "01", "check_type": "required_files",
              "pattern": "*.html", "expected": "exists", "actual": 1,
              "status": "PASS"},
@@ -391,11 +391,11 @@ class TestPrintTerminalSummary:
     def test_prints_failing_subjects_only(self, checker, capsys):
         import pandas as pd
         df = pd.DataFrame([
-            {"task": "rest_fmriprep_preprocess", "subject": "001",
+            {"task": "rest_preprocess", "subject": "001",
              "session": "01", "check_type": "required_files",
              "pattern": "*.html", "expected": "exists", "actual": 0,
              "status": "FAIL – file not found"},
-            {"task": "rest_fmriprep_preprocess", "subject": "002",
+            {"task": "rest_preprocess", "subject": "002",
              "session": "01", "check_type": "required_files",
              "pattern": "*.html", "expected": "exists", "actual": 1,
              "status": "PASS"},
@@ -428,10 +428,10 @@ class TestSaveCsv:
 
     def test_csv_contains_correct_data(self, checker, tmp_path):
         import pandas as pd
-        df = pd.DataFrame([{"task": "rest_fmriprep_preprocess", "subject": "001", "status": "PASS"}])
+        df = pd.DataFrame([{"task": "rest_preprocess", "subject": "001", "status": "PASS"}])
         path = checker.save_csv(df, str(tmp_path))
         loaded = pd.read_csv(path)
-        assert loaded.iloc[0]["task"] == "rest_fmriprep_preprocess"
+        assert loaded.iloc[0]["task"] == "rest_preprocess"
         assert loaded.iloc[0]["status"] == "PASS"
 
     def test_filename_contains_timestamp(self, checker, tmp_path):
@@ -535,7 +535,7 @@ class TestDAGExecutorResume:
         with patch(CONFIG_PATH, MOCK_CONFIG), \
              patch.object(executor, "_execute_single_task", mock_execute):
             executor.execute(
-                requested_tasks=["rest_fmriprep_preprocess"],
+                requested_tasks=["rest_preprocess"],
                 input_dir="/in", output_dir="/out", work_dir="/work",
                 container_dir="/c", dry_run=False,
                 context={"subjects": self.SUBJECTS},
@@ -552,8 +552,8 @@ class TestDAGExecutorResume:
         """Completed subjects are removed from the submitted subject list."""
         # 001 already done, 002 and 003 still needed
         _, all_job_ids, mock_execute, _ = self._run_execute(
-            requested_tasks=["rest_fmriprep_preprocess"],
-            completed_map={"rest_fmriprep_preprocess": ["001"]},
+            requested_tasks=["rest_preprocess"],
+            completed_map={"rest_preprocess": ["001"]},
         )
 
         _, kwargs = mock_execute.call_args
@@ -564,32 +564,32 @@ class TestDAGExecutorResume:
     def test_resume_skips_task_entirely_when_all_complete(self):
         """If all subjects are done for a task, _execute_single_task is never called for it."""
         _, all_job_ids, mock_execute, _ = self._run_execute(
-            requested_tasks=["rest_fmriprep_preprocess"],
-            completed_map={"rest_fmriprep_preprocess": self.SUBJECTS},
+            requested_tasks=["rest_preprocess"],
+            completed_map={"rest_preprocess": self.SUBJECTS},
         )
 
-        assert all_job_ids["rest_fmriprep_preprocess"] == []
+        assert all_job_ids["rest_preprocess"] == []
         mock_execute.assert_not_called()
 
     def test_resume_partially_complete_task_still_submits(self):
         """At least one pending subject → job is still submitted."""
         _, all_job_ids, mock_execute, _ = self._run_execute(
-            requested_tasks=["rest_fmriprep_preprocess"],
-            completed_map={"rest_fmriprep_preprocess": ["001", "002"]},  # 003 pending
+            requested_tasks=["rest_preprocess"],
+            completed_map={"rest_preprocess": ["001", "002"]},  # 003 pending
         )
 
         mock_execute.assert_called_once()
-        assert all_job_ids["rest_fmriprep_preprocess"] != []
+        assert all_job_ids["rest_preprocess"] != []
 
     def test_resume_respects_dag_dependency_order(self):
         """
         Scenario: recon_bids complete, preprocess + post_fc pending.
         post_fc must still receive wait_jobs from preprocess job id.
         """
-        rest_deps = [("rest_fmriprep_post_fc", ["rest_fmriprep_preprocess"])]
+        rest_deps = [("rest_post", ["rest_preprocess"])]
 
         _, all_job_ids, mock_execute, _ = self._run_execute(
-            requested_tasks=["recon_bids", "rest_fmriprep_preprocess", "rest_fmriprep_post_fc"],
+            requested_tasks=["recon_bids", "rest_preprocess", "rest_post"],
             completed_map={"recon_bids": self.SUBJECTS},  # recon fully done
             rest_deps=rest_deps,
         )
@@ -598,16 +598,16 @@ class TestDAGExecutorResume:
         assert all_job_ids["recon_bids"] == []
 
         # preprocess submitted
-        assert all_job_ids["rest_fmriprep_preprocess"] != []
+        assert all_job_ids["rest_preprocess"] != []
 
         # post_fc submitted with wait_jobs containing preprocess job id
         calls = mock_execute.call_args_list
         post_fc_call = next(
-            (c for c in calls if c[0][0].name == "rest_fmriprep_post_fc"), None
+            (c for c in calls if c[0][0].name == "rest_post"), None
         )
         assert post_fc_call is not None
         wait_jobs = post_fc_call[1]["wait_jobs"]
-        assert any("rest_fmriprep_preprocess" in j for j in wait_jobs)
+        assert any("rest_preprocess" in j for j in wait_jobs)
 
     def test_resume_task_with_no_checks_config_runs_normally(self):
         """
@@ -615,7 +615,7 @@ class TestDAGExecutorResume:
         but the task should still be submitted with all subjects.
         """
         _, all_job_ids, mock_execute, mock_checker = self._run_execute(
-            requested_tasks=["rest_fmriprep_preprocess"],
+            requested_tasks=["rest_preprocess"],
             # mock_checker.get_pending_subjects returns all subjects (nothing done)
             completed_map={},
         )
@@ -634,7 +634,7 @@ class TestDAGExecutorResume:
              patch.object(executor, "_execute_single_task", mock_execute), \
              patch("neuro_pipeline.pipeline.dag.OutputChecker") as mock_cls:
             executor.execute(
-                requested_tasks=["rest_fmriprep_preprocess"],
+                requested_tasks=["rest_preprocess"],
                 input_dir="/in", output_dir="/out", work_dir="/work",
                 container_dir="/c", dry_run=False,
                 context={"subjects": self.SUBJECTS},
@@ -659,7 +659,7 @@ class TestDAGExecutorResume:
              patch.object(executor, "_execute_single_task", mock_execute), \
              patch("neuro_pipeline.pipeline.dag.OutputChecker", return_value=mock_checker):
             executor.execute(
-                requested_tasks=["rest_fmriprep_preprocess"],
+                requested_tasks=["rest_preprocess"],
                 input_dir="/in", output_dir="/out", work_dir="/work",
                 container_dir="/c", dry_run=True,
                 context={"subjects": self.SUBJECTS},

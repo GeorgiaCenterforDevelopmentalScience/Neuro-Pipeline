@@ -92,14 +92,13 @@ class DAGExecutor:
         self._handle_mriqc_group_dependencies(task_name, requested_tasks)
 
     def _handle_mriqc_group_dependencies(self, task_name: str, requested_tasks: List[str] = None):
-        """Handle MRIQC group dependencies - must wait for individual to complete"""
-        if not requested_tasks or task_name != 'mriqc_group':
+        """Handle MRIQC group dependencies - post must wait for prep (individual) to complete"""
+        if not requested_tasks or task_name != 'mriqc_post':
             return
-        
-        # Group must wait for all individual analyses to complete
-        if 'mriqc_individual' in requested_tasks:
-            self.nodes[task_name].add_dependency('mriqc_individual')
-            self._add_task_with_dependencies('mriqc_individual', requested_tasks)    
+
+        if 'mriqc_preprocess' in requested_tasks:
+            self.nodes[task_name].add_dependency('mriqc_preprocess')
+            self._add_task_with_dependencies('mriqc_preprocess', requested_tasks)
 
     def _handle_input_from_dependencies(self, task_name: str, task_config: Dict[str, Any], requested_tasks: List[str] = None):
         """Handle input_from dependencies"""
@@ -110,9 +109,9 @@ class DAGExecutor:
         dependency_mapping = {
             'unzip': 'unzip',
             'recon_bids': 'recon_bids',
-            'mriqc': 'mriqc_individual',
-            'mriqc_individual': 'mriqc_individual',
-            'rest_fmriprep_preprocess': 'rest_fmriprep_preprocess',
+            'mriqc': 'mriqc_preprocess',
+            'mriqc_preprocess': 'mriqc_preprocess',
+            'rest_preprocess': 'rest_preprocess',
             'dwi_preprocess': 'dwi_preprocess',
         }
         
@@ -138,9 +137,9 @@ class DAGExecutor:
         if not requested_tasks or not task_name.endswith('_preprocess'):
             return
         
-        # Check if it's a task_afni task
+        # Check if it's a task section task
         from .utils.config_utils import get_all_task_names
-        if task_name not in get_all_task_names('task_afni'):
+        if task_name not in get_all_task_names('task'):
             return
         
         structural_tasks = [task for task in requested_tasks if task.startswith('afni_')]
@@ -320,7 +319,7 @@ class TaskRegistry:
     """Registry for task expansion"""
     
     def __init__(self):
-        from .utils.config_utils import PrepChoice, StructuralChoice, MRIQCChoice
+        from .utils.config_utils import PrepChoice, MRIQCChoice
 
         self.task_expanders = {
             PrepChoice.unzip_recon: self._expand_unzip_recon,
@@ -346,12 +345,8 @@ class TaskRegistry:
         
         # Structural tasks
         if kwargs.get('structural'):
-            structural_choice = kwargs['structural']
-            if structural_choice in self.task_expanders:
-                tasks.extend(self.task_expanders[structural_choice](kwargs))
-            else:
-                if structural_choice.value == 'volume':
-                    tasks.append('afni_volume')
+            from .utils.config_utils import get_tasks_from_section
+            tasks.extend([name for name, _ in get_tasks_from_section('structural')])
         
         # MRIQC tasks
         if kwargs.get('mriqc'):
@@ -385,50 +380,27 @@ class TaskRegistry:
         return ['unzip', 'recon_bids']
     
     def _expand_mriqc_all(self, kwargs) -> List[str]:
-        return ['mriqc_individual', 'mriqc_group']
-    
+        from .utils.config_utils import get_tasks_from_section
+        return [name for name, _ in get_tasks_from_section('qc')]
+
     def _expand_rest_tasks(self, kwargs) -> List[tuple]:
-        """Expand rest tasks with new simplified options"""
-        from .utils.config_utils import RestPrepChoice, RestPostChoice
-        
-        rest_prep = kwargs.get('rest_prep')
-        rest_post = kwargs.get('rest_post')
-        
+        """Expand rest tasks from config, driven by stage field."""
+        from .utils.config_utils import get_tasks_from_section
         tasks = []
-        
-        # Rest preprocessing
-        if rest_prep:
-            if rest_prep == RestPrepChoice.fmriprep:
-                tasks.append(('rest_fmriprep_preprocess', []))
-        
-        # Rest postprocessing
-        if rest_post:
-            if rest_post == RestPostChoice.xcpd:
-                tasks.append(('rest_fmriprep_post_fc', ['rest_fmriprep_preprocess']))
-        
+        if kwargs.get('rest_prep'):
+            tasks.extend(get_tasks_from_section('rest', 'prep'))
+        if kwargs.get('rest_post'):
+            tasks.extend(get_tasks_from_section('rest', 'post'))
         return tasks
 
     def _expand_dwi_tasks(self, kwargs) -> List[tuple]:
-        """Expand DWI tasks with dependencies, mirroring the rest pipeline pattern.
-        Dependency chain: recon_bids -> dwi_preprocess -> dwi_post
-        """
-        from .utils.config_utils import DwiPrepChoice, DwiPostChoice
-
-        dwi_prep = kwargs.get('dwi_prep')
-        dwi_post = kwargs.get('dwi_post')
-
+        """Expand DWI tasks from config, driven by stage field."""
+        from .utils.config_utils import get_tasks_from_section
         tasks = []
-
-        # DWI preprocessing
-        if dwi_prep:
-            if dwi_prep == DwiPrepChoice.qsiprep:
-                tasks.append(('dwi_preprocess', []))
-
-        # DWI postprocessing - must wait for preprocessing to complete
-        if dwi_post:
-            if dwi_post == DwiPostChoice.qsirecon:
-                tasks.append(('dwi_post', ['dwi_preprocess']))
-
+        if kwargs.get('dwi_prep'):
+            tasks.extend(get_tasks_from_section('task_dwi', 'prep'))
+        if kwargs.get('dwi_post'):
+            tasks.extend(get_tasks_from_section('task_dwi', 'post'))
         return tasks
 
     def _expand_task_args(self, kwargs):

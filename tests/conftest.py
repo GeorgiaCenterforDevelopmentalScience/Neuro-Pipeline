@@ -96,9 +96,10 @@ MOCK_CONFIG = {
                 "output_pattern": "{base_output}/AFNI_derivatives",
             },
         ],
-        "rest_fmriprep": [
+        "rest": [
             {
-                "name": "rest_fmriprep_preprocess",
+                "name": "rest_preprocess",
+                "stage": "prep",
                 "profile": "heavy_long",
                 "array": True,
                 "input_from": "recon_bids",
@@ -106,17 +107,19 @@ MOCK_CONFIG = {
                 "output_pattern": "{base_output}/BIDS_derivatives/fmriprep",
             },
             {
-                "name": "rest_fmriprep_post_fc",
+                "name": "rest_post",
+                "stage": "post",
                 "profile": "standard_short",
                 "array": True,
-                "input_from": "rest_fmriprep_preprocess",
+                "input_from": "rest_preprocess",
                 "scripts": ["xcpd_rs.sh"],
                 "output_pattern": "{base_output}/BIDS_derivatives/xcpd",
             },
         ],
-        "task_afni": [
+        "task": [
             {
                 "name": "cards_preprocess",
+                "stage": "prep",
                 "profile": "standard",
                 "array": True,
                 "input_from": "recon_bids",
@@ -125,6 +128,7 @@ MOCK_CONFIG = {
             },
             {
                 "name": "kidvid_preprocess",
+                "stage": "prep",
                 "profile": "standard",
                 "array": True,
                 "input_from": "recon_bids",
@@ -152,7 +156,8 @@ MOCK_CONFIG = {
         ],
         "qc": [
             {
-                "name": "mriqc_individual",
+                "name": "mriqc_preprocess",
+                "stage": "prep",
                 "profile": "heavy_long",
                 "array": True,
                 "input_from": "recon_bids",
@@ -160,7 +165,8 @@ MOCK_CONFIG = {
                 "output_pattern": "{base_output}/quality_control/mriqc",
             },
             {
-                "name": "mriqc_group",
+                "name": "mriqc_post",
+                "stage": "post",
                 "profile": "light_short",
                 "input_from": "recon_bids",
                 "scripts": ["mriqc_group.sh"],
@@ -214,16 +220,16 @@ MOCK_PROJECT_CONFIG = {
             {"name": "recon_bids", "container": "dcm2bids_3.2.0.sif", "config": "branch_config.json"},
             {"name": "afni_volume", "environ": ["afni_25.1.01"], "template": "HaskinsPeds_NL_template1.0_SSW.nii"},
         ],
-        "rest_fmriprep": [
+        "rest": [
             {
-                "name": "rest_fmriprep_preprocess",
+                "name": "rest_preprocess",
                 "remove_TRs": 6,
                 "template": "MNI152NLin2009cAsym",
                 "container": "fmriprep_25.1.3.sif",
                 "license": "license.txt",
             },
             {
-                "name": "rest_fmriprep_post_fc",
+                "name": "rest_post",
                 "remove_TRs": 6,
                 "template": "MNI152NLin2009cAsym",
                 "container": "xcp_d-0.11.0rc1.sif",
@@ -232,7 +238,7 @@ MOCK_PROJECT_CONFIG = {
                 "license": "license.txt",
             },
         ],
-        "task_afni": [
+        "task": [
             {
                 "name": "cards_preprocess",
                 "remove_TRs": 2,
@@ -263,8 +269,8 @@ MOCK_PROJECT_CONFIG = {
             },
         ],
         "qc": [
-            {"name": "mriqc_individual", "container": "mriqc_24.0.2.sif"},
-            {"name": "mriqc_group",      "container": "mriqc_24.0.2.sif"},
+            {"name": "mriqc_preprocess", "container": "mriqc_24.0.2.sif"},
+            {"name": "mriqc_post",       "container": "mriqc_24.0.2.sif"},
         ],
     },
 }

@@ -6,9 +6,9 @@ Tests for pipeline/dag.py
 Covers:
 - DAGExecutor.build_dag          dependency graph construction
 - DAGExecutor._topological_sort  correct order + circular-dependency detection
-- mriqc_group must follow mriqc_individual
-- rest_fmriprep_post_fc must follow rest_fmriprep_preprocess
-- task_afni _preprocess depends on afni_ structural task when both requested
+- mriqc_post must follow mriqc_preprocess
+- rest_post must follow rest_preprocess
+- task _preprocess depends on afni_ structural task when both requested
 - TaskRegistry.expand_tasks      various CLI option combinations
 """
 
@@ -123,24 +123,24 @@ class TestBuildDAG:
     # --- mriqc group / individual -------------------------------------------
 
     def test_mriqc_group_follows_individual_when_both_requested(self):
-        executor, order = self._build(["mriqc_individual", "mriqc_group"])
-        assert "mriqc_individual" in executor.nodes["mriqc_group"].dependencies
-        assert order.index("mriqc_individual") < order.index("mriqc_group")
+        executor, order = self._build(["mriqc_preprocess", "mriqc_post"])
+        assert "mriqc_preprocess" in executor.nodes["mriqc_post"].dependencies
+        assert order.index("mriqc_preprocess") < order.index("mriqc_post")
 
     def test_mriqc_group_alone_has_no_individual_dep(self):
-        executor, order = self._build(["mriqc_group"])
-        assert "mriqc_individual" not in executor.nodes["mriqc_group"].dependencies
+        executor, order = self._build(["mriqc_post"])
+        assert "mriqc_preprocess" not in executor.nodes["mriqc_post"].dependencies
 
     # --- rest pipeline -------------------------------------------------------
 
     def test_rest_post_fc_depends_on_preprocess(self):
-        rest_deps = [("rest_fmriprep_post_fc", ["rest_fmriprep_preprocess"])]
+        rest_deps = [("rest_post", ["rest_preprocess"])]
         executor, order = self._build(
-            ["rest_fmriprep_preprocess", "rest_fmriprep_post_fc"],
+            ["rest_preprocess", "rest_post"],
             rest_deps=rest_deps,
         )
-        assert "rest_fmriprep_preprocess" in executor.nodes["rest_fmriprep_post_fc"].dependencies
-        assert order.index("rest_fmriprep_preprocess") < order.index("rest_fmriprep_post_fc")
+        assert "rest_preprocess" in executor.nodes["rest_post"].dependencies
+        assert order.index("rest_preprocess") < order.index("rest_post")
 
     # --- DWI pipeline -------------------------------------------------------
 
@@ -165,16 +165,16 @@ class TestBuildDAG:
 
     def test_dwi_deps_independent_from_rest_deps(self):
         """DWI and rest dependencies must not interfere with each other."""
-        rest_deps = [("rest_fmriprep_post_fc", ["rest_fmriprep_preprocess"])]
+        rest_deps = [("rest_post", ["rest_preprocess"])]
         dwi_deps = [("dwi_post", ["dwi_preprocess"])]
         executor, order = self._build(
-            ["rest_fmriprep_preprocess", "rest_fmriprep_post_fc", "dwi_preprocess", "dwi_post"],
+            ["rest_preprocess", "rest_post", "dwi_preprocess", "dwi_post"],
             rest_deps=rest_deps,
             dwi_deps=dwi_deps,
         )
-        assert "rest_fmriprep_preprocess" in executor.nodes["rest_fmriprep_post_fc"].dependencies
+        assert "rest_preprocess" in executor.nodes["rest_post"].dependencies
         assert "dwi_preprocess" in executor.nodes["dwi_post"].dependencies
-        assert order.index("rest_fmriprep_preprocess") < order.index("rest_fmriprep_post_fc")
+        assert order.index("rest_preprocess") < order.index("rest_post")
         assert order.index("dwi_preprocess") < order.index("dwi_post")
 
     # --- task_afni + structural ----------------------------------------------
@@ -191,7 +191,7 @@ class TestBuildDAG:
     # --- execution order is complete ----------------------------------------
 
     def test_all_requested_tasks_appear_in_order(self):
-        tasks = ["unzip", "recon_bids", "mriqc_individual", "mriqc_group"]
+        tasks = ["unzip", "recon_bids", "mriqc_preprocess", "mriqc_post"]
         executor, order = self._build(tasks)
         for t in tasks:
             assert t in order
@@ -236,9 +236,8 @@ class TestTaskRegistry:
 
     def test_structural_volume(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import StructuralChoice
             r = self._registry()
-            tasks = r.expand_tasks(structural=StructuralChoice.volume)
+            tasks = r.expand_tasks(structural=True)
         assert "afni_volume" in tasks
 
     # --- mriqc --------------------------------------------------------------
@@ -248,49 +247,46 @@ class TestTaskRegistry:
             from neuro_pipeline.pipeline.utils.config_utils import MRIQCChoice
             r = self._registry()
             tasks = r.expand_tasks(mriqc=MRIQCChoice.individual)
-        assert tasks == ["mriqc_individual"]
+        assert tasks == ["mriqc_preprocess"]
 
     def test_mriqc_group(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.utils.config_utils import MRIQCChoice
             r = self._registry()
             tasks = r.expand_tasks(mriqc=MRIQCChoice.group)
-        assert tasks == ["mriqc_group"]
+        assert tasks == ["mriqc_post"]
 
     def test_mriqc_all_expands_to_both(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.utils.config_utils import MRIQCChoice
             r = self._registry()
             tasks = r.expand_tasks(mriqc=MRIQCChoice.all)
-        assert "mriqc_individual" in tasks
-        assert "mriqc_group" in tasks
+        assert "mriqc_preprocess" in tasks
+        assert "mriqc_post" in tasks
 
     # --- rest ---------------------------------------------------------------
 
     def test_rest_prep_fmriprep(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import RestPrepChoice
             r = self._registry()
-            tasks = r.expand_tasks(rest_prep=RestPrepChoice.fmriprep)
-        assert "rest_fmriprep_preprocess" in tasks
+            tasks = r.expand_tasks(rest_prep=True)
+        assert "rest_preprocess" in tasks
 
     def test_rest_post_xcpd(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import RestPostChoice
             r = self._registry()
-            tasks = r.expand_tasks(rest_post=RestPostChoice.xcpd)
-        assert "rest_fmriprep_post_fc" in tasks
+            tasks = r.expand_tasks(rest_post=True)
+        assert "rest_post" in tasks
 
     def test_rest_prep_and_post_together(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import RestPrepChoice, RestPostChoice
             r = self._registry()
             tasks = r.expand_tasks(
-                rest_prep=RestPrepChoice.fmriprep,
-                rest_post=RestPostChoice.xcpd,
+                rest_prep=True,
+                rest_post=True,
             )
-        assert "rest_fmriprep_preprocess" in tasks
-        assert "rest_fmriprep_post_fc" in tasks
+        assert "rest_preprocess" in tasks
+        assert "rest_post" in tasks
 
     # --- task_prep (the key CLI flow) ---------------------------------------
 
@@ -320,25 +316,22 @@ class TestTaskRegistry:
 
     def test_dwi_prep_qsiprep(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import DwiPrepChoice
             r = self._registry()
-            tasks = r.expand_tasks(dwi_prep=DwiPrepChoice.qsiprep)
+            tasks = r.expand_tasks(dwi_prep=True)
         assert "dwi_preprocess" in tasks
 
     def test_dwi_post_qsirecon(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import DwiPostChoice
             r = self._registry()
-            tasks = r.expand_tasks(dwi_post=DwiPostChoice.qsirecon)
+            tasks = r.expand_tasks(dwi_post=True)
         assert "dwi_post" in tasks
 
     def test_dwi_prep_and_post_together(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import DwiPrepChoice, DwiPostChoice
             r = self._registry()
             tasks = r.expand_tasks(
-                dwi_prep=DwiPrepChoice.qsiprep,
-                dwi_post=DwiPostChoice.qsirecon,
+                dwi_prep=True,
+                dwi_post=True,
             )
         assert "dwi_preprocess" in tasks
         assert "dwi_post" in tasks
@@ -346,8 +339,7 @@ class TestTaskRegistry:
     def test_dwi_post_without_prep_still_expands(self):
         """dwi_post can be requested alone; dependency enforcement is DAG's job."""
         with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import DwiPostChoice
             r = self._registry()
-            tasks = r.expand_tasks(dwi_post=DwiPostChoice.qsirecon)
+            tasks = r.expand_tasks(dwi_post=True)
         assert "dwi_post" in tasks
         assert "dwi_preprocess" not in tasks

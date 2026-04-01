@@ -9,11 +9,6 @@ from .utils.hpc_utils import wait_for_jobs
 from .dag import DAGExecutor, TaskRegistry
 from .utils.config_utils import (
     PrepChoice,
-    StructuralChoice,
-    RestPrepChoice,
-    RestPostChoice,
-    DwiPrepChoice,
-    DwiPostChoice,
     MRIQCChoice,
     clean_all_only,
     load_project_config,
@@ -34,7 +29,7 @@ class TaskOptions:
     prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps")
     
     # Structural
-    structural: Optional[StructuralChoice] = typer.Option(None, help="Structural processing")
+    structural: bool = typer.Option(False, "--structural", help="Structural MRI processing")
 
     # Quality Control
     mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing")
@@ -43,16 +38,16 @@ class TaskOptions:
     session: Optional[str] = typer.Option('01', help="Session ID")
 
     # Rest: prep and post
-    rest_prep: Optional[RestPrepChoice] = typer.Option(None, help="Rest preprocessing (fmriprep)")
-    rest_post: Optional[RestPostChoice] = typer.Option(None, help="Rest postprocessing (xcpd)")
-    
+    rest_prep: bool = typer.Option(False, "--rest-prep", help="Resting-state preprocessing")
+    rest_post: bool = typer.Option(False, "--rest-post", help="Resting-state postprocessing")
+
     # Task: prep and post
     task_prep: Optional[List[str]] = typer.Option(None, help="Task preprocessing")
     task_post: Optional[List[str]] = typer.Option(None, help="Task postprocessing")
 
     # DWI: prep and post
-    dwi_prep: Optional[DwiPrepChoice] = typer.Option(None, help="DWI preprocessing (qsiprep)")
-    dwi_post: Optional[DwiPostChoice] = typer.Option(None, help="DWI postprocessing (qsirecon)")
+    dwi_prep: bool = typer.Option(False, "--dwi-prep", help="DWI preprocessing")
+    dwi_post: bool = typer.Option(False, "--dwi-post", help="DWI postprocessing")
 
 def collect_and_expand_tasks(registry, options: TaskOptions):
     """Collect and expand tasks"""
@@ -97,18 +92,18 @@ def run(
 
     prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps"),
 
-    structural: Optional[StructuralChoice] = typer.Option(None, help="Structural processing"),
+    structural: bool = typer.Option(False, "--structural", help="Structural MRI processing"),
     mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing"),
     session: Optional[str] = typer.Option('01', help="Session or wave ID"),
 
-    rest_prep: Optional[RestPrepChoice] = typer.Option(None, help="Rest preprocessing (fmriprep)"),
-    rest_post: Optional[RestPostChoice] = typer.Option(None, help="Rest postprocessing (xcpd)"),
+    rest_prep: bool = typer.Option(False, "--rest-prep", help="Resting-state preprocessing"),
+    rest_post: bool = typer.Option(False, "--rest-post", help="Resting-state postprocessing"),
 
     task_prep: Optional[List[str]] = typer.Option(None, help="Task preprocessing (comma-separated or multiple flags)"),
     task_post: Optional[List[str]] = typer.Option(None, help="Task postprocessing (comma-separated or multiple flags)"),
 
-    dwi_prep: Optional[DwiPrepChoice] = typer.Option(None, help="DWI preprocessing (qsiprep)"),
-    dwi_post: Optional[DwiPostChoice] = typer.Option(None, help="DWI postprocessing (qsirecon)"),
+    dwi_prep: bool = typer.Option(False, "--dwi-prep", help="DWI preprocessing"),
+    dwi_post: bool = typer.Option(False, "--dwi-post", help="DWI postprocessing"),
 
     dry_run: bool = typer.Option(False, "--dry-run", help="Show execution plan"),
     resume: bool = typer.Option(False, "--resume", help="Skip subjects whose outputs already exist"),

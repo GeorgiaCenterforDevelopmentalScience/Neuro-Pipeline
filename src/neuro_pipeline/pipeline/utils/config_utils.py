@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 import typer
 import yaml
 from pathlib import Path
@@ -13,71 +13,65 @@ except FileNotFoundError:
     config = {}
 
 
-# Enum definitions
+# Enum definitions — only kept where the choice is meaningful
 class PrepChoice(str, Enum):
     unzip = "unzip"
     recon = "recon"
     unzip_recon = "unzip_recon"
 
 
-class StructuralChoice(str, Enum):
-    volume = "volume"
-
-
-class RestPrepChoice(str, Enum):
-    """Rest preprocessing tool"""
-    fmriprep = "fmriprep"
-
-
-class RestPostChoice(str, Enum):
-    """Rest postprocessing tool"""
-    xcpd = "xcpd"
-
-class DwiPrepChoice(str, Enum):
-    """DWI processing tool"""
-    qsiprep = "qsiprep"
-
-class DwiPostChoice(str, Enum):
-    """DWI postprocessing tool"""
-    qsirecon = "qsirecon"
-
 class MRIQCChoice(str, Enum):
     group = "group"
     individual = "individual"
     all = "all"
+
+
+# ---------------------------------------------------------------------------
+# Config-driven task lookup
+# ---------------------------------------------------------------------------
+
+def get_tasks_from_section(section: str, stage: str = None) -> List[Tuple[str, List[str]]]:
+    section_tasks = config.get('tasks', {}).get(section, [])
+    result = []
+    for task in section_tasks:
+        if stage is None or task.get('stage') == stage:
+            dep = task.get('input_from')
+            deps = [dep] if dep else []
+            result.append((task['name'], deps))
+    return result
+
 
 def get_task_options(suffix):
     """Load task options from config dynamically"""
     config_path = Path(__file__).parent.parent / "config" / "config.yaml"
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
-    
+
     # For postprocessing, use the same options as preprocessing
     if suffix == '_postprocess':
         suffix = '_preprocess'
-    
-    tasks = config.get('tasks', {}).get('task_afni', [])
+
+    tasks = config.get('tasks', {}).get('task', [])
     options = []
     for task in tasks:
         if suffix in task['name']:
-            # Remove suffix to get short name
             short_name = task['name'].replace(suffix, '')
             label = short_name.capitalize()
             options.append({"label": label, "value": short_name})
-    
+
     return options
 
-def get_tasks_by_suffix(suffix: str, category: str = 'task_afni') -> List[str]:
+def get_tasks_by_suffix(suffix: str, category: str = 'task') -> List[str]:
     """Get task names by suffix pattern"""
     all_tasks = config.get('tasks', {}).get(category, [])
     return [t['name'] for t in all_tasks if suffix in t['name']]
 
-def get_all_task_names(category: str = 'task_afni') -> List[str]:
+def get_all_task_names(category: str = 'task') -> List[str]:
     """Get all task names in category"""
     all_tasks = config.get('tasks', {}).get(category, [])
     return [t['name'] for t in all_tasks]
 
-def validate_task_name(task_name: str, category: str = 'task_afni') -> bool:
+def validate_task_name(task_name: str, category: str = 'task') -> bool:
     """Check if task exists"""
     return task_name in get_all_task_names(category)
 
@@ -112,14 +106,14 @@ def find_task_config_by_name(task_name: str) -> Optional[Dict[str, Any]]:
 def find_task_config_by_name_with_project(task_name: str, project_config: dict = None) -> Optional[Dict[str, Any]]:
     """Find task configuration, merging global and project configs"""
     global_task_config = find_task_config_by_name(task_name)
-    
+
     if not global_task_config:
         typer.echo(f"Warning: No global config for: {task_name}")
         return None
-    
+
     if project_config and 'setup' in project_config:
         setup_config = project_config['setup']
-        
+
         for section_name, section_tasks in setup_config.items():
             if isinstance(section_tasks, list):
                 for task in section_tasks:
@@ -131,7 +125,7 @@ def find_task_config_by_name_with_project(task_name: str, project_config: dict =
                 merged_config = global_task_config.copy()
                 merged_config.update(section_tasks)
                 return merged_config
-    
+
     return global_task_config
 
 

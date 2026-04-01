@@ -12,32 +12,27 @@ from .detect_subjects import detect_subjects
 
 from .config_utils import (
     PrepChoice,
-    StructuralChoice,
-    RestPrepChoice,
-    RestPostChoice,
-    RestPostChoice,
     MRIQCChoice,
     clean_all_only,
     find_task_config_by_name,
-    find_task_config_by_name_with_project
+    find_task_config_by_name_with_project,
+    get_tasks_from_section,
 )
 
 __all__ = [
     # HPC utilities
     "get_hpc_resources",
-    "get_environment_commands", 
+    "get_environment_commands",
     "submit_slurm_job",
     "create_wrapper_script",
     "wait_for_jobs",
     "detect_subjects",
-    
+
     # Config utilities
     "PrepChoice",
-    "StructuralChoice", 
-    "RestPrepChoice",
-    "RestPostChoice",
     "MRIQCChoice",
     "clean_all_only",
     "find_task_config_by_name",
-    "find_task_config_by_name_with_project"
+    "find_task_config_by_name_with_project",
+    "get_tasks_from_section",
 ]

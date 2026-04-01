@@ -126,7 +126,7 @@ neuropipe run \
   --task-prep all \
   --dwi-prep qsiprep \
   --dwi-post qsirecon \
-  --mriqc individual
+  --mriqc all
 ```
 
 Tasks run in dependency order: unzip → recon_bids → structural/fmriprep/mriqc → xcpd/task fMRI → DWI post. Each dependency is enforced by SLURM's `--dependency=afterok`.

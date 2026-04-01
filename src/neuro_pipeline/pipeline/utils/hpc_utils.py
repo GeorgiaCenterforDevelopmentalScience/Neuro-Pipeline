@@ -317,12 +317,12 @@ def submit_slurm_job(
         dependency_mapping = {
             'unzip': 'unzip',
             'recon_bids': 'recon_bids',
-            'mriqc': 'mriqc_individual',
-            'mriqc_individual': 'mriqc_individual',
-            'rest_fmriprep_preprocess': 'rest_fmriprep_preprocess',
-            'rest_fmriprep_post_fc': 'rest_fmriprep_post_fc'
+            'mriqc': 'mriqc_preprocess',
+            'mriqc_preprocess': 'mriqc_preprocess',
+            'rest_preprocess': 'rest_preprocess',
+            'rest_post': 'rest_post',
         }
-        
+
         dep_task = dependency_mapping.get(input_from)
         if dep_task and requested_tasks and dep_task in requested_tasks:
             if input_from == 'unzip':
@@ -331,9 +331,9 @@ def submit_slurm_job(
                 actual_input_dir = f"{output_dir}/BIDS"
             elif input_from == 'mriqc':
                 actual_input_dir = f"{output_dir}/quality_control/mriqc"
-            elif input_from == 'rest_fmriprep_preprocess':
+            elif input_from == 'rest_preprocess':
                 actual_input_dir = f"{output_dir}/BIDS_derivatives/fmriprep"
-            elif input_from == 'rest_fmriprep_post_fc':
+            elif input_from == 'rest_post':
                 actual_input_dir = f"{output_dir}/BIDS_derivatives/xcpd"
 
     # Create directories

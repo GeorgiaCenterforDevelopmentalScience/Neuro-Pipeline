@@ -92,7 +92,7 @@ def create_job_monitor_layout():
                                 dbc.Input(
                                     id="check-task-filter",
                                     type="text",
-                                    placeholder="e.g., rest_fmriprep_preprocess",
+                                    placeholder="e.g., rest_preprocess",
                                     className="mb-3"
                                 )
                             ], width=3),
@@ -150,7 +150,7 @@ def create_job_monitor_layout():
                                 dbc.Input(
                                     id="wrapper-task-filter",
                                     type="text",
-                                    placeholder="e.g., rest_fmriprep_preprocess (leave empty for latest)",
+                                    placeholder="e.g., rest_preprocess (leave empty for latest)",
                                     className="mb-3"
                                 )
                             ], width=6),

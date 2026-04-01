@@ -5,21 +5,21 @@ tasks:
       profile: standard
       scripts: [unzip_rename.sh]
       output_pattern: "{base_output}/raw"
-    
+
     - name: recon_bids
       profile: light_short
       array: true
       scripts: [dcm2bids_convert_BIDS.sh]
       input_from: unzip
       output_pattern: "{base_output}/BIDS"
-    
+
     # - name: field_map_sdc
     #   profile: standard_short
     #   array: true
     #   scripts: [compute_filedmap_sdc]
     #   input_from: recon_bids
     #   output_pattern: "{base_output}/field_map/sdc"
-    
+
     # - name: field_map_fsl_afni
     #   profile: standard_short
     #   array: true
@@ -37,31 +37,35 @@ tasks:
       output_pattern: "{base_output}/AFNI_derivatives"
 
   # Resting State fMRI - fMRIPrep
-  rest_fmriprep:
-    - name: rest_fmriprep_preprocess
+  rest:
+    - name: rest_preprocess
+      stage: prep
       profile: heavy_long
       array: true
       input_from: recon_bids
       scripts: [fmriprep_rs.sh]
       output_pattern: "{base_output}/BIDS_derivatives/fmriprep"
-    
-    - name: rest_fmriprep_post_fc
+
+    - name: rest_post
+      stage: post
       profile: standard_short
       array: true
-      input_from: rest_fmriprep_preprocess
+      input_from: rest_preprocess
       scripts: [xcpd_rs.sh]
       output_pattern: "{base_output}/BIDS_derivatives/xcpd"
 
-  # Task fMRI - AFNI
-  task_afni:
+  # Task fMRI
+  task:
     - name: cards_preprocess
+      stage: prep
       profile: standard
       array: true
       input_from: recon_bids
       scripts: [afni_cards_preprocessing.sh]
       output_pattern: "{base_output}/AFNI_derivatives"
-    
+
     - name: kidvid_preprocess
+      stage: prep
       profile: standard
       array: true
       input_from: recon_bids
@@ -69,8 +73,9 @@ tasks:
       output_pattern: "{base_output}/AFNI_derivatives"
 
   # Task dwi
-  task_dwi:
+  dwi:
     - name: dwi_preprocess
+      stage: prep
       profile: standard
       array: true
       input_from: recon_bids
@@ -78,6 +83,7 @@ tasks:
       output_pattern: "{base_output}/DWI_derivatives/qsiprep"
 
     - name: dwi_post
+      stage: post
       profile: standard
       array: true
       input_from: dwi_preprocess
@@ -86,24 +92,20 @@ tasks:
 
   # Quality control
   qc:
-    - name: mriqc_individual
+    - name: mriqc_preprocess
+      stage: prep
       profile: heavy_long
       array: true
       input_from: recon_bids
       scripts: [mriqc_individual.sh]
       output_pattern: "{base_output}/quality_control/mriqc"
 
-    - name: mriqc_group
+    - name: mriqc_post
+      stage: post
       profile: light_short
       input_from: recon_bids # recon_bids is the correct one, not mriqc_individual
       scripts: [mriqc_group.sh]
       output_pattern: "{base_output}/quality_control/mriqc"
-
-  # Database
-  # merge_logs:
-  #   - name: merge_logs
-  #     profile: data_manage
-  #     scripts: [merge_logs.py]
 
 # array jobs
 array_config:

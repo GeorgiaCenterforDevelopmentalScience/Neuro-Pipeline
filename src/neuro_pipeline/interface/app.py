@@ -297,7 +297,7 @@ def create_project_config_page():
                                             id="checks-yaml-editor",
                                             placeholder=(
                                                 "# Example:\n"
-                                                "rest_fmriprep_preprocess:\n"
+                                                "rest_preprocess:\n"
                                                 "  output_path: \"{work_dir}/BIDS_derivatives/fmriprep/\"\n"
                                                 "  required_files:\n"
                                                 "    - pattern: \"sub-{subject}*.html\"\n"

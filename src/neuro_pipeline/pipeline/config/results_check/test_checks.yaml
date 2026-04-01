@@ -62,13 +62,13 @@ afni_volume:
 
 # Resting-state fMRI
 
-rest_fmriprep_preprocess:
+rest_preprocess:
   output_path: "{work_dir}/BIDS_derivatives/fmriprep/"
   required_files:
     - pattern: "sub-{subject}*.html"
       min_size_kb: 500
 
-rest_fmriprep_post_fc:
+rest_post:
   output_path: "{work_dir}/BIDS_derivatives/xcpd/sub-{subject}/ses-{session}"
   required_files:
     - pattern: "sub-{subject}*.html"
@@ -104,13 +104,13 @@ dwi_post:
 
 # Quality Control
 
-mriqc_individual:
+mriqc_preprocess:
   output_path: "{work_dir}/quality_control/mriqc"
   required_files:
     - pattern: "sub-{subject}*.html"
       min_size_kb: 100
 
-mriqc_group:
+mriqc_post:
   output_path: "{work_dir}/quality_control/mriqc"
   required_files:
     - pattern: "group_*.html"
