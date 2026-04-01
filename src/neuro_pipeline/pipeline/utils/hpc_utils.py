@@ -210,12 +210,12 @@ class HPCResources:
 def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
     """Get HPC resource configuration from task config and global settings"""
     
-    defaults = config.get('defaults', {})
+    defaults = hpc_config.get('defaults', {})
     profile_name = task_config.get('profile', 'standard')
-    profile_config = config.get('resource_profiles', {}).get(profile_name, {})
-    
+    profile_config = hpc_config.get('resource_profiles', {}).get(profile_name, {})
+
     if not profile_config:
-        available = ', '.join(config.get('resource_profiles', {}).keys())
+        available = ', '.join(hpc_config.get('resource_profiles', {}).keys())
         raise ValueError(f"Profile '{profile_name}' not found. Available: {available}")
     
     merged_config = {**defaults, **profile_config}

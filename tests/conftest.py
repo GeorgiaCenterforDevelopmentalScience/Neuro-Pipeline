@@ -30,7 +30,8 @@ from unittest.mock import MagicMock, patch
 # Minimal in-memory config that mirrors config.yaml structure
 # ---------------------------------------------------------------------------
 
-MOCK_CONFIG = {
+MOCK_HPC_CONFIG = {
+    "scheduler": "slurm",
     "defaults": {
         "partition": "batch",
         "nodes": 1,
@@ -44,6 +45,30 @@ MOCK_CONFIG = {
         "standard_short": {"memory": "32gb", "time": "08:00:00"},
         "heavy_long":     {"memory": "64gb", "time": "24:00:00"},
     },
+    "slurm": {
+        "submit_cmd": "sbatch",
+        "job_id_parse": "last_word",
+        "dependency_flag": "--dependency=afterany:{jobs}",
+        "array_flag": "--array={array}",
+        "resource_flags": {
+            "partition": "--partition={value}",
+            "nodes": "--nodes={value}",
+            "ntasks": "--ntasks={value}",
+            "cpus_per_task": "--cpus-per-task={value}",
+            "time": "--time={value}",
+            "mem": "--mem={value}",
+            "job_name": "--job-name={value}",
+            "output": "--output={value}",
+            "error": "--error={value}",
+        },
+        "status_cmd": "squeue",
+        "status_args": ["--noheader", "--format=%i %T"],
+        "active_states": ["PENDING", "RUNNING"],
+        "cancel_cmd": "scancel",
+    },
+}
+
+MOCK_CONFIG = {
     "tasks": {
         "prep": [
             {

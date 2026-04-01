@@ -6,6 +6,49 @@
 
 scheduler: slurm
 
+# Default resource settings applied to all profiles unless overridden.
+# Add a per-profile `partition` key to override for that profile only
+# (e.g. heavy_long on a bigmem partition).
+defaults:
+  partition: "batch"
+
+# Resource profiles — each profile can override any default value.
+resource_profiles:
+  data_manage:
+    memory: "2gb"
+    time: "00:20:00"
+    nodes: 1
+    ntasks: 1
+    cpus_per_task: 16
+
+  light_short:
+    memory: "16gb"
+    time: "04:00:00"
+    nodes: 1
+    ntasks: 1
+    cpus_per_task: 16
+
+  standard:
+    memory: "32gb"
+    time: "20:00:00"
+    nodes: 1
+    ntasks: 1
+    cpus_per_task: 16
+
+  standard_short:
+    memory: "32gb"
+    time: "08:00:00"
+    nodes: 1
+    ntasks: 1
+    cpus_per_task: 16
+
+  heavy_long:
+    memory: "64gb"
+    time: "24:00:00"
+    nodes: 1
+    ntasks: 1
+    cpus_per_task: 16
+
 slurm:
   # Submission
   submit_cmd: sbatch

@@ -16,22 +16,25 @@ import time
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open
-from tests.conftest import MOCK_CONFIG, MOCK_PROJECT_CONFIG
+from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 
 
-HPC_CONFIG_PATH = "neuro_pipeline.pipeline.utils.hpc_utils.config"
-CONFIG_UTILS_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
+# config  = pipeline task/array config  (config.yaml)
+# hpc_config = scheduler + resource profiles (hpc_config.yaml)
+PIPELINE_CONFIG_PATH = "neuro_pipeline.pipeline.utils.hpc_utils.config"
+HPC_CONFIG_PATH      = "neuro_pipeline.pipeline.utils.hpc_utils.hpc_config"
+CONFIG_UTILS_PATH    = "neuro_pipeline.pipeline.utils.config_utils.config"
 
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
 
 def import_hpc():
-    """Import hpc_utils with mock config injected."""
-    with patch(HPC_CONFIG_PATH, MOCK_CONFIG):
+    """Import hpc_utils with mock configs injected."""
+    with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
         import importlib
         import neuro_pipeline.pipeline.utils.hpc_utils as mod
-        importlib.reload(mod)          # reload so module-level config is refreshed
+        importlib.reload(mod)
         return mod
 
 
@@ -42,7 +45,7 @@ def import_hpc():
 class TestGetHPCResources:
 
     def _get(self, task_config):
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_resources
             return get_hpc_resources(task_config)
 
@@ -75,7 +78,7 @@ class TestGetHPCResources:
         assert resources.array is None
 
     def test_unknown_profile_raises_value_error(self):
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_resources
             with pytest.raises(ValueError, match="Profile 'ghost_profile' not found"):
                 get_hpc_resources({"profile": "ghost_profile"})
@@ -94,7 +97,7 @@ class TestGetHPCResources:
 class TestGetEnvironmentCommands:
 
     def _get_env(self, task_config, project_config=None):
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG):
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG):
             from neuro_pipeline.pipeline.utils.hpc_utils import get_environment_commands
             return get_environment_commands(task_config, project_config)
 
@@ -152,7 +155,7 @@ class TestGetScriptWithValidation:
         fake_hpc_path = tmp_path / "pipeline" / "utils" / "hpc_utils.py"
         fake_hpc_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG), \
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
              patch("neuro_pipeline.pipeline.utils.hpc_utils.__file__", str(fake_hpc_path)):
             from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
             result = get_script_with_validation("afni_cards_preprocessing.sh", "scripts/test")
@@ -165,7 +168,7 @@ class TestGetScriptWithValidation:
         fake_hpc_path = tmp_path / "pipeline" / "utils" / "hpc_utils.py"
         fake_hpc_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG), \
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
              patch("neuro_pipeline.pipeline.utils.hpc_utils.__file__", str(fake_hpc_path)):
             from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
             result = get_script_with_validation("nonexistent_script.sh", "scripts/test")
@@ -181,7 +184,7 @@ class TestGetScriptWithValidation:
         fake_hpc_path.parent.mkdir(parents=True, exist_ok=True)
         # scripts_dir fixture already created tmp_path/scripts/test/*.sh
 
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG), \
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
              patch("neuro_pipeline.pipeline.utils.hpc_utils.__file__", str(fake_hpc_path)):
             from neuro_pipeline.pipeline.utils.hpc_utils import get_script_with_validation
             result = get_script_with_validation("afni_cards_preprocessing.sh", "scripts/test")
@@ -237,7 +240,7 @@ class TestCreateWrapperScript:
         fake_scripts_pkg = MagicMock()
         fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
 
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG), \
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
              patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import create_wrapper_script
 
@@ -413,7 +416,7 @@ class TestSubmitSlurmJobDryRun:
             "output_dir": str(tmp_path / "output"),
         }
 
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG), \
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
              patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
 
@@ -447,7 +450,7 @@ class TestSubmitSlurmJobDryRun:
             "output_dir": str(tmp_path / "output"),
         }
 
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG), \
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
              patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}), \
              patch("subprocess.run") as mock_run:
 
@@ -475,7 +478,7 @@ class TestSubmitSlurmJobDryRun:
             "scripts": ["ghost_script.sh"],
         }
 
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG), \
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
              patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
 
@@ -511,7 +514,7 @@ class TestSubmitSlurmJobDryRun:
             "dry_run": True,
         }
 
-        with patch(HPC_CONFIG_PATH, MOCK_CONFIG), \
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
              patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
 
