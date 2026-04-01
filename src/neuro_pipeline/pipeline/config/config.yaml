@@ -105,20 +105,20 @@ tasks:
       output_pattern: "{base_output}/AFNI_derivatives"
 
   # Task dwi
-  task_dti:
+  task_dwi:
     - name: dwi_preprocess
       profile: standard
       array: true
       input_from: recon_bids
       scripts: [qsiprep.sh]
-      output_pattern: "{base_output}/DTI_derivatives/qsiprep"
+      output_pattern: "{base_output}/DWI_derivatives/qsiprep"
 
     - name: dwi_post
       profile: standard
       array: true
       input_from: dwi_preprocess
       scripts: [qsirecon.sh]
-      output_pattern: "{base_output}/DTI_derivatives/qsirecon"
+      output_pattern: "{base_output}/DWI_derivatives/qsirecon"
 
   # Quality control
   qc:

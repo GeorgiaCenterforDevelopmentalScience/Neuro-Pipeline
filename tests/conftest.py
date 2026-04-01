@@ -107,14 +107,14 @@ MOCK_CONFIG = {
                 "output_pattern": "{base_output}/AFNI_derivatives",
             },
         ],
-        "task_dti": [
+        "task_dwi": [
             {
                 "name": "dwi_preprocess",
                 "profile": "standard",
                 "array": True,
                 "input_from": "recon_bids",
                 "scripts": ["qsiprep.sh"],
-                "output_pattern": "{base_output}/DTI_derivatives/qsiprep",
+                "output_pattern": "{base_output}/DWI_derivatives/qsiprep",
             },
             {
                 "name": "dwi_post",
@@ -122,7 +122,7 @@ MOCK_CONFIG = {
                 "array": True,
                 "input_from": "dwi_preprocess",
                 "scripts": ["qsirecon.sh"],
-                "output_pattern": "{base_output}/DTI_derivatives/qsirecon",
+                "output_pattern": "{base_output}/DWI_derivatives/qsirecon",
             },
         ],
         "qc": [
@@ -227,7 +227,7 @@ MOCK_PROJECT_CONFIG = {
                 "censor_outliers": "0.05",
             },
         ],
-        "task_dti": [
+        "task_dwi": [
             {
                 "name": "dwi_preprocess",
                 "container": "qsiprep_0.23.0.sif",

@@ -26,9 +26,10 @@ def merge_json_to_db(json_base_dir: str, db_path: str, job_ids: list = None):
         if not task_dir.is_dir():
             continue
         
-        # Handle pipeline executions
+        # Handle pipeline executions and wrapper scripts
         if task_dir.name == "_pipeline":
             merged_count += _merge_pipeline(task_dir, conn, job_ids)
+            merged_count += _merge_wrappers(task_dir, conn)
         else:
             merged_count += _merge_jobs(task_dir, conn, job_ids)
     
@@ -168,6 +169,51 @@ def _merge_jobs(task_dir, conn, job_ids=None):
         except Exception as e:
             print(f"Error: {json_file}: {e}")
     return count
+
+def _merge_wrappers(task_dir, conn):
+    """Merge wrapper_script events from _pipeline/ into the wrapper_scripts table.
+
+    Wrapper JSONL files are named wrapper_<task>_<timestamp>.jsonl and contain
+    a single 'wrapper_script' event written by job_db.log_wrapper_script().
+    """
+    count = 0
+    for json_file in task_dir.glob("wrapper_*.jsonl"):
+        try:
+            with open(json_file) as f:
+                line = f.readline()
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            if r.get("event") != "wrapper_script":
+                continue
+
+            conn.execute(
+                """
+                INSERT INTO wrapper_scripts
+                    (task_name, job_id, submission_time, wrapper_path, full_content,
+                     slurm_cmd, basic_paths, global_python, env_modules,
+                     global_env_vars, task_params, execute_cmd)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    r.get("task_name"), r.get("job_id"), r.get("timestamp"),
+                    r.get("wrapper_path"), r.get("full_content"),
+                    r.get("slurm_cmd"), r.get("basic_paths"),
+                    r.get("global_python"), r.get("env_modules"),
+                    r.get("global_env_vars"), r.get("task_params"),
+                    r.get("execute_cmd"),
+                ),
+            )
+            conn.commit()
+
+            archived = task_dir / "archived"
+            archived.mkdir(exist_ok=True)
+            shutil.move(str(json_file), str(archived / json_file.name))
+            count += 1
+        except Exception as e:
+            print(f"Error merging wrapper log {json_file}: {e}")
+    return count
+
 
 @app.command("merge")
 def merge_once(work_dir: str, db_path: str = None):

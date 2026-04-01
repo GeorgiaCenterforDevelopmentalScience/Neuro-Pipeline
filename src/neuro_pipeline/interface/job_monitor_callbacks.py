@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sqlite3
 from datetime import datetime
 from dash import html, dcc, Input, Output, State
@@ -10,6 +11,21 @@ from .utils.plot_utils import (
     create_duration_radar,
     create_exit_code_bar
 )
+
+def _render_check_table(df: pd.DataFrame):
+    """Render the output check results DataFrame as an HTML table with PASS/FAIL row colouring."""
+    header = html.Thead(html.Tr([html.Th(col) for col in df.columns]))
+    rows = []
+    for _, row in df.iterrows():
+        is_pass = str(row.get("status", "")).startswith("PASS")
+        style = {"backgroundColor": "rgba(40,167,69,0.15)"} if is_pass else {"backgroundColor": "rgba(220,53,69,0.15)"}
+        rows.append(html.Tr([html.Td(str(row[col])) for col in df.columns], style=style))
+    return html.Table(
+        [header, html.Tbody(rows)],
+        className="table table-sm table-bordered",
+        style={"fontSize": "12px"}
+    )
+
 
 def register_job_monitor_callbacks(app):
     
@@ -110,6 +126,24 @@ def register_job_monitor_callbacks(app):
                 
                 query += " ORDER BY execution_time DESC LIMIT 50"
             
+            elif query_type == "wrapper_scripts":
+                query = "SELECT id, task_name, job_id, submission_time, wrapper_path FROM wrapper_scripts WHERE 1=1"
+                params = []
+
+                if task:
+                    query += " AND task_name LIKE ?"
+                    params.append(f"%{task}%")
+
+                if start_date:
+                    query += " AND submission_time >= ?"
+                    params.append(start_date)
+
+                if end_date:
+                    query += " AND submission_time <= ?"
+                    params.append(end_date)
+
+                query += " ORDER BY submission_time DESC LIMIT 100"
+
             else:
                 return dbc.Alert("Invalid query type", color="warning"), ""
             
@@ -212,6 +246,262 @@ def register_job_monitor_callbacks(app):
             
             return dbc.Alert(f"Exported {len(df)} records to {csv_path}", color="success")
             
+        except Exception as e:
+            return dbc.Alert(f"Export failed: {str(e)}", color="danger")
+
+    @app.callback(
+        Output("merge-logs-result", "children"),
+        Input("merge-logs-btn", "n_clicks"),
+        State("work-dir-input", "value"),
+        prevent_initial_call=True
+    )
+    def merge_logs_callback(n_clicks, work_dir):
+        if not work_dir:
+            return dbc.Alert("Please enter the work directory.", color="warning")
+
+        if not os.path.isdir(work_dir):
+            return dbc.Alert(f"Directory not found: {work_dir}", color="danger")
+
+        try:
+            result = subprocess.run(
+                ["neuropipe", "merge-logs", "--work", work_dir],
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+            if result.returncode == 0:
+                msg = result.stdout.strip() or "Sync complete."
+                return dbc.Alert(
+                    [html.Strong("Sync complete. "), msg, " Click 'Execute Query' to refresh results."],
+                    color="success"
+                )
+            else:
+                err = result.stderr.strip() or result.stdout.strip() or "Unknown error."
+                return dbc.Alert(f"merge-logs failed: {err}", color="danger")
+        except subprocess.TimeoutExpired:
+            return dbc.Alert("merge-logs timed out after 120 seconds.", color="danger")
+        except FileNotFoundError:
+            return dbc.Alert(
+                "neuropipe command not found. Make sure the package is installed in the active environment.",
+                color="danger"
+            )
+        except Exception as e:
+            return dbc.Alert(f"Error: {str(e)}", color="danger")
+
+    @app.callback(
+        Output("output-check-result", "children"),
+        Input("run-output-check-btn", "n_clicks"),
+        State("check-project-name", "value"),
+        State("work-dir-input", "value"),
+        State("check-subjects", "value"),
+        State("check-task-filter", "value"),
+        State("check-session", "value"),
+        State("check-prefix", "value"),
+        prevent_initial_call=True
+    )
+    def run_output_check_callback(n_clicks, project, work_dir, subjects_raw, task_filter, session, prefix):
+        if not project:
+            return dbc.Alert("Please enter a project name.", color="warning")
+        if not work_dir:
+            return dbc.Alert("Please enter the work directory.", color="warning")
+        if not subjects_raw:
+            return dbc.Alert("Please enter at least one subject.", color="warning")
+
+        subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
+        if not subjects:
+            return dbc.Alert("No valid subjects found in the subject list.", color="warning")
+
+        try:
+            from neuro_pipeline.pipeline.utils.output_checker import OutputChecker, load_checks_config
+            checks_path = load_checks_config(project)
+        except FileNotFoundError as e:
+            return dbc.Alert(str(e), color="danger")
+        except Exception as e:
+            return dbc.Alert(f"Error loading checks config: {str(e)}", color="danger")
+
+        try:
+            checker = OutputChecker(
+                config_path=checks_path,
+                work_dir=work_dir,
+                prefix=prefix or "sub-",
+                session=session or "01"
+            )
+
+            if task_filter and task_filter.strip():
+                task_names = [task_filter.strip()]
+            else:
+                task_names = list(checker._config.keys())
+
+            df = checker.check_all(task_names, subjects)
+        except Exception as e:
+            return dbc.Alert(f"Error running checks: {str(e)}", color="danger")
+
+        if df.empty:
+            return dbc.Alert(
+                "No checks were run. Verify that task names in the checks file match those in config.yaml.",
+                color="info"
+            )
+
+        n_pass = (df["status"] == "PASS").sum()
+        n_fail = (df["status"] != "PASS").sum()
+        failed_subjects = sorted(df.loc[df["status"] != "PASS", "subject"].unique().tolist())
+
+        summary_items = [
+            html.Strong(f"{n_pass} checks passed, {n_fail} checks failed. "),
+        ]
+        if failed_subjects:
+            summary_items.append(f"Subjects with failures: {', '.join(failed_subjects)}")
+
+        summary_color = "success" if n_fail == 0 else "warning"
+
+        return html.Div([
+            dbc.Alert(summary_items, color=summary_color, className="mb-3"),
+            html.Div(
+                _render_check_table(df),
+                style={"overflowX": "auto", "maxHeight": "400px", "overflowY": "auto"}
+            )
+        ])
+
+    @app.callback(
+        Output("output-check-result", "children", allow_duplicate=True),
+        Input("export-check-csv-btn", "n_clicks"),
+        State("check-project-name", "value"),
+        State("work-dir-input", "value"),
+        State("check-subjects", "value"),
+        State("check-task-filter", "value"),
+        State("check-session", "value"),
+        State("check-prefix", "value"),
+        prevent_initial_call=True
+    )
+    @app.callback(
+        Output("wrapper-inspect-result", "children"),
+        Input("load-wrapper-btn", "n_clicks"),
+        State("db-path", "value"),
+        State("wrapper-task-filter", "value"),
+        State("wrapper-job-id", "value"),
+        prevent_initial_call=True
+    )
+    def load_wrapper_callback(n_clicks, db_path, task_filter, job_id):
+        if not db_path or not os.path.exists(db_path):
+            return dbc.Alert(f"Database file not found: {db_path}", color="danger")
+
+        try:
+            conn = sqlite3.connect(db_path)
+            query = "SELECT * FROM wrapper_scripts WHERE 1=1"
+            params = []
+            if task_filter and task_filter.strip():
+                query += " AND task_name LIKE ?"
+                params.append(f"%{task_filter.strip()}%")
+            if job_id and job_id.strip():
+                query += " AND job_id = ?"
+                params.append(job_id.strip())
+            query += " ORDER BY submission_time DESC LIMIT 1"
+
+            import pandas as pd
+            df = pd.read_sql_query(query, conn, params=params)
+            conn.close()
+
+            if df.empty:
+                return dbc.Alert("No wrapper script found matching the filters.", color="info")
+
+            row = df.iloc[0]
+
+            SECTION_LABELS = [
+                ("slurm_cmd",       "SLURM Submission Command"),
+                ("basic_paths",     "Basic Paths and Configuration"),
+                ("global_python",   "Global Python Environment"),
+                ("env_modules",     "Environment Module Commands"),
+                ("global_env_vars", "Global Environment Variables"),
+                ("task_params",     "Task-Specific Parameters"),
+                ("execute_cmd",     "Execute Command"),
+            ]
+
+            def _code_block(text):
+                return html.Pre(
+                    text or "(empty)",
+                    style={
+                        "backgroundColor": "#1e1e1e",
+                        "color": "#d4d4d4",
+                        "padding": "12px",
+                        "borderRadius": "4px",
+                        "fontSize": "12px",
+                        "whiteSpace": "pre-wrap",
+                        "wordBreak": "break-all",
+                        "maxHeight": "200px",
+                        "overflowY": "auto",
+                    }
+                )
+
+            section_cards = []
+            for col, label in SECTION_LABELS:
+                content = str(row.get(col, "") or "")
+                if not content.strip():
+                    continue
+                section_cards.append(
+                    dbc.Card([
+                        dbc.CardHeader(html.Strong(label)),
+                        dbc.CardBody(_code_block(content))
+                    ], className="mb-2")
+                )
+
+            full_content_card = dbc.Card([
+                dbc.CardHeader(html.Strong("Full Wrapper Script")),
+                dbc.CardBody(
+                    html.Pre(
+                        str(row.get("full_content", "") or ""),
+                        style={
+                            "backgroundColor": "#1e1e1e",
+                            "color": "#d4d4d4",
+                            "padding": "12px",
+                            "borderRadius": "4px",
+                            "fontSize": "11px",
+                            "whiteSpace": "pre-wrap",
+                            "wordBreak": "break-all",
+                            "maxHeight": "400px",
+                            "overflowY": "auto",
+                        }
+                    )
+                )
+            ], className="mb-2")
+
+            meta = dbc.Alert([
+                html.Strong(f"Task: {row.get('task_name', '')}"),
+                f"   |   Job ID: {row.get('job_id', '')}",
+                f"   |   Submitted: {row.get('submission_time', '')}",
+                html.Br(),
+                html.Small(f"Wrapper path: {row.get('wrapper_path', '')}", className="text-muted"),
+            ], color="secondary", className="mb-3")
+
+            return html.Div([meta] + section_cards + [full_content_card])
+
+        except Exception as e:
+            return dbc.Alert(f"Error loading wrapper: {str(e)}", color="danger")
+
+    def export_check_csv_callback(n_clicks, project, work_dir, subjects_raw, task_filter, session, prefix):
+        if not project or not work_dir or not subjects_raw:
+            return dbc.Alert("Fill in project, work directory, and subjects before exporting.", color="warning")
+
+        subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
+
+        try:
+            from neuro_pipeline.pipeline.utils.output_checker import OutputChecker, load_checks_config
+            checks_path = load_checks_config(project)
+            checker = OutputChecker(
+                config_path=checks_path,
+                work_dir=work_dir,
+                prefix=prefix or "sub-",
+                session=session or "01"
+            )
+            if task_filter and task_filter.strip():
+                task_names = [task_filter.strip()]
+            else:
+                task_names = list(checker._config.keys())
+
+            df = checker.check_all(task_names, subjects)
+            csv_path = checker.save_csv(df, out_dir=work_dir)
+            return dbc.Alert(f"Exported {len(df)} rows to {csv_path}", color="success")
+        except FileNotFoundError as e:
+            return dbc.Alert(str(e), color="danger")
         except Exception as e:
             return dbc.Alert(f"Export failed: {str(e)}", color="danger")
 

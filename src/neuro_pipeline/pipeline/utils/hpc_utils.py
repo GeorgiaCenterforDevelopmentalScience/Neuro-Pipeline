@@ -445,7 +445,7 @@ def submit_slurm_job(
     ])
 
     # Create wrapper script
-    wrapper_script = create_wrapper_script(
+    wrapper_script, wrapper_sections = create_wrapper_script(
         script_path=script_path,
         subjects_list=subjects_list,
         input_dir=actual_input_dir,
@@ -472,6 +472,12 @@ def submit_slurm_job(
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         job_id = result.stdout.strip().split()[-1]
         typer.echo(f"Job submitted: {job_id}")
+        # Log wrapper content for reproducibility tracking (JSONL only)
+        try:
+            from .job_db import log_wrapper_script
+            log_wrapper_script(task_name, job_id, str(wrapper_script), wrapper_sections, db_path=str(db_path))
+        except Exception:
+            pass  # never block submission over a logging failure
         return job_id
     except subprocess.CalledProcessError as e:
         typer.echo(f"Job submission failed: {e}", err=True)
@@ -621,7 +627,31 @@ def create_wrapper_script(
         f.write(f'execute_wrapper "{script_path.resolve()}"\n')
 
     os.chmod(wrapper_path, 0o755)
-    return wrapper_path
+
+    submit_cmd = hpc_config.get(hpc_config.get("scheduler", "slurm"), {}).get("submit_cmd", "sbatch")
+    sections = {
+        "full_content": wrapper_path.read_text(),
+        "slurm_cmd": f"{submit_cmd} {' '.join(slurm_args)} {wrapper_path}" if slurm_args else "",
+        "basic_paths": "\n".join([
+            f'export SUBJECTS="{" ".join(subjects_list)}"',
+            f'export INPUT_DIR="{input_dir}"',
+            f'export OUTPUT_DIR="{output_dir}"',
+            f'export WORK_DIR="{work_dir}"',
+            f'export LOG_DIR="{work_dir}/log"',
+            f'export DB_PATH="{db_path}"',
+            f'export TASK_NAME="{task_name}"',
+            f'export SCRIPT_DIR="{pipeline_root}"',
+        ]),
+        "global_python":   global_python_str,
+        "env_modules":     env_commands_str,
+        "global_env_vars": global_env_str,
+        "task_params":     task_params_str,
+        "execute_cmd": "\n".join([
+            f'source "$SCRIPT_DIR/utils/wrapper_functions.sh"',
+            f'execute_wrapper "{script_path.resolve()}"',
+        ]),
+    }
+    return wrapper_path, sections
 
 def wait_for_jobs(job_ids: List[str], polling_interval: int = 60):
     """Wait for jobs to complete using the configured HPC backend."""

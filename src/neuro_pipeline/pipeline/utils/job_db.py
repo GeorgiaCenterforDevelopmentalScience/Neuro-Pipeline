@@ -75,7 +75,25 @@ def ensure_table_exists(conn, table_name: str):
                 job_id TEXT
             )
         ''')
-    
+    elif table_name == "wrapper_scripts":
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS wrapper_scripts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_name TEXT,
+                job_id TEXT,
+                submission_time TEXT,
+                wrapper_path TEXT,
+                full_content TEXT,
+                slurm_cmd TEXT,
+                basic_paths TEXT,
+                global_python TEXT,
+                env_modules TEXT,
+                global_env_vars TEXT,
+                task_params TEXT,
+                execute_cmd TEXT
+            )
+        ''')
+
     conn.commit()
 
 def get_db_connection(db_path: str):
@@ -83,7 +101,7 @@ def get_db_connection(db_path: str):
     ensure_db_dir(db_path)
     conn = sqlite3.connect(db_path)
     
-    for table in ["job_status", "pipeline_executions", "command_outputs"]:
+    for table in ["job_status", "pipeline_executions", "command_outputs", "wrapper_scripts"]:
         ensure_table_exists(conn, table)
     
     return conn
@@ -104,6 +122,39 @@ def init_db(db_path: str = "pipeline_jobs.db"):
     conn = get_db_connection(db_path)
     conn.close()
     typer.echo(f"Database initialized: {db_path}")
+
+
+def log_wrapper_script(
+    task_name: str,
+    job_id: str,
+    wrapper_path: str,
+    sections: dict,
+    db_path: str = "pipeline_jobs.db",
+):
+    """
+    Write wrapper script content to JSONL (crash-safe).
+    Sections are passed directly from create_wrapper_script() — no file parsing needed.
+    The JSONL will be merged into SQLite by the user running `neuropipe merge-logs`.
+    """
+    try:
+        db_dir = os.path.dirname(db_path)
+        json_dir = os.path.join(db_dir, "json", "_pipeline")
+        os.makedirs(json_dir, exist_ok=True)
+        json_file = os.path.join(json_dir, f"wrapper_{task_name}_{int(time.time())}.jsonl")
+        record = {
+            "event": "wrapper_script",
+            "timestamp": datetime.now().isoformat(),
+            "task_name": task_name,
+            "job_id": job_id,
+            "wrapper_path": wrapper_path,
+            **sections,
+        }
+        with open(json_file, "w") as f:
+            f.write(json.dumps(record) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+    except Exception as e:
+        typer.echo(f"Warning: could not write wrapper JSONL: {e}", err=True)
 
 @app.command("log_start")
 @app.command("log_job_start") 

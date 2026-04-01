@@ -113,6 +113,8 @@ def run(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show execution plan"),
     resume: bool = typer.Option(False, "--resume", help="Skip subjects whose outputs already exist"),
 
+    skip_preflight: bool = typer.Option(False, "--skip-preflight", help="Skip pre-flight config and filesystem checks"),
+
     wait: bool = typer.Option(False, "--wait", help="Wait for jobs to complete"),
     polling_interval: int = typer.Option(60, "--polling-interval", help="Polling interval (seconds)")
 ):
@@ -207,6 +209,20 @@ def run(
         if not prefix:
             typer.echo("Error: 'prefix' not found in project config", err=True)
             raise typer.Exit(1)
+
+        # Pre-flight checks
+        if not skip_preflight:
+            from .utils.preflight import PreflightChecker, print_preflight_report
+            checker = PreflightChecker(
+                project_config=project_config,
+                global_config=config,
+                work_dir=work_dir,
+                input_dir=input_dir,
+            )
+            preflight_result = checker.run_all()
+            print_preflight_report(preflight_result)
+            if not preflight_result.ok:
+                raise typer.Exit(1)
     
         registry = TaskRegistry()
 
