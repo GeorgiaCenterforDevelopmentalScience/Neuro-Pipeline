@@ -1,11 +1,11 @@
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 import os
-from ...pipeline.utils.config_utils import get_task_options
+from ...pipeline.utils.config_utils import get_bids_pipeline_names, get_staged_pipeline_names, get_structural_task_names
 
 def create_analysis_control_layout():
     """Create the analysis control layout with subject selection and pipeline options"""
-    
+
     return dbc.Container([
         dbc.Row([
             dbc.Col([
@@ -13,7 +13,7 @@ def create_analysis_control_layout():
                 html.Hr()
             ])
         ]),
-        
+
         # Subject Selection Section
         dbc.Row([
             dbc.Col([
@@ -41,9 +41,9 @@ def create_analysis_control_layout():
                                 )
                             ], width=7),
                             dbc.Col([
-                                dbc.Button("Detect Subjects", id="detect-subjects-btn", 
+                                dbc.Button("Detect Subjects", id="detect-subjects-btn",
                                          color="primary", className="mt-4 me-2"),
-                                dbc.Button("Clear", id="clear-subjects-btn", 
+                                dbc.Button("Clear", id="clear-subjects-btn",
                                          color="secondary", className="mt-4")
                             ], width=3)
                         ]),
@@ -64,7 +64,7 @@ def create_analysis_control_layout():
                 ])
             ])
         ], className="mb-4"),
-        
+
         # Pipeline Configuration Section
         dbc.Row([
             dbc.Col([
@@ -101,7 +101,7 @@ def create_analysis_control_layout():
                                 )
                             ], width=4)
                         ]),
-                        
+
                         # Project Settings
                         dbc.Row([
                             dbc.Col([
@@ -123,17 +123,17 @@ def create_analysis_control_layout():
                                 )
                             ], width=6)
                         ]),
-                        
+
                         html.Hr(),
-                        
+
                         # Pipeline Modules
                         create_pipeline_modules_section()
-                        
+
                     ])
                 ])
             ])
         ], className="mb-4"),
-        
+
         # Execution Control
         dbc.Row([
             dbc.Col([
@@ -162,9 +162,9 @@ def create_analysis_control_layout():
                                 )
                             ], width=4),
                             dbc.Col([
-                                dbc.Button("Generate Command", id="generate-commands-btn", 
+                                dbc.Button("Generate Command", id="generate-commands-btn",
                                          color="info", className="mb-3 me-2"),
-                                dbc.Button("Execute Pipeline", id="execute-pipeline-btn", 
+                                dbc.Button("Execute Pipeline", id="execute-pipeline-btn",
                                          color="success", className="mb-3")
                             ], width=8)
                         ]),
@@ -177,7 +177,7 @@ def create_analysis_control_layout():
                 ])
             ])
         ]),
-        
+
         # Command Preview Section
         dbc.Row([
             dbc.Col([
@@ -204,7 +204,12 @@ def create_analysis_control_layout():
 
 def create_pipeline_modules_section():
     """Create the pipeline modules configuration section"""
-    
+    structural_options = [{"label": "None", "value": "none"}] + [
+        {"label": name, "value": name} for name in get_structural_task_names()
+    ]
+    bids_options = [{"label": name.capitalize(), "value": name} for name in get_bids_pipeline_names()]
+    staged_options = [{"label": name.capitalize(), "value": name} for name in get_staged_pipeline_names()]
+
     return dbc.Row([
         dbc.Col([
             # Preprocessing
@@ -224,108 +229,39 @@ def create_pipeline_modules_section():
                     )
                 ])
             ], className="mb-3"),
-            
+
             # Structural
             dbc.Card([
                 dbc.CardHeader("Structural Processing"),
                 dbc.CardBody([
                     dbc.RadioItems(
-                        id="structural-options",
-                        options=[
-                            {"label": "None", "value": "none"},
-                            {"label": "Volume", "value": "volume"}
-                        ],
+                        id="structural-radio",
+                        options=structural_options,
                         value="none",
                         inline=True
                     )
                 ])
             ], className="mb-3"),
-            
-            # Resting State fMRI
+
+            # BIDS Pipelines
             dbc.Card([
-                dbc.CardHeader("Resting State fMRI"),
+                dbc.CardHeader("BIDS Pipelines"),
                 dbc.CardBody([
                     dbc.Row([
                         dbc.Col([
-                            dbc.Label("Preprocessing:"),
-                            dbc.RadioItems(
-                                id="rest-prep",
-                                options=[
-                                    {"label": "None", "value": "none"},
-                                    {"label": "fMRIPrep", "value": "fmriprep"}
-                                ],
-                                value="none",
-                                inline=True
-                            )
-                        ], width=6),
-                        dbc.Col([
-                            dbc.Label("Postprocessing:"),
-                            dbc.RadioItems(
-                                id="rest-post",
-                                options=[
-                                    {"label": "None", "value": "none"},
-                                    {"label": "XCP-D", "value": "xcpd"}
-                                ],
-                                value="none",
-                                inline=True
-                            )
-                        ], width=6)
-                    ])
-                ])
-            ], className="mb-3"),
-            
-            # DWI
-            dbc.Card([
-                dbc.CardHeader("DWI (Diffusion Weighted Imaging)"),
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Preprocessing:"),
-                            dbc.RadioItems(
-                                id="dwi-prep",
-                                options=[
-                                    {"label": "None", "value": "none"},
-                                    {"label": "QSIPrep", "value": "qsiprep"}
-                                ],
-                                value="none",
-                                inline=True
-                            )
-                        ], width=6),
-                        dbc.Col([
-                            dbc.Label("Postprocessing:"),
-                            dbc.RadioItems(
-                                id="dwi-post",
-                                options=[
-                                    {"label": "None", "value": "none"},
-                                    {"label": "QSIRecon", "value": "qsirecon"}
-                                ],
-                                value="none",
-                                inline=True
-                            )
-                        ], width=6)
-                    ])
-                ])
-            ], className="mb-3"),
-            
-            # Task fMRI
-            dbc.Card([
-                dbc.CardHeader("Task fMRI"),
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Preprocessing:", html_for="task-prep"),
+                            dbc.Label("Preprocessing (--bids-prep):"),
                             dbc.Checklist(
-                                id="task-prep",
-                                options=get_task_options('_preprocess'),
+                                id="bids-prep-checklist",
+                                options=bids_options,
                                 value=[],
                                 inline=True
                             )
                         ], width=6),
                         dbc.Col([
-                            dbc.Label("Postprocessing:", html_for="task-post"),
+                            dbc.Label("Postprocessing (--bids-post):"),
                             dbc.Checklist(
-                                id="task-post",
-                                options=get_task_options('_postprocess'),
+                                id="bids-post-checklist",
+                                options=bids_options,
                                 value=[],
                                 inline=True
                             )
@@ -333,7 +269,34 @@ def create_pipeline_modules_section():
                     ])
                 ])
             ], className="mb-3"),
-            
+
+            # Staged Pipelines
+            dbc.Card([
+                dbc.CardHeader("Staged Pipelines"),
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Preprocessing (--staged-prep):"),
+                            dbc.Checklist(
+                                id="staged-prep-checklist",
+                                options=staged_options,
+                                value=[],
+                                inline=True
+                            )
+                        ], width=6),
+                        dbc.Col([
+                            dbc.Label("Postprocessing (--staged-post):"),
+                            dbc.Checklist(
+                                id="staged-post-checklist",
+                                options=staged_options,
+                                value=[],
+                                inline=True
+                            )
+                        ], width=6)
+                    ])
+                ])
+            ], className="mb-3"),
+
             # Quality Control
             dbc.Card([
                 dbc.CardHeader("Quality Control (MRIQC)"),

@@ -85,18 +85,18 @@ class PreflightChecker:
 
     def _all_global_task_names(self) -> set:
         names = set()
-        for section_tasks in self.global_config.get("tasks", {}).values():
+        for section_tasks in self.global_config.values():
             if isinstance(section_tasks, list):
                 for task in section_tasks:
-                    if "name" in task:
+                    if isinstance(task, dict) and "name" in task:
                         names.add(task["name"])
         return names
 
     def _global_task(self, name: str) -> Optional[Dict[str, Any]]:
-        for section_tasks in self.global_config.get("tasks", {}).values():
+        for section_tasks in self.global_config.values():
             if isinstance(section_tasks, list):
                 for task in section_tasks:
-                    if task.get("name") == name:
+                    if isinstance(task, dict) and task.get("name") == name:
                         return task
         return None
 

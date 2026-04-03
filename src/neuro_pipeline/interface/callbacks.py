@@ -115,112 +115,84 @@ def register_callbacks(app):
         State("project-name", "value"),
         State("session-id", "value"),
         State("prep-options", "value"),
-        State("structural-options", "value"),
-        State("rest-prep", "value"),
-        State("rest-post", "value"),
-        State("dwi-prep", "value"),
-        State("dwi-post", "value"),
-        State("task-prep", "value"),
-        State("task-post", "value"),
+        State("structural-radio", "value"),
+        State("bids-prep-checklist", "value"),
+        State("bids-post-checklist", "value"),
+        State("staged-prep-checklist", "value"),
+        State("staged-post-checklist", "value"),
         State("mriqc-options", "value"),
         State("dry-run-checkbox", "value"),
         State("resume-checkbox", "value")]
     )
     def generate_command_callback(n_clicks, subjects, input_dir, output_dir, work_dir,
-                                project_name, session, prep_option, structural_option,
-                                rest_prep, rest_post, dwi_prep, dwi_post,
-                                task_prep, task_post,
+                                project_name, session, prep_option, structural_value,
+                                bids_prep, bids_post, staged_prep, staged_post,
                                 mriqc_option, dry_run, resume):
         if n_clicks is None:
             return "Click 'Generate Command' to preview the pipeline command", {}
-        
+
         if not subjects:
             return "Error: No subjects selected. Please detect subjects first.", {}
-        
+
         if not all([input_dir, output_dir, work_dir, project_name]):
             return "Error: Please fill in all required fields (input, output, work directories, project name)", {}
-        
+
         try:
             # Build command parts
             cmd_parts = []
-            
+
             # Add directory variables
             cmd_parts.append(f'input_dir="{input_dir}"')
             cmd_parts.append(f'output_dir="{output_dir}"')
             cmd_parts.append(f'work_dir="{work_dir}"')
             cmd_parts.append('')
-            
+
             # Start neuropipe command
             cmd_parts.append('neuropipe run \\')
-            
+
             # Add subjects
             subjects_str = ",".join(subjects)
             cmd_parts.append(f'  --subjects {subjects_str} \\')
-            
+
             # Add directories
             cmd_parts.append(f'  --input "$input_dir" \\')
             cmd_parts.append(f'  --output "$output_dir" \\')
             cmd_parts.append(f'  --work "$work_dir" \\')
-            
-            # Add session
+
+            # Add session and project
             cmd_parts.append(f'  --session {session} \\')
-            
-            # Add project
             cmd_parts.append(f'  --project {project_name} \\')
-            
-            # Add prep options
+
             if prep_option and prep_option != "none":
                 cmd_parts.append(f'  --prep {prep_option} \\')
-            
-            # Add structural options
-            if structural_option and structural_option != "none":
-                cmd_parts.append(f'  --structural {structural_option} \\')
-            
-            # Add MRIQC options
+
+            if structural_value and structural_value != "none":
+                cmd_parts.append(f'  --structural \\')
+
+            if bids_prep:
+                cmd_parts.append(f'  --bids-prep {",".join(bids_prep)} \\')
+            if bids_post:
+                cmd_parts.append(f'  --bids-post {",".join(bids_post)} \\')
+
+            if staged_prep:
+                cmd_parts.append(f'  --staged-prep {",".join(staged_prep)} \\')
+            if staged_post:
+                cmd_parts.append(f'  --staged-post {",".join(staged_post)} \\')
+
             if mriqc_option and mriqc_option != "none":
                 cmd_parts.append(f'  --mriqc {mriqc_option} \\')
-            
-            # Add rest options
-            if rest_prep and rest_prep != "none":
-                cmd_parts.append(f'  --rest-prep {rest_prep} \\')
-            
-            if rest_post and rest_post != "none":
-                cmd_parts.append(f'  --rest-post {rest_post} \\')
-            
-            # Add DWI options
-            if dwi_prep and dwi_prep != "none":
-                cmd_parts.append(f'  --dwi-prep {dwi_prep} \\')
-            
-            if dwi_post and dwi_post != "none":
-                cmd_parts.append(f'  --dwi-post {dwi_post} \\')
-            
-            # Add task options - now support comma-separated format
-            if task_prep:
-                # Convert list to comma-separated string
-                task_prep_str = ",".join(task_prep)
-                cmd_parts.append(f'  --task-prep {task_prep_str} \\')
-            
-            if task_post:
-                # Convert list to comma-separated string
-                task_post_str = ",".join(task_post)
-                cmd_parts.append(f'  --task-post {task_post_str} \\')
-            
-            # Add dry run flag if enabled
+
             if dry_run and "dry_run" in dry_run:
                 cmd_parts.append(f'  --dry-run \\')
-            
-            # Add resume flag if enabled
+
             if resume and "resume" in resume:
                 cmd_parts.append(f'  --resume')
             else:
-                # Remove trailing backslash from last option
                 if cmd_parts[-1].endswith(' \\'):
                     cmd_parts[-1] = cmd_parts[-1][:-2]
-            
-            # Join command parts
+
             command_str = "\n".join(cmd_parts)
-            
-            # Store command data for execution
+
             command_data = {
                 "subjects": subjects,
                 "input_dir": input_dir,
@@ -229,20 +201,18 @@ def register_callbacks(app):
                 "project_name": project_name,
                 "session": session,
                 "prep_option": prep_option,
-                "structural_option": structural_option,
-                "rest_prep": rest_prep,
-                "rest_post": rest_post,
-                "dwi_prep": dwi_prep,
-                "dwi_post": dwi_post,
-                "task_prep": task_prep,
-                "task_post": task_post,
+                "structural_value": structural_value,
+                "bids_prep": bids_prep,
+                "bids_post": bids_post,
+                "staged_prep": staged_prep,
+                "staged_post": staged_post,
                 "mriqc_option": mriqc_option,
                 "dry_run": dry_run,
                 "resume": resume
             }
-            
+
             return command_str, command_data
-            
+
         except Exception as e:
             error_msg = f"Error generating command: {str(e)}"
             return error_msg, {}
@@ -289,37 +259,26 @@ def register_callbacks(app):
             # Add prep
             if command_data.get("prep_option") and command_data["prep_option"] != "none":
                 cmd.extend(["--prep", command_data["prep_option"]])
-            
-            # Add structural
-            if command_data.get("structural_option") and command_data["structural_option"] != "none":
-                cmd.extend(["--structural", command_data["structural_option"]])
-            
+
+            # Add structural flag
+            if command_data.get("structural_value") and command_data["structural_value"] != "none":
+                cmd.append("--structural")
+
+            # Add BIDS pipelines
+            if command_data.get("bids_prep"):
+                cmd.extend(["--bids-prep", ",".join(command_data["bids_prep"])])
+            if command_data.get("bids_post"):
+                cmd.extend(["--bids-post", ",".join(command_data["bids_post"])])
+
+            # Add staged pipelines
+            if command_data.get("staged_prep"):
+                cmd.extend(["--staged-prep", ",".join(command_data["staged_prep"])])
+            if command_data.get("staged_post"):
+                cmd.extend(["--staged-post", ",".join(command_data["staged_post"])])
+
             # Add MRIQC
             if command_data.get("mriqc_option") and command_data["mriqc_option"] != "none":
                 cmd.extend(["--mriqc", command_data["mriqc_option"]])
-            
-            # Add rest
-            if command_data.get("rest_prep") and command_data["rest_prep"] != "none":
-                cmd.extend(["--rest-prep", command_data["rest_prep"]])
-            
-            if command_data.get("rest_post") and command_data["rest_post"] != "none":
-                cmd.extend(["--rest-post", command_data["rest_post"]])
-            
-            # Add DWI
-            if command_data.get("dwi_prep") and command_data["dwi_prep"] != "none":
-                cmd.extend(["--dwi-prep", command_data["dwi_prep"]])
-            
-            if command_data.get("dwi_post") and command_data["dwi_post"] != "none":
-                cmd.extend(["--dwi-post", command_data["dwi_post"]])
-            
-            # Add task - now pass as comma-separated string
-            if command_data.get("task_prep"):
-                task_prep_str = ",".join(command_data["task_prep"])
-                cmd.extend(["--task-prep", task_prep_str])
-            
-            if command_data.get("task_post"):
-                task_post_str = ",".join(command_data["task_post"])
-                cmd.extend(["--task-post", task_post_str])
             
             # Add dry run
             if is_dry_run:
@@ -670,7 +629,7 @@ def register_callbacks(app):
             ], color="danger")
 
         # Check expected top-level keys
-        expected_keys = {"defaults", "resource_profiles", "tasks", "array_config"}
+        expected_keys = {"prep", "structural", "qc", "array_config"}
         present = set(parsed.keys()) if isinstance(parsed, dict) else set()
         missing = expected_keys - present
 
@@ -681,14 +640,13 @@ def register_callbacks(app):
                     f"Valid YAML but missing expected top-level keys: {', '.join(sorted(missing))}"
                 ], color="warning")
             task_count = sum(
-                len(v) for v in parsed.get("tasks", {}).values()
+                len(v) for v in parsed.values()
                 if isinstance(v, list)
             )
+            section_count = sum(1 for v in parsed.values() if isinstance(v, list))
             return dbc.Alert([
                 html.I(className="fas fa-check-circle me-2"),
-                f"Valid YAML · {task_count} task(s) across "
-                f"{len(parsed.get('tasks', {}))} section(s) · "
-                f"{len(parsed.get('resource_profiles', {}))} resource profile(s)"
+                f"Valid YAML · {task_count} task(s) across {section_count} section(s)"
             ], color="success")
 
         # Save

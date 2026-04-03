@@ -104,6 +104,32 @@ def find_task_config_by_name_with_project(task_name: str, project_config: dict =
     return global_task_config
 
 
+def get_structural_task_names() -> List[str]:
+    """Return task names from the structural section of config.yaml."""
+    return [t['name'] for t in config.get('structural', []) if isinstance(t, dict) and 'name' in t]
+
+_SYSTEM_SECTIONS = {'prep', 'structural', 'qc', 'array_config'}
+
+def get_bids_pipeline_names() -> List[str]:
+    """Return section names for BIDS-native pipelines (tasks without multi_stage)."""
+    names = []
+    for section, tasks in config.items():
+        if section in _SYSTEM_SECTIONS or not isinstance(tasks, list):
+            continue
+        if not any(t.get('multi_stage') for t in tasks if isinstance(t, dict)):
+            names.append(section)
+    return names
+
+def get_staged_pipeline_names() -> List[str]:
+    """Return section names for staged pipelines (tasks with multi_stage: true)."""
+    names = []
+    for section, tasks in config.items():
+        if section in _SYSTEM_SECTIONS or not isinstance(tasks, list):
+            continue
+        if any(t.get('multi_stage') for t in tasks if isinstance(t, dict)):
+            names.append(section)
+    return names
+
 def load_project_config(project_name: str, config_dir: str = None):
     """Load project configuration from YAML file"""
     if config_dir is None:
