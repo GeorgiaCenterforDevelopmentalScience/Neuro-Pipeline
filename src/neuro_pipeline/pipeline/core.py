@@ -10,7 +10,6 @@ from .dag import DAGExecutor, TaskRegistry
 from .utils.config_utils import (
     PrepChoice,
     MRIQCChoice,
-    clean_all_only,
     load_project_config,
 )
 from .utils.job_db import log_pipeline_execution, update_pipeline_execution
@@ -37,48 +36,32 @@ class TaskOptions:
     # Session
     session: Optional[str] = typer.Option('01', help="Session ID")
 
-    # Rest: prep and post
-    rest_prep: bool = typer.Option(False, "--rest-prep", help="Resting-state preprocessing")
-    rest_post: bool = typer.Option(False, "--rest-post", help="Resting-state postprocessing")
+    # BIDS pipelines: --bids-prep rest,dwi
+    bids_prep: Optional[List[str]] = typer.Option(None, help="BIDS pipeline preprocessing")
+    bids_post: Optional[List[str]] = typer.Option(None, help="BIDS pipeline postprocessing")
 
-    # Task: prep and post
-    task_prep: Optional[List[str]] = typer.Option(None, help="Task preprocessing")
-    task_post: Optional[List[str]] = typer.Option(None, help="Task postprocessing")
-
-    # DWI: prep and post
-    dwi_prep: bool = typer.Option(False, "--dwi-prep", help="DWI preprocessing")
-    dwi_post: bool = typer.Option(False, "--dwi-post", help="DWI postprocessing")
+    # Staged pipelines: --staged-prep cards,kidvid
+    staged_prep: Optional[List[str]] = typer.Option(None, help="Staged pipeline preprocessing")
+    staged_post: Optional[List[str]] = typer.Option(None, help="Staged pipeline postprocessing")
 
 def collect_and_expand_tasks(registry, options: TaskOptions):
     """Collect and expand tasks"""
-    requested_tasks, pipeline_dependencies = parse_and_expand_tasks(registry, **options.__dict__)
-    return requested_tasks, pipeline_dependencies
+    return parse_and_expand_tasks(registry, **options.__dict__)
 
-# TODO: Optimize the `all` option and `task` argument, check dag file
 def parse_and_expand_tasks(registry, **kwargs):
     """Parse options and expand to concrete task names"""
-    
-    # Clean 'all' choices
-    if kwargs.get('task_prep'):
-        task_prep = clean_all_only([t for t in kwargs['task_prep']], "task_prep")
-        kwargs['task_prep'] = task_prep
-    
-    if kwargs.get('task_post'):
-        task_post = clean_all_only([t for t in kwargs['task_post']], "task_post")
-        kwargs['task_post'] = task_post
-    
-    if kwargs.get('task'):
-        task = clean_all_only([t for t in kwargs['task']], "task")
-        kwargs['task'] = task
-    
-    requested_tasks = registry.expand_tasks(**kwargs)
-    
-    pipeline_dependencies = {
-        'rest': registry._expand_rest_tasks(kwargs) if kwargs.get('rest_prep') or kwargs.get('rest_post') else None,
-        'dwi': registry._expand_dwi_tasks(kwargs) if kwargs.get('dwi_prep') or kwargs.get('dwi_post') else None,
-    }
-    
-    return requested_tasks, pipeline_dependencies
+    for key in ('bids_prep', 'bids_post', 'staged_prep', 'staged_post'):
+        if kwargs.get(key):
+            kwargs[key] = _parse_comma_list(kwargs[key])
+
+    return registry.expand_tasks(**kwargs)
+
+def _parse_comma_list(values):
+    """Flatten and split comma-separated CLI values into a clean list"""
+    result = []
+    for item in values:
+        result.extend([v.strip() for v in item.split(',') if v.strip()])
+    return result
 
 @app.command()
 def run(
@@ -94,16 +77,13 @@ def run(
 
     structural: bool = typer.Option(False, "--structural", help="Structural MRI processing"),
     mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing"),
-    session: Optional[str] = typer.Option('01', help="Session or wave ID"),
+    session: Optional[str] = typer.Option(..., help="Session or wave ID"),
 
-    rest_prep: bool = typer.Option(False, "--rest-prep", help="Resting-state preprocessing"),
-    rest_post: bool = typer.Option(False, "--rest-post", help="Resting-state postprocessing"),
+    bids_prep: Optional[List[str]] = typer.Option(None, "--bids-prep", help="BIDS pipeline preprocessing (e.g. rest,dwi)"),
+    bids_post: Optional[List[str]] = typer.Option(None, "--bids-post", help="BIDS pipeline postprocessing (e.g. rest,dwi)"),
 
-    task_prep: Optional[List[str]] = typer.Option(None, help="Task preprocessing (comma-separated or multiple flags)"),
-    task_post: Optional[List[str]] = typer.Option(None, help="Task postprocessing (comma-separated or multiple flags)"),
-
-    dwi_prep: bool = typer.Option(False, "--dwi-prep", help="DWI preprocessing"),
-    dwi_post: bool = typer.Option(False, "--dwi-post", help="DWI postprocessing"),
+    staged_prep: Optional[List[str]] = typer.Option(None, "--staged-prep", help="Staged pipeline preprocessing (e.g. cards,kidvid)"),
+    staged_post: Optional[List[str]] = typer.Option(None, "--staged-post", help="Staged pipeline postprocessing (e.g. cards,kidvid)"),
 
     dry_run: bool = typer.Option(False, "--dry-run", help="Show execution plan"),
     resume: bool = typer.Option(False, "--resume", help="Skip subjects whose outputs already exist"),
@@ -119,55 +99,15 @@ def run(
     command_line = " ".join(sys.argv)
     
     try:
-        parsed_task_prep = None
-        parsed_task_post = None
-
-        if task_prep:
-            expanded_prep = []
-            for item in task_prep:
-                expanded_prep.extend([t.strip() for t in item.split(',') if t.strip()])
-            
-            # Add suffix
-            from .utils.config_utils import expand_task_names
-            parsed_task_prep = expand_task_names(expanded_prep, '_preprocess')
-        
-        if task_post:
-            expanded_post = []
-            for item in task_post:
-                expanded_post.extend([t.strip() for t in item.split(',') if t.strip()])
-            
-            # Add suffix
-            from .utils.config_utils import expand_task_names
-            parsed_task_post = expand_task_names(expanded_post, '_postprocess')
-        
-        # Validate
-        from .utils.config_utils import validate_task_name, get_all_task_names
-        
-        if parsed_task_prep:
-            for task in parsed_task_prep:
-                if not validate_task_name(task):
-                    typer.echo(f"Error: Unknown task '{task}'", err=True)
-                    typer.echo(f"Available tasks: {', '.join(get_all_task_names())}", err=True)
-                    raise typer.Exit(1)
-        
-        if parsed_task_post:
-            for task in parsed_task_post:
-                if not validate_task_name(task):
-                    typer.echo(f"Error: Unknown task '{task}'", err=True)
-                    typer.echo(f"Available tasks: {', '.join(get_all_task_names())}", err=True)
-                    raise typer.Exit(1)
-        
         options = TaskOptions(
             prep=prep,
             structural=structural,
             mriqc=mriqc,
             session=session,
-            rest_prep=rest_prep,
-            rest_post=rest_post,
-            task_prep=parsed_task_prep,
-            task_post=parsed_task_post,
-            dwi_prep=dwi_prep,
-            dwi_post=dwi_post,
+            bids_prep=bids_prep,
+            bids_post=bids_post,
+            staged_prep=staged_prep,
+            staged_post=staged_post,
         )
                 
         # Validate input
@@ -222,16 +162,12 @@ def run(
         registry = TaskRegistry()
 
         # Expand tasks
-        requested_tasks, pipeline_dependencies = collect_and_expand_tasks(registry, options)
+        requested_tasks = collect_and_expand_tasks(registry, options)
         if not requested_tasks:
             typer.echo("Error: No tasks specified", err=True)
             raise typer.Exit(1)
         
         typer.echo(f"Tasks: {requested_tasks}")
-        if pipeline_dependencies.get('rest'):
-            typer.echo(f"Rest dependencies: {pipeline_dependencies['rest']}")
-        if pipeline_dependencies.get('dwi'):
-            typer.echo(f"DWI dependencies: {pipeline_dependencies['dwi']}")
         
         dag_executor = DAGExecutor(config)
 
@@ -323,8 +259,6 @@ def run(
             context=context,
             option_env=option_env,
             project_config=project_config,
-            rest_dependencies=pipeline_dependencies.get('rest'),
-            dwi_dependencies=pipeline_dependencies.get('dwi'),
             original_work_dir=original_work_dir,
             db_path=db_path,
             resume=resume,
@@ -391,11 +325,13 @@ def run(
 def list_tasks():
     """List available tasks"""
     typer.echo("Available tasks:")
-    tasks = config.get('tasks', {})
-    
-    for section_name, section_tasks in tasks.items():
+    for section_name, section_tasks in config.items():
+        if not isinstance(section_tasks, list):
+            continue
         typer.echo(f"\n{section_name.upper()}:")
         for task in section_tasks:
+            if not isinstance(task, dict):
+                continue
             name = task.get('name', 'Unknown')
             scripts = task.get('scripts', [])
             deps = task.get('input_from', 'None')

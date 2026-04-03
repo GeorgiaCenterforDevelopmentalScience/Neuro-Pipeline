@@ -1,7 +1,10 @@
 """
-The dependency chain is declared via input_from in config.yaml. 
-For example, dwi_preprocess has input_from: recon_bids, which means if dwi_preprocess is requested, 
-recon_bids will be added as a dependency.
+DAG dependency rules:
+  1. unzip -> recon_bids (if both requested)
+  2. recon_bids -> all downstream tasks (bids, staged, mriqc, structural)
+  3. structural -> staged tasks (multi_stage: true in config)
+  4. Within each config section: post -> prep
+  Tasks in different sections run in parallel.
 """
 
 import os
@@ -43,108 +46,65 @@ class DAGExecutor:
         )
         self.nodes[task_name] = node
     
-    def build_dag(self, requested_tasks: List[str], rest_dependencies: List[tuple] = None,
-                  dwi_dependencies: List[tuple] = None) -> List[str]:
+    def build_dag(self, requested_tasks: List[str]) -> List[str]:
         """Build DAG from requested tasks"""
         for task_name in requested_tasks:
-            self._add_task_with_dependencies(task_name, requested_tasks)
-        
-        # Register explicit inter-task dependencies for each pipeline
-        self._register_dependencies(rest_dependencies)
-        self._register_dependencies(dwi_dependencies)
-        
-        # Debug output
-        if os.environ.get('DEBUG_DEPENDENCIES'):
-            self.print_dependency_graph()
-        
+            self._register_task(task_name)
+
+        self._apply_prep_sequence(requested_tasks)
+        self._apply_recon_dependencies(requested_tasks)
+        self._apply_structural_dependencies(requested_tasks)
+        self._apply_section_dependencies(requested_tasks)
+
         return self._topological_sort()
 
-    def _register_dependencies(self, dep_list: List[tuple] = None):
-        """Register explicit dependencies from a pipeline dependency list"""
-        if not dep_list:
-            return
-        for dependency_item in dep_list:
-            if isinstance(dependency_item, tuple) and len(dependency_item) == 2:
-                task_name, deps = dependency_item
-                if task_name in self.nodes:
-                    for dep in deps:
-                        if dep in self.nodes:
-                            self.nodes[task_name].add_dependency(dep)
-    
-    def _add_task_with_dependencies(self, task_name: str, requested_tasks: List[str] = None):
-        """Add task and its dependencies to DAG"""
+    def _register_task(self, task_name: str):
         if task_name in self.nodes:
             return
-        
         from .utils.config_utils import find_task_config_by_name_with_project
         task_config = find_task_config_by_name_with_project(task_name, getattr(self, 'project_config', None))
-        
         if not task_config:
             typer.echo(f"Warning: No configuration found for {task_name}")
             return
-        
         self.add_task(task_name, task_config)
-        
-        # Handle various dependency types
-        self._handle_input_from_dependencies(task_name, task_config, requested_tasks)
-        self._handle_task_postprocess_dependencies(task_name, requested_tasks)
-        self._handle_task_preprocess_structural_dependencies(task_name, requested_tasks)
-        self._handle_mriqc_group_dependencies(task_name, requested_tasks)
 
-    def _handle_mriqc_group_dependencies(self, task_name: str, requested_tasks: List[str] = None):
-        """Handle MRIQC group dependencies - post must wait for prep (individual) to complete"""
-        if not requested_tasks or task_name != 'mriqc_post':
+    def _apply_prep_sequence(self, requested_tasks: List[str]):
+        """unzip -> recon_bids if both requested"""
+        if 'unzip' in requested_tasks and 'recon_bids' in requested_tasks:
+            self.nodes['recon_bids'].add_dependency('unzip')
+
+    def _apply_recon_dependencies(self, requested_tasks: List[str]):
+        """recon_bids -> all downstream tasks"""
+        if 'recon_bids' not in requested_tasks:
             return
+        downstream = set(requested_tasks) - {'unzip', 'recon_bids'}
+        for task_name in downstream:
+            if task_name in self.nodes:
+                self.nodes[task_name].add_dependency('recon_bids')
 
-        if 'mriqc_preprocess' in requested_tasks:
-            self.nodes[task_name].add_dependency('mriqc_preprocess')
-            self._add_task_with_dependencies('mriqc_preprocess', requested_tasks)
-
-    def _handle_input_from_dependencies(self, task_name: str, task_config: Dict[str, Any], requested_tasks: List[str] = None):
-        """Handle input_from dependencies"""
-        input_from = task_config.get('input_from')
-        if not input_from:
-            return
-            
-        dependency_mapping = {
-            'unzip': 'unzip',
-            'recon_bids': 'recon_bids',
-            'mriqc': 'mriqc_preprocess',
-            'mriqc_preprocess': 'mriqc_preprocess',
-            'rest_preprocess': 'rest_preprocess',
-            'dwi_preprocess': 'dwi_preprocess',
-        }
-        
-        dep_task = dependency_mapping.get(input_from)
-        if dep_task and requested_tasks and dep_task in requested_tasks:
-            self.nodes[task_name].add_dependency(dep_task)
-            self._add_task_with_dependencies(dep_task, requested_tasks)
-
-    # TODO: modify `task` arguments, too much hard coded syntax
-    def _handle_task_postprocess_dependencies(self, task_name: str, requested_tasks: List[str] = None):
-        """Handle postprocess dependencies"""
-        if not requested_tasks or not task_name.endswith('_postprocess'):
-            return
-            
-        task_type = task_name.replace('_postprocess', '')
-        prep_task = f'{task_type}_preprocess'
-        
-        if prep_task in requested_tasks:
-            self.nodes[task_name].add_dependency(prep_task)
-
-    def _handle_task_preprocess_structural_dependencies(self, task_name: str, requested_tasks: List[str] = None):
-        """Handle preprocess dependencies on structural tasks"""
-        if not requested_tasks or not task_name.endswith('_preprocess'):
-            return
-        
-        # Check if it's a task section task
+    def _apply_structural_dependencies(self, requested_tasks: List[str]):
+        """structural -> staged tasks (multi_stage: true)"""
         from .utils.config_utils import get_all_task_names
-        if task_name not in get_all_task_names('task'):
+        structural_tasks = [t for t in requested_tasks if t in get_all_task_names('structural')]
+        if not structural_tasks:
             return
-        
-        structural_tasks = [task for task in requested_tasks if task.startswith('afni_')]
-        for structural_task in structural_tasks:
-            self.nodes[task_name].add_dependency(structural_task)
+        for task_name in requested_tasks:
+            if task_name in self.nodes and self.nodes[task_name].task_config.get('multi_stage'):
+                for st in structural_tasks:
+                    self.nodes[task_name].add_dependency(st)
+
+    def _apply_section_dependencies(self, requested_tasks: List[str]):
+        """Within each config section, post tasks depend on prep tasks"""
+        requested_set = set(requested_tasks)
+        for section_tasks in self.config.values():
+            if not isinstance(section_tasks, list):
+                continue
+            prep_tasks = [t['name'] for t in section_tasks if t.get('stage') == 'prep' and t['name'] in requested_set]
+            post_tasks = [t['name'] for t in section_tasks if t.get('stage') == 'post' and t['name'] in requested_set]
+            for post in post_tasks:
+                for prep in prep_tasks:
+                    if post in self.nodes and prep in self.nodes:
+                        self.nodes[post].add_dependency(prep)
 
     def _topological_sort(self) -> List[str]:
         """Topological sort on DAG"""
@@ -166,20 +126,8 @@ class DAGExecutor:
         
         return result
     
-    def print_dependency_graph(self):
-        """Print dependency graph for debugging"""
-        print("\n=== Dependency Graph ===")
-        for task_name, node in self.nodes.items():
-            if node.dependencies:
-                deps_str = ", ".join(sorted(node.dependencies))
-                print(f"{task_name} -> [{deps_str}]")
-            else:
-                print(f"{task_name} -> []")
-        print("=======================\n")
-    
     def execute(self, requested_tasks, input_dir, output_dir, work_dir, container_dir,
-                dry_run, context=None, option_env=None, project_config=None, 
-                rest_dependencies: List[tuple] = None, dwi_dependencies: List[tuple] = None,
+                dry_run, context=None, option_env=None, project_config=None,
                 original_work_dir=None, db_path: Optional[str] = None,
                 resume: bool = False, checks_config_path: Optional[str] = None):
         """Execute tasks in DAG order"""
@@ -203,7 +151,7 @@ class DAGExecutor:
             checker.warn_missing_configs(requested_tasks)
         
         # Build DAG for requested tasks
-        execution_order = self.build_dag(requested_tasks, rest_dependencies, dwi_dependencies)
+        execution_order = self.build_dag(requested_tasks)
         
         # Execute all tasks
         for task_name in execution_order:
@@ -267,12 +215,12 @@ class DAGExecutor:
 
     def _get_merge_config(self) -> Optional[Dict[str, Any]]:
         """Get merge_logs config from tasks sections"""
-        for section in self.config.get('tasks', {}).values():
+        for section in self.config.values():
             if isinstance(section, list):
                 for task in section:
-                    if task.get('name') == 'merge_logs':
+                    if isinstance(task, dict) and task.get('name') == 'merge_logs':
                         return task
-        return None       
+        return None
 
     def _execute_single_task(self, node: 'TaskNode', subjects: str, input_dir: str,
                         output_dir: str, work_dir: str, container_dir: str,
@@ -360,15 +308,17 @@ class TaskRegistry:
                 }
                 tasks.append(mriqc_mapping.get(mriqc_choice.value, f"mriqc_{mriqc_choice.value}"))
         
-        # Rest tasks - simplified
-        if kwargs.get('rest_prep') or kwargs.get('rest_post'):
-            rest_tasks = self._expand_rest_tasks(kwargs)
-            tasks.extend([task_name for task_name, _ in rest_tasks])
-        
-        # DWI tasks
-        if kwargs.get('dwi_prep') or kwargs.get('dwi_post'):
-            dwi_tasks = self._expand_dwi_tasks(kwargs)
-            tasks.extend([task_name for task_name, _ in dwi_tasks])
+        # BIDS pipelines: --bids-prep rest,dwi  /  --bids-post rest,dwi
+        if kwargs.get('bids_prep'):
+            tasks.extend(self._expand_pipeline_tasks(kwargs['bids_prep'], 'prep'))
+        if kwargs.get('bids_post'):
+            tasks.extend(self._expand_pipeline_tasks(kwargs['bids_post'], 'post'))
+
+        # Staged pipelines: --staged-prep cards,kidvid  /  --staged-post cards,kidvid
+        if kwargs.get('staged_prep'):
+            tasks.extend(self._expand_pipeline_tasks(kwargs['staged_prep'], 'prep'))
+        if kwargs.get('staged_post'):
+            tasks.extend(self._expand_pipeline_tasks(kwargs['staged_post'], 'post'))
         
         # Task prep
         if kwargs.get('task_prep'):
@@ -387,24 +337,12 @@ class TaskRegistry:
         from .utils.config_utils import get_tasks_from_section
         return [name for name, _ in get_tasks_from_section('qc')]
 
-    def _expand_rest_tasks(self, kwargs) -> List[tuple]:
-        """Expand rest tasks from config, driven by stage field."""
+    def _expand_pipeline_tasks(self, pipeline_names: List[str], stage: str) -> List[str]:
+        """Expand a list of pipeline section names into task names for a given stage."""
         from .utils.config_utils import get_tasks_from_section
         tasks = []
-        if kwargs.get('rest_prep'):
-            tasks.extend(get_tasks_from_section('rest', 'prep'))
-        if kwargs.get('rest_post'):
-            tasks.extend(get_tasks_from_section('rest', 'post'))
-        return tasks
-
-    def _expand_dwi_tasks(self, kwargs) -> List[tuple]:
-        """Expand DWI tasks from config, driven by stage field."""
-        from .utils.config_utils import get_tasks_from_section
-        tasks = []
-        if kwargs.get('dwi_prep'):
-            tasks.extend(get_tasks_from_section('task_dwi', 'prep'))
-        if kwargs.get('dwi_post'):
-            tasks.extend(get_tasks_from_section('task_dwi', 'post'))
+        for pipeline in pipeline_names:
+            tasks.extend([name for name, _ in get_tasks_from_section(pipeline, stage)])
         return tasks
 
     def _expand_task_args(self, kwargs):

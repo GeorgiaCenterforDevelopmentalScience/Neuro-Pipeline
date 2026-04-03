@@ -1,112 +1,102 @@
 # Analysis and Prep Pipeline
-tasks:
-  prep:
-    - name: unzip
-      profile: standard
-      scripts: [unzip_rename.sh]
-      output_pattern: "{base_output}/raw"
 
-    - name: recon_bids
-      profile: light_short
-      array: true
-      scripts: [dcm2bids_convert_BIDS.sh]
-      input_from: unzip
-      output_pattern: "{base_output}/BIDS"
+prep:
+  - name: unzip
+    profile: standard
+    scripts: [unzip_rename.sh]
+    output_pattern: "{base_output}/raw"
 
-    # - name: field_map_sdc
-    #   profile: standard_short
-    #   array: true
-    #   scripts: [compute_filedmap_sdc]
-    #   input_from: recon_bids
-    #   output_pattern: "{base_output}/field_map/sdc"
+  - name: recon_bids
+    profile: light_short
+    array: true
+    scripts: [dcm2bids_convert_BIDS.sh]
+    input_from: unzip
+    output_pattern: "{base_output}/BIDS"
 
-    # - name: field_map_fsl_afni
-    #   profile: standard_short
-    #   array: true
-    #   scripts: [bias_field_correction]
-    #   input_from: recon_bids
-    #   output_pattern: "{base_output}/field_map/fsl_afni"
+# Structural MRI (intermediate step required by staged pipelines)
+structural:
+  - name: afni_volume
+    profile: standard_short
+    array: true
+    input_from: recon_bids
+    scripts: [sswarp_scratch.sh]
+    output_pattern: "{base_output}/AFNI_derivatives"
 
-  # Structural MRI
-  structural:
-    - name: afni_volume
-      profile: standard_short
-      array: true
-      input_from: recon_bids
-      scripts: [sswarp_scratch.sh]
-      output_pattern: "{base_output}/AFNI_derivatives"
+# BIDS-native containerized pipelines (2-step: recon_bids → task)
+# Add new BIDS pipelines as subsections here
+rest:
+  - name: rest_preprocess
+    stage: prep
+    profile: heavy_long
+    array: true
+    input_from: recon_bids
+    scripts: [fmriprep_rs.sh]
+    output_pattern: "{base_output}/BIDS_derivatives/fmriprep"
 
-  # Resting State fMRI - fMRIPrep
-  rest:
-    - name: rest_preprocess
-      stage: prep
-      profile: heavy_long
-      array: true
-      input_from: recon_bids
-      scripts: [fmriprep_rs.sh]
-      output_pattern: "{base_output}/BIDS_derivatives/fmriprep"
+  - name: rest_post
+    stage: post
+    profile: standard_short
+    array: true
+    input_from: rest_preprocess
+    scripts: [xcpd_rs.sh]
+    output_pattern: "{base_output}/BIDS_derivatives/xcpd"
 
-    - name: rest_post
-      stage: post
-      profile: standard_short
-      array: true
-      input_from: rest_preprocess
-      scripts: [xcpd_rs.sh]
-      output_pattern: "{base_output}/BIDS_derivatives/xcpd"
+dwi:
+  - name: dwi_preprocess
+    stage: prep
+    profile: standard
+    array: true
+    input_from: recon_bids
+    scripts: [qsiprep.sh]
+    output_pattern: "{base_output}/DWI_derivatives/qsiprep"
 
-  # Task fMRI
-  task:
-    - name: cards_preprocess
-      stage: prep
-      profile: standard
-      array: true
-      input_from: recon_bids
-      scripts: [afni_cards_preprocessing.sh]
-      output_pattern: "{base_output}/AFNI_derivatives"
+  - name: dwi_post
+    stage: post
+    profile: standard
+    array: true
+    input_from: dwi_preprocess
+    scripts: [qsirecon.sh]
+    output_pattern: "{base_output}/DWI_derivatives/qsirecon"
 
-    - name: kidvid_preprocess
-      stage: prep
-      profile: standard
-      array: true
-      input_from: recon_bids
-      scripts: [afni_kidvid_preprocess.sh]
-      output_pattern: "{base_output}/AFNI_derivatives"
+# Staged pipelines (3-step: recon_bids → structural → task)
+# Add new tasks here; reference by short name in --staged-prep/post
+cards:
+  - name: cards_preprocess
+    stage: prep
+    profile: standard
+    array: true
+    input_from: recon_bids
+    multi_stage: true
+    scripts: [afni_cards_preprocessing.sh]
+    output_pattern: "{base_output}/AFNI_derivatives"
 
-  # Task dwi
-  dwi:
-    - name: dwi_preprocess
-      stage: prep
-      profile: standard
-      array: true
-      input_from: recon_bids
-      scripts: [qsiprep.sh]
-      output_pattern: "{base_output}/DWI_derivatives/qsiprep"
+kidvid:
+  - name: kidvid_preprocess
+    stage: prep
+    profile: standard
+    array: true
+    input_from: recon_bids
+    multi_stage: true
+    scripts: [afni_kidvid_preprocess.sh]
+    output_pattern: "{base_output}/AFNI_derivatives"
 
-    - name: dwi_post
-      stage: post
-      profile: standard
-      array: true
-      input_from: dwi_preprocess
-      scripts: [qsirecon.sh]
-      output_pattern: "{base_output}/DWI_derivatives/qsirecon"
+# Quality control
+qc:
+  - name: mriqc_preprocess
+    stage: prep
+    profile: heavy_long
+    array: true
+    input_from: recon_bids
+    scripts: [mriqc_individual.sh]
+    output_pattern: "{base_output}/quality_control/mriqc"
 
-  # Quality control
-  qc:
-    - name: mriqc_preprocess
-      stage: prep
-      profile: heavy_long
-      array: true
-      input_from: recon_bids
-      scripts: [mriqc_individual.sh]
-      output_pattern: "{base_output}/quality_control/mriqc"
+  - name: mriqc_post
+    stage: post
+    profile: light_short
+    input_from: recon_bids
+    scripts: [mriqc_group.sh]
+    output_pattern: "{base_output}/quality_control/mriqc"
 
-    - name: mriqc_post
-      stage: post
-      profile: light_short
-      input_from: recon_bids # recon_bids is the correct one, not mriqc_individual
-      scripts: [mriqc_group.sh]
-      output_pattern: "{base_output}/quality_control/mriqc"
-
-# array jobs
+# Array job configuration
 array_config:
   pattern: "1-{num}%15"

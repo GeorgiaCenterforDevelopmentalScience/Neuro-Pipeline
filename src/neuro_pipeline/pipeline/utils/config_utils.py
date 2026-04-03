@@ -13,7 +13,6 @@ except FileNotFoundError:
     config = {}
 
 
-# Enum definitions — only kept where the choice is meaningful
 class PrepChoice(str, Enum):
     unzip = "unzip"
     recon = "recon"
@@ -25,15 +24,12 @@ class MRIQCChoice(str, Enum):
     individual = "individual"
     all = "all"
 
-
-# ---------------------------------------------------------------------------
-# Config-driven task lookup
-# ---------------------------------------------------------------------------
-
 def get_tasks_from_section(section: str, stage: str = None) -> List[Tuple[str, List[str]]]:
-    section_tasks = config.get('tasks', {}).get(section, [])
+    section_tasks = config.get(section, [])
     result = []
     for task in section_tasks:
+        if not isinstance(task, dict):
+            continue
         if stage is None or task.get('stage') == stage:
             dep = task.get('input_from')
             deps = [dep] if dep else []
@@ -41,35 +37,15 @@ def get_tasks_from_section(section: str, stage: str = None) -> List[Tuple[str, L
     return result
 
 
-def get_task_options(suffix):
-    """Load task options from config dynamically"""
-    config_path = Path(__file__).parent.parent / "config" / "config.yaml"
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-
-    # For postprocessing, use the same options as preprocessing
-    if suffix == '_postprocess':
-        suffix = '_preprocess'
-
-    tasks = config.get('tasks', {}).get('task', [])
-    options = []
-    for task in tasks:
-        if suffix in task['name']:
-            short_name = task['name'].replace(suffix, '')
-            label = short_name.capitalize()
-            options.append({"label": label, "value": short_name})
-
-    return options
-
 def get_tasks_by_suffix(suffix: str, category: str = 'task') -> List[str]:
     """Get task names by suffix pattern"""
-    all_tasks = config.get('tasks', {}).get(category, [])
-    return [t['name'] for t in all_tasks if suffix in t['name']]
+    all_tasks = config.get(category, [])
+    return [t['name'] for t in all_tasks if isinstance(t, dict) and suffix in t['name']]
 
 def get_all_task_names(category: str = 'task') -> List[str]:
     """Get all task names in category"""
-    all_tasks = config.get('tasks', {}).get(category, [])
-    return [t['name'] for t in all_tasks]
+    all_tasks = config.get(category, [])
+    return [t['name'] for t in all_tasks if isinstance(t, dict)]
 
 def validate_task_name(task_name: str, category: str = 'task') -> bool:
     """Check if task exists"""
@@ -89,11 +65,10 @@ def clean_all_only(argval: List[str], name: str) -> List[str]:
 # TODO: need add to pytest
 def find_task_config_by_name(task_name: str) -> Optional[Dict[str, Any]]:
     """Find task configuration by name"""
-    tasks = config.get('tasks', {})
-    for section_name, section_tasks in tasks.items():
+    for section_name, section_tasks in config.items():
         if isinstance(section_tasks, list):
             for task in section_tasks:
-                if task.get('name') == task_name:
+                if isinstance(task, dict) and task.get('name') == task_name:
                     return task
         elif isinstance(section_tasks, dict):
             if section_name == task_name:
