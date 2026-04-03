@@ -254,9 +254,10 @@ def register_job_monitor_callbacks(app):
         Output("merge-logs-result", "children"),
         Input("merge-logs-btn", "n_clicks"),
         State("work-dir-input", "value"),
+        State("db-path", "value"),
         prevent_initial_call=True
     )
-    def merge_logs_callback(n_clicks, work_dir):
+    def merge_logs_callback(n_clicks, work_dir, db_path):
         if not work_dir:
             return dbc.Alert("Please enter the work directory.", color="warning")
 
@@ -264,8 +265,11 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Directory not found: {work_dir}", color="danger")
 
         try:
+            cmd = ["neuropipe", "merge-logs", work_dir]
+            if db_path and db_path.strip():
+                cmd += ["--db-path", db_path.strip()]
             result = subprocess.run(
-                ["neuropipe", "merge-logs", "--work", work_dir],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=120
