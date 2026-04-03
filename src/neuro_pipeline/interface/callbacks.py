@@ -334,14 +334,25 @@ def register_callbacks(app):
         
         return new_class, main_class
     
+    # Auto-fill project config path from project name
+    @app.callback(
+        Output("config-file-path", "value"),
+        Input("new-project-name", "value"),
+        prevent_initial_call=True
+    )
+    def autofill_project_config_path(project_name):
+        if not project_name:
+            return ""
+        return f"config/project_config/{project_name}_config.yaml"
+
     # Generate new config callback
     @app.callback(
         Output("new-config-result", "children"),
         [Input("generate-new-config-btn", "n_clicks")],
         [State("new-project-name", "value"),
-         State("new-config-output-dir", "value")]
+         State("config-file-path", "value")]
     )
-    def generate_new_config_callback(n_clicks, project_name, output_dir):
+    def generate_new_config_callback(n_clicks, project_name, config_path):
         if n_clicks is None:
             return ""
         
@@ -352,12 +363,11 @@ def register_callbacks(app):
             ], color="warning")
         
         try:
-            # Import and call function directly
             from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
-            
-            # Call function directly instead of running script
+
+            output_dir = os.path.dirname(config_path) if config_path else "config/project_config"
             generate_project_config(project_name, output_dir)
-            
+
             config_file = os.path.join(output_dir, f"{project_name}_config.yaml")
             
             return dbc.Alert([
@@ -398,41 +408,54 @@ def register_callbacks(app):
         except Exception as e:
             return f"# Error loading configuration: {str(e)}"
     
-    # Save config callback
+    # Save / Validate config callback (Tab 1)
     @app.callback(
         Output("yaml-validation-result", "children"),
-        [Input("save-config-btn", "n_clicks")],
+        [Input("save-config-btn", "n_clicks"),
+         Input("validate-config-btn", "n_clicks")],
         [State("config-file-path", "value"),
-         State("yaml-editor", "value")]
+         State("yaml-editor", "value")],
+        prevent_initial_call=True
     )
-    def save_config_callback(n_clicks, config_path, yaml_content):
-        if n_clicks is None:
+    def save_config_callback(_save_clicks, _validate_clicks, config_path, yaml_content):
+        ctx = callback_context
+        if not ctx.triggered:
             return ""
-        
-        if not config_path or not yaml_content:
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        if not yaml_content:
+            return dbc.Alert("Editor is empty.", color="warning")
+
+        try:
+            import yaml as _yaml
+            _yaml.safe_load(yaml_content)
+        except Exception as e:
             return dbc.Alert([
                 html.I(className="fas fa-exclamation-triangle me-2"),
-                "Please provide both file path and YAML content"
-            ], color="warning")
-        
-        try:
-            import yaml
-            yaml.safe_load(yaml_content)
-            
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
-                f.write(yaml_content)
-            
+                f"Invalid YAML: {e}"
+            ], color="danger")
+
+        if trigger_id == "validate-config-btn":
             return dbc.Alert([
                 html.I(className="fas fa-check-circle me-2"),
-                f"Configuration saved successfully to {config_path}"
+                "Valid YAML"
             ], color="success")
-            
-        except yaml.YAMLError as e:
+
+        # Save
+        if not config_path:
+            return dbc.Alert("Please provide a file path before saving.", color="warning")
+
+        try:
+            dir_part = os.path.dirname(config_path)
+            if dir_part:
+                os.makedirs(dir_part, exist_ok=True)
+            with open(config_path, 'w', encoding='utf-8') as f:
+                f.write(yaml_content)
             return dbc.Alert([
-                html.I(className="fas fa-exclamation-triangle me-2"),
-                f"Invalid YAML format: {str(e)}"
-            ], color="danger")
+                html.I(className="fas fa-check-circle me-2"),
+                f"Saved to {config_path}"
+            ], color="success")
+
         except Exception as e:
             return dbc.Alert([
                 html.I(className="fas fa-exclamation-triangle me-2"),
@@ -668,3 +691,96 @@ def register_callbacks(app):
             ], color="success")
         except Exception as e:
             return dbc.Alert(f"Error saving config.yaml: {e}", color="danger")
+
+    # ── HPC Config: load ──────────────────────────────────────────────────────
+    @app.callback(
+        [Output("hpc-config-editor", "value"),
+         Output("hpc-config-result", "children", allow_duplicate=True)],
+        Input("load-hpc-config-btn", "n_clicks"),
+        prevent_initial_call=True
+    )
+    def load_hpc_config_callback(n_clicks):
+        if not n_clicks:
+            return "", ""
+
+        from pathlib import Path
+        config_path = (
+            Path(__file__).parent.parent
+            / "pipeline" / "config" / "hpc_config.yaml"
+        )
+
+        if not config_path.exists():
+            return "", dbc.Alert(
+                f"hpc_config.yaml not found at: {config_path}", color="danger"
+            )
+
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return content, dbc.Alert(
+                [html.I(className="fas fa-check-circle me-2"), f"Loaded: {config_path}"],
+                color="success", className="mt-2"
+            )
+        except Exception as e:
+            return "", dbc.Alert(f"Error loading hpc_config.yaml: {e}", color="danger")
+
+    # ── HPC Config: validate + save ───────────────────────────────────────────
+    @app.callback(
+        Output("hpc-config-result", "children"),
+        [Input("save-hpc-config-btn", "n_clicks"),
+         Input("validate-hpc-config-btn", "n_clicks")],
+        State("hpc-config-editor", "value"),
+        prevent_initial_call=True
+    )
+    def save_hpc_config_callback(_save_clicks, _validate_clicks, yaml_content):
+        ctx = callback_context
+        if not ctx.triggered:
+            return ""
+        trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+        if not yaml_content:
+            return dbc.Alert("Editor is empty.", color="warning")
+
+        try:
+            import yaml as _yaml
+            parsed = _yaml.safe_load(yaml_content)
+        except Exception as e:
+            return dbc.Alert([
+                html.I(className="fas fa-exclamation-triangle me-2"),
+                f"Invalid YAML: {e}"
+            ], color="danger")
+
+        expected_keys = {"resource_profiles", "defaults"}
+        present = set(parsed.keys()) if isinstance(parsed, dict) else set()
+        missing = expected_keys - present
+
+        if trigger_id == "validate-hpc-config-btn":
+            if missing:
+                return dbc.Alert([
+                    html.I(className="fas fa-exclamation-triangle me-2"),
+                    f"Valid YAML but missing expected keys: {', '.join(sorted(missing))}"
+                ], color="warning")
+            profile_count = len(parsed.get("resource_profiles", {}))
+            return dbc.Alert([
+                html.I(className="fas fa-check-circle me-2"),
+                f"Valid YAML · {profile_count} resource profile(s)"
+            ], color="success")
+
+        # Save
+        from pathlib import Path
+        config_path = (
+            Path(__file__).parent.parent
+            / "pipeline" / "config" / "hpc_config.yaml"
+        )
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                f.write(yaml_content)
+            return dbc.Alert([
+                html.I(className="fas fa-check-circle me-2"),
+                f"Saved to {config_path}",
+                html.Br(),
+                html.Small("Restart the pipeline process for changes to take effect.",
+                           className="text-muted")
+            ], color="success")
+        except Exception as e:
+            return dbc.Alert(f"Error saving hpc_config.yaml: {e}", color="danger")
