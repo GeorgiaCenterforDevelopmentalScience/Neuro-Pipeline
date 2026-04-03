@@ -455,6 +455,45 @@ def merge_logs_cmd(
     from .utils.merge_logs_create_db import merge_once
     merge_once(work_dir, db_path)
 
+
+@app.command("generate-report")
+def generate_report_cmd(
+    db_path: str = typer.Option(..., "--db-path", help="Path to pipeline_jobs.db"),
+    project: str = typer.Option(..., "--project", help="Project name"),
+    output: Optional[str] = typer.Option(
+        None, "--output", "-o",
+        help="Output HTML path. Defaults to pipeline_report_<project>_<timestamp>.html next to the database."
+    ),
+    session: Optional[str] = typer.Option(
+        None, "--session",
+        help="Filter by session ID (recommended when multiple projects share a database)."
+    ),
+    check_results: Optional[str] = typer.Option(
+        None, "--check-results",
+        help="Path to a check_results_*.csv from check-outputs. Auto-detected from work_dir if omitted."
+    ),
+):
+    """
+    Generate a standalone HTML pipeline report for a project.
+    Example:
+      neuropipe generate-report --db-path /scratch/log/database/pipeline_jobs.db \\
+          --project GCDS --session 01
+    """
+    from .utils.report_generator import generate_report
+    try:
+        out = generate_report(
+            db_path=db_path,
+            project_name=project,
+            output_path=output,
+            session=session,
+            check_results_path=check_results,
+        )
+        typer.echo(f"Report: {out}")
+    except (FileNotFoundError, ValueError) as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
 

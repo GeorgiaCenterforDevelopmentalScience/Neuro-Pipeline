@@ -583,7 +583,7 @@ def create_wrapper_script(
             f.write(f"# {submit_cmd} {' '.join(slurm_args)} {wrapper_path}\n")
         
         f.write("\n")
-        
+
         # Export all configuration as environment variables
         f.write("# Basic paths and configuration\n")
         f.write(f'export SUBJECTS="{" ".join(subjects_list)}"\n')

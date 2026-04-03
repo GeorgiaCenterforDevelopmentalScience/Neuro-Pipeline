@@ -139,6 +139,7 @@ MOCK_CONFIG = {
         "task_dwi": [
             {
                 "name": "dwi_preprocess",
+                "stage": "prep",
                 "profile": "standard",
                 "array": True,
                 "input_from": "recon_bids",
@@ -147,6 +148,7 @@ MOCK_CONFIG = {
             },
             {
                 "name": "dwi_post",
+                "stage": "post",
                 "profile": "standard",
                 "array": True,
                 "input_from": "dwi_preprocess",
@@ -176,6 +178,13 @@ MOCK_CONFIG = {
     },
     "array_config": {
         "pattern": "1-{num}%15",
+    },
+    "resource_profiles": {
+        "data_manage":    {"memory": "2gb",  "time": "00:20:00"},
+        "light_short":    {"memory": "16gb", "time": "04:00:00"},
+        "standard":       {"memory": "32gb", "time": "20:00:00"},
+        "standard_short": {"memory": "32gb", "time": "08:00:00"},
+        "heavy_long":     {"memory": "64gb", "time": "24:00:00"},
     },
 }
 

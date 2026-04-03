@@ -104,6 +104,7 @@ neuropipe run \
   --output /data/processed \
   --work /data/work \
   --project my_study \
+  --session 01 \
   --structural volume \
   --dry-run
 ```
@@ -119,6 +120,7 @@ neuropipe run \
   --output /data/processed \
   --work /data/work \
   --project my_study \
+  --session 01 \
   --prep unzip_recon \
   --structural volume \
   --rest-prep fmriprep \
@@ -142,6 +144,7 @@ neuropipe run \
   --output /data/processed \
   --work /data/work \
   --project my_study \
+  --session 01 \
   --structural volume \
   --resume
 ```

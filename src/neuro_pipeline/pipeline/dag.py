@@ -354,7 +354,11 @@ class TaskRegistry:
             if mriqc_choice in self.task_expanders:
                 tasks.extend(self.task_expanders[mriqc_choice](kwargs))
             else:
-                tasks.append(f"mriqc_{mriqc_choice.value}")
+                mriqc_mapping = {
+                    'individual': 'mriqc_preprocess',
+                    'group': 'mriqc_post',
+                }
+                tasks.append(mriqc_mapping.get(mriqc_choice.value, f"mriqc_{mriqc_choice.value}"))
         
         # Rest tasks - simplified
         if kwargs.get('rest_prep') or kwargs.get('rest_post'):

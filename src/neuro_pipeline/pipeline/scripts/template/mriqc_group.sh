@@ -17,7 +17,6 @@ echo "$OUTPUT_DIR"
 # ---------------------------------- Run Processing -------------------------------------
 
 singularity run \
-                --cleanenv \
                 -B ${CONTAINER_DIR}:/resources \
                 -B ${input_dir}:/data \
                 -B ${work_dir}:/work \

@@ -28,7 +28,6 @@ echo "nuisance-regressors: ${NUISANCE_REGRESSORS}"
 # notch filter parameter: https://xcp-d.readthedocs.io/en/latest/workflows.html#motion-parameter-filtering-optional 
 
 singularity run \
-                --cleanenv \
                 -B $HOME:/home/xcp \
                 --home /home/xcp \
                 -B ${CONTAINER_DIR}:/resources \

@@ -24,7 +24,6 @@ echo "container: ${CONTAINER_DIR}/${CONTAINER}"
 # See https://fmriprep.org/en/stable/spaces.html
 
 singularity run \
-                --cleanenv \
                 -B ${CONTAINER_DIR}:/resources \
                 -B ${input_dir}:/data \
                 -B ${work_dir}:/work \

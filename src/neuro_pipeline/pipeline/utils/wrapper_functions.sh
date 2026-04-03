@@ -142,13 +142,20 @@ ENV_EOF
         echo "$GLOBAL_PYTHON_COMMANDS" >> "$ENV_FILE"
         echo "" >> "$ENV_FILE"
     fi
-    
+
     # Load environment modules
     if [ -n "$ENV_COMMANDS" ]; then
         echo "# Load environment modules" >> "$ENV_FILE"
         echo "$ENV_COMMANDS" >> "$ENV_FILE"
         echo "" >> "$ENV_FILE"
     fi
+
+    # Re-apply Python isolation after module load / venv activate
+    cat >> "$ENV_FILE" << 'PYISO_EOF'
+# Python isolation (re-applied after env setup)
+export PYTHONNOUSERSITE=1
+unset PYTHONPATH
+PYISO_EOF
     
     # Export basic variables
     cat >> "$ENV_FILE" << ENV_EOF

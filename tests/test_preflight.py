@@ -11,7 +11,7 @@ import yaml
 from pathlib import Path
 from unittest.mock import patch
 
-from tests.conftest import MOCK_CONFIG, MOCK_PROJECT_CONFIG
+from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 from neuro_pipeline.pipeline.utils.preflight import (
     PreflightChecker,
     PreflightResult,
@@ -23,10 +23,11 @@ from neuro_pipeline.pipeline.utils.preflight import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_checker(project_config=None, global_config=None, work_dir=None, input_dir=None, tmp_path=None):
+def make_checker(project_config=None, global_config=None, hpc_config=None, work_dir=None, input_dir=None, tmp_path=None):
     return PreflightChecker(
         project_config=project_config or MOCK_PROJECT_CONFIG,
         global_config=global_config or MOCK_CONFIG,
+        hpc_config=hpc_config if hpc_config is not None else MOCK_HPC_CONFIG,
         work_dir=work_dir or (tmp_path / "work" if tmp_path else "/tmp/work"),
         input_dir=input_dir or (tmp_path / "input" if tmp_path else "/tmp/input"),
     )
@@ -164,12 +165,8 @@ class TestSchemaChecks:
 
     # --- Resource profile references ---------------------------------------
 
-    def test_error_when_profile_not_in_global_config(self, tmp_path):
-        gc = {
-            **MOCK_CONFIG,
-            "resource_profiles": {},  # empty → all profiles missing
-        }
-        checker = make_checker(global_config=gc, tmp_path=tmp_path)
+    def test_error_when_profile_not_in_hpc_config(self, tmp_path):
+        checker = make_checker(hpc_config={"resource_profiles": {}}, tmp_path=tmp_path)
         checker.check_schema()
         profile_errors = [
             i for i in checker._issues

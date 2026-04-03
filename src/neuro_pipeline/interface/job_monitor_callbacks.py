@@ -5,6 +5,7 @@ from datetime import datetime
 from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
+from neuro_pipeline.pipeline.utils.output_checker import OutputChecker, load_checks_config
 from .utils.plot_utils import (
     create_timeline_chart,
     create_status_donut,
@@ -312,7 +313,6 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert("No valid subjects found in the subject list.", color="warning")
 
         try:
-            from neuro_pipeline.pipeline.utils.output_checker import OutputChecker, load_checks_config
             checks_path = load_checks_config(project)
         except FileNotFoundError as e:
             return dbc.Alert(str(e), color="danger")
@@ -373,6 +373,38 @@ def register_job_monitor_callbacks(app):
         State("check-prefix", "value"),
         prevent_initial_call=True
     )
+    def export_check_csv_callback(n_clicks, project, work_dir, subjects_raw, task_filter, session, prefix):
+        if not project:
+            return dbc.Alert("Please enter a project name.", color="warning")
+        if not work_dir:
+            return dbc.Alert("Please enter the work directory.", color="warning")
+        if not subjects_raw:
+            return dbc.Alert("Please enter at least one subject.", color="warning")
+
+        subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
+
+        try:
+            checks_path = load_checks_config(project)
+        except FileNotFoundError as e:
+            return dbc.Alert(str(e), color="danger")
+        except Exception as e:
+            return dbc.Alert(f"Error loading checks config: {str(e)}", color="danger")
+
+        try:
+            checker = OutputChecker(
+                config_path=checks_path,
+                work_dir=work_dir,
+                prefix=prefix or "sub-",
+                session=session or "01"
+            )
+            task_names = [task_filter.strip()] if task_filter and task_filter.strip() else list(checker._config.keys())
+            df = checker.check_all(task_names, subjects)
+            csv_path = checker.save_csv(df, work_dir)
+        except Exception as e:
+            return dbc.Alert(f"Error exporting CSV: {str(e)}", color="danger")
+
+        return dbc.Alert(f"Exported to {csv_path}", color="success")
+
     @app.callback(
         Output("wrapper-inspect-result", "children"),
         Input("load-wrapper-btn", "n_clicks"),
@@ -477,33 +509,38 @@ def register_job_monitor_callbacks(app):
         except Exception as e:
             return dbc.Alert(f"Error loading wrapper: {str(e)}", color="danger")
 
-    def export_check_csv_callback(n_clicks, project, work_dir, subjects_raw, task_filter, session, prefix):
-        if not project or not work_dir or not subjects_raw:
-            return dbc.Alert("Fill in project, work directory, and subjects before exporting.", color="warning")
-
-        subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
-
+    @app.callback(
+        Output("generate-report-result", "children"),
+        Input("generate-report-btn", "n_clicks"),
+        State("db-path", "value"),
+        State("report-project", "value"),
+        State("report-session", "value"),
+        State("report-check-results", "value"),
+        State("report-output-path", "value"),
+        prevent_initial_call=True
+    )
+    def generate_report_callback(n_clicks, db_path, project, session, check_results, output_path):
+        if not db_path or not project:
+            return dbc.Alert("Database path and project name are required.", color="warning")
+        if not os.path.exists(db_path):
+            return dbc.Alert(f"Database not found: {db_path}", color="danger")
         try:
-            from neuro_pipeline.pipeline.utils.output_checker import OutputChecker, load_checks_config
-            checks_path = load_checks_config(project)
-            checker = OutputChecker(
-                config_path=checks_path,
-                work_dir=work_dir,
-                prefix=prefix or "sub-",
-                session=session or "01"
+            from neuro_pipeline.pipeline.utils.report_generator import generate_report
+            out = generate_report(
+                db_path=db_path,
+                project_name=project.strip(),
+                output_path=output_path.strip() if output_path and output_path.strip() else None,
+                session=session.strip() if session and session.strip() else None,
+                check_results_path=check_results.strip() if check_results and check_results.strip() else None,
             )
-            if task_filter and task_filter.strip():
-                task_names = [task_filter.strip()]
-            else:
-                task_names = list(checker._config.keys())
-
-            df = checker.check_all(task_names, subjects)
-            csv_path = checker.save_csv(df, out_dir=work_dir)
-            return dbc.Alert(f"Exported {len(df)} rows to {csv_path}", color="success")
-        except FileNotFoundError as e:
+            return dbc.Alert([
+                "Report saved: ",
+                html.Code(out, style={"fontSize": "12px"})
+            ], color="success")
+        except (FileNotFoundError, ValueError) as e:
             return dbc.Alert(str(e), color="danger")
         except Exception as e:
-            return dbc.Alert(f"Export failed: {str(e)}", color="danger")
+            return dbc.Alert(f"Error generating report: {str(e)}", color="danger")
 
 
 def create_query_charts(df, query_type):

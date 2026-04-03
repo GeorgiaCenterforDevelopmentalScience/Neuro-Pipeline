@@ -138,6 +138,71 @@ def create_job_monitor_layout():
             ])
         ], className="mb-4"),
         
+        # Generate Report
+        dbc.Row([
+            dbc.Col([
+                html.H4("Generate Report", className="mb-3"),
+                dbc.Card([
+                    dbc.CardBody([
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Project Name:", html_for="report-project"),
+                                dbc.Input(
+                                    id="report-project",
+                                    type="text",
+                                    placeholder="e.g., GCDS",
+                                    className="mb-3"
+                                )
+                            ], width=3),
+                            dbc.Col([
+                                dbc.Label("Session (optional):", html_for="report-session"),
+                                dbc.Input(
+                                    id="report-session",
+                                    type="text",
+                                    placeholder="e.g., 01",
+                                    className="mb-3"
+                                )
+                            ], width=2),
+                            dbc.Col([
+                                dbc.Label("Check Results CSV (optional):", html_for="report-check-results"),
+                                dbc.Input(
+                                    id="report-check-results",
+                                    type="text",
+                                    placeholder="Auto-detected if blank",
+                                    className="mb-3"
+                                )
+                            ], width=4),
+                            dbc.Col([
+                                dbc.Label("Output Path (optional):", html_for="report-output-path"),
+                                dbc.Input(
+                                    id="report-output-path",
+                                    type="text",
+                                    placeholder="Default: next to database",
+                                    className="mb-3"
+                                )
+                            ], width=3),
+                        ]),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Button(
+                                    "Generate Report",
+                                    id="generate-report-btn",
+                                    color="primary",
+                                    className="me-2"
+                                ),
+                                html.Small(
+                                    "Generates a standalone HTML report for the project. "
+                                    "Uses the Database Path above.",
+                                    className="text-muted ms-2"
+                                ),
+                                html.Div(id="generate-report-result", className="mt-3")
+                            ], width=12)
+                        ])
+                    ])
+                ])
+            ])
+        ], className="mb-4"),
+
         # Wrapper Script Inspector
         dbc.Row([
             dbc.Col([

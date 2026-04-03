@@ -7,9 +7,17 @@ Two layers of checks:
 """
 
 import os
+import yaml
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+_HPC_CONFIG_PATH = Path(__file__).parent.parent / "config" / "hpc_config.yaml"
+try:
+    with open(_HPC_CONFIG_PATH, "r", encoding="utf-8") as _f:
+        _hpc_config: Dict[str, Any] = yaml.safe_load(_f) or {}
+except FileNotFoundError:
+    _hpc_config = {}
 
 @dataclass
 class Issue:
@@ -60,9 +68,11 @@ class PreflightChecker:
         global_config: Dict[str, Any],
         work_dir,
         input_dir,
+        hpc_config: Optional[Dict[str, Any]] = None,
     ):
         self.project_config = project_config
         self.global_config = global_config
+        self.hpc_config = hpc_config if hpc_config is not None else _hpc_config
         self.work_dir = Path(work_dir)
         self.input_dir = Path(input_dir)
         self._issues: List[Issue] = []
@@ -94,7 +104,6 @@ class PreflightChecker:
 
     def check_schema(self) -> None:
         pc = self.project_config
-        gc = self.global_config
 
         # Required top-level keys in project config
         for key in ("prefix", "scripts_dir", "envir_dir", "database", "setup"):
@@ -111,8 +120,8 @@ class PreflightChecker:
         if "db_path" not in db_config:
             self._err("schema", "project config: database.db_path is required")
 
-        # resource_profiles defined in global config
-        global_profiles = set(gc.get("resource_profiles", {}).keys())
+        # resource_profiles live in hpc_config.yaml
+        global_profiles = set((self.hpc_config.get("resource_profiles") or {}).keys())
 
         # modules defined in project config
         defined_modules = set((pc.get("modules") or {}).keys())

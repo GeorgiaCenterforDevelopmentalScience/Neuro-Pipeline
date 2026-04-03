@@ -244,7 +244,7 @@ class TestCreateWrapperScript:
              patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import create_wrapper_script
 
-            wrapper = create_wrapper_script(
+            wrapper_path, _ = create_wrapper_script(
                 script_path=fake_script,
                 subjects_list=subjects,
                 input_dir="/data/input",
@@ -259,7 +259,7 @@ class TestCreateWrapperScript:
                 option_env={"session": "01", "prefix": "sub-", "project": "TEST"},
                 slurm_args=self.SLURM_ARGS,
             )
-        return wrapper
+        return wrapper_path
 
     # ---- basic structure ---------------------------------------------------
 
