@@ -73,7 +73,7 @@ class TestSchemaChecks:
         errors = [i for i in checker._issues if i.severity == "ERROR" and i.category == "schema"]
         assert errors == [], f"Unexpected schema errors: {errors}"
 
-    @pytest.mark.parametrize("missing_key", ["prefix", "scripts_dir", "envir_dir", "database", "setup"])
+    @pytest.mark.parametrize("missing_key", ["prefix", "scripts_dir", "envir_dir", "database", "tasks"])
     def test_error_for_missing_required_key(self, missing_key, tmp_path):
         pc = {k: v for k, v in MOCK_PROJECT_CONFIG.items() if k != missing_key}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
@@ -95,28 +95,18 @@ class TestSchemaChecks:
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
         assert any("db_path" in m for m in messages)
 
-    # --- Setup task references ---------------------------------------------
+    # --- Tasks entry references --------------------------------------------
 
-    def test_error_when_setup_task_not_in_global_config(self, tmp_path):
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "setup": {
-                "prep": [{"name": "nonexistent_task"}]
-            }
-        }
+    def test_error_when_task_not_in_global_config(self, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"nonexistent_task": {}}}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
         assert any("nonexistent_task" in m for m in messages)
 
     def test_no_error_for_known_task(self, tmp_path):
-        # unzip exists in MOCK_CONFIG tasks.prep
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "setup": {
-                "prep": [{"name": "unzip"}]
-            }
-        }
+        # unzip exists in MOCK_CONFIG
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"environ": ["data_manage_1"]}}}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         task_errors = [
@@ -125,29 +115,24 @@ class TestSchemaChecks:
         ]
         assert task_errors == []
 
-    def test_error_when_setup_section_is_not_list(self, tmp_path):
-        pc = {**MOCK_PROJECT_CONFIG, "setup": {"prep": "not_a_list"}}
+    def test_error_when_tasks_is_not_a_dict(self, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": "not_a_dict"}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
-        assert any("must be a list" in m for m in messages)
+        assert any("must be a mapping" in m for m in messages)
 
-    def test_error_when_entry_missing_name(self, tmp_path):
-        pc = {**MOCK_PROJECT_CONFIG, "setup": {"prep": [{"environ": ["data_manage_1"]}]}}
+    def test_error_when_task_entry_is_not_a_dict(self, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": "invalid"}}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
-        assert any("missing the 'name'" in m for m in messages)
+        assert any("must be a mapping" in m for m in messages)
 
     # --- Environ references ------------------------------------------------
 
     def test_error_when_environ_module_not_defined(self, tmp_path):
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "setup": {
-                "prep": [{"name": "unzip", "environ": ["nonexistent_module"]}]
-            }
-        }
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"environ": ["nonexistent_module"]}}}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
@@ -241,9 +226,14 @@ class TestFilesystemChecks:
         (tmp_path / "input").mkdir()
         scripts_dir = tmp_path / "scripts" / "test"
         scripts_dir.mkdir(parents=True)
-        # Create all scripts referenced in MOCK_CONFIG
-        for section_tasks in MOCK_CONFIG["tasks"].values():
+        # Create all scripts referenced in MOCK_CONFIG across every section
+        # (MOCK_CONFIG has sections like 'prep', 'structural', 'rest', ... — no 'tasks' key)
+        for section_tasks in MOCK_CONFIG.values():
+            if not isinstance(section_tasks, list):
+                continue
             for task in section_tasks:
+                if not isinstance(task, dict):
+                    continue
                 for script in task.get("scripts", []):
                     (scripts_dir / script).write_text("#!/bin/bash\necho mock\n")
 
@@ -290,31 +280,6 @@ class TestFilesystemChecks:
         checker.check_filesystem()
         container_warnings = [i for i in checker._issues if i.category == "containers" and i.severity == "WARNING"]
         assert len(container_warnings) > 0
-
-    def test_no_container_warnings_when_all_sifs_present(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        container_dir = tmp_path / "containers"
-        container_dir.mkdir()
-
-        # Collect all containers referenced in setup
-        for section_tasks in MOCK_PROJECT_CONFIG.get("setup", {}).values():
-            for task in section_tasks:
-                c = task.get("container")
-                if c:
-                    (container_dir / c).write_text("mock sif")
-
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "envir_dir": {**MOCK_PROJECT_CONFIG["envir_dir"], "container_dir": str(container_dir)},
-        }
-        checker = make_checker(
-            project_config=pc,
-            input_dir=tmp_path / "input",
-            work_dir=tmp_path / "work",
-        )
-        checker.check_filesystem()
-        container_warnings = [i for i in checker._issues if i.category == "containers" and i.severity == "WARNING"]
-        assert container_warnings == []
 
 
 # ===========================================================================

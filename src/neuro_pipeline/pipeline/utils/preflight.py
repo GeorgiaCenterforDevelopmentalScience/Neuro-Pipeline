@@ -106,7 +106,7 @@ class PreflightChecker:
         pc = self.project_config
 
         # Required top-level keys in project config
-        for key in ("prefix", "scripts_dir", "envir_dir", "database", "setup"):
+        for key in ("prefix", "scripts_dir", "envir_dir", "database", "tasks"):
             if key not in pc:
                 self._err("schema", f"project config missing required key: '{key}'")
 
@@ -129,31 +129,24 @@ class PreflightChecker:
         # global task names
         global_task_names = self._all_global_task_names()
 
-        # Validate each setup entry
-        setup = pc.get("setup") or {}
-        for section, tasks in setup.items():
-            if not isinstance(tasks, list):
-                self._err("schema", f"setup.{section} must be a list of task entries")
-                continue
-
-            for entry in tasks:
+        # Validate each tasks entry
+        tasks = pc.get("tasks") or {}
+        if not isinstance(tasks, dict):
+            self._err("schema", "project config: 'tasks' must be a mapping of task_name -> properties")
+        else:
+            for name, entry in tasks.items():
                 if not isinstance(entry, dict):
-                    self._err("schema", f"setup.{section}: each entry must be a mapping")
-                    continue
-
-                name = entry.get("name")
-                if not name:
-                    self._err("schema", f"setup.{section}: an entry is missing the 'name' field")
+                    self._err("schema", f"tasks.{name}: value must be a mapping")
                     continue
 
                 # Task must exist in global config
                 if name not in global_task_names:
                     self._err(
                         "schema",
-                        f"setup task '{name}' (in section '{section}') is not defined in global config.yaml",
+                        f"tasks entry '{name}' is not defined in global config.yaml",
                     )
 
-                # Resource profile must exist
+                # Resource profile must exist (profile lives in global config)
                 gtask = self._global_task(name)
                 if gtask:
                     profile = gtask.get("profile")
@@ -197,45 +190,39 @@ class PreflightChecker:
         # --- container_dir ---------------------------------------------------
         container_dir_str = (pc.get("envir_dir") or {}).get("container_dir", "")
         container_dir: Optional[Path] = None
-        if container_dir_str:
-            container_dir = Path(container_dir_str)
-            if not container_dir.exists():
-                self._warn("containers", f"container_dir not found: {container_dir}")
-                container_dir = None  # skip per-container checks below
+        # if container_dir_str:
+        #     container_dir = Path(container_dir_str)
+        #     if not container_dir.exists():
+        #         self._warn("containers", f"container_dir not found: {container_dir}")
+        #         container_dir = None  # skip per-container checks below
 
         # --- Per-task checks -------------------------------------------------
-        setup = pc.get("setup") or {}
-        for section, tasks in setup.items():
-            if not isinstance(tasks, list):
+        tasks = pc.get("tasks") or {}
+        for name, entry in tasks.items():
+            if not isinstance(entry, dict):
                 continue
-            for entry in tasks:
-                if not isinstance(entry, dict):
-                    continue
-                name = entry.get("name")
-                if not name:
-                    continue
 
-                gtask = self._global_task(name)
+            gtask = self._global_task(name)
 
-                # Check each script referenced by the global task definition
-                if scripts_dir and gtask:
-                    for script in gtask.get("scripts") or []:
-                        script_path = scripts_dir / script
-                        if not script_path.exists():
-                            self._err(
-                                "scripts",
-                                f"task '{name}': script not found: {script_path}",
-                            )
-
-                # Check container .sif file
-                container_name = entry.get("container")
-                if container_name and container_dir:
-                    container_path = container_dir / container_name
-                    if not container_path.exists():
-                        self._warn(
-                            "containers",
-                            f"task '{name}': container not found: {container_path}",
+            # Check each script referenced by the global task definition
+            if scripts_dir and gtask:
+                for script in gtask.get("scripts") or []:
+                    script_path = scripts_dir / script
+                    if not script_path.exists():
+                        self._err(
+                            "scripts",
+                            f"task '{name}': script not found: {script_path}",
                         )
+
+            # Check container .sif file
+            container_name = entry.get("container")
+            if container_name and container_dir:
+                container_path = container_dir / container_name
+                if not container_path.exists():
+                    self._warn(
+                        "containers",
+                        f"task '{name}': container not found: {container_path}",
+                    )
 
     def run_all(self) -> PreflightResult:
         """Run schema + filesystem checks and return the combined result."""

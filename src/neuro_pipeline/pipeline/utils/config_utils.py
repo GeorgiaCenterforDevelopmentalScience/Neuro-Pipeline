@@ -37,10 +37,21 @@ def get_tasks_from_section(section: str, stage: str = None) -> List[Tuple[str, L
     return result
 
 
-def get_tasks_by_suffix(suffix: str, category: str = 'task') -> List[str]:
-    """Get task names by suffix pattern"""
-    all_tasks = config.get(category, [])
-    return [t['name'] for t in all_tasks if isinstance(t, dict) and suffix in t['name']]
+def get_tasks_by_suffix(suffix: str, category: str = None) -> List[str]:
+    """Get task names by suffix pattern.
+
+    If category is given, search only that config section.
+    If category is None (default), search all sections.
+    """
+    if category:
+        all_tasks = config.get(category, [])
+    else:
+        skip = {'array_config'}
+        all_tasks = []
+        for key, val in config.items():
+            if key not in skip and isinstance(val, list):
+                all_tasks.extend(val)
+    return [t['name'] for t in all_tasks if isinstance(t, dict) and suffix in t.get('name', '')]
 
 def get_all_task_names(category: str = None) -> List[str]:
     """Get all task names. If category is given, only that section; otherwise all sections in config order."""
@@ -95,20 +106,13 @@ def find_task_config_by_name_with_project(task_name: str, project_config: dict =
         typer.echo(f"Warning: No global config for: {task_name}")
         return None
 
-    if project_config and 'setup' in project_config:
-        setup_config = project_config['setup']
-
-        for section_name, section_tasks in setup_config.items():
-            if isinstance(section_tasks, list):
-                for task in section_tasks:
-                    if task.get('name') == task_name:
-                        merged_config = global_task_config.copy()
-                        merged_config.update(task)
-                        return merged_config
-            elif isinstance(section_tasks, dict) and section_name == task_name:
-                merged_config = global_task_config.copy()
-                merged_config.update(section_tasks)
-                return merged_config
+    if project_config and 'tasks' in project_config:
+        project_tasks = project_config['tasks'] or {}
+        task_overrides = project_tasks.get(task_name)
+        if task_overrides and isinstance(task_overrides, dict):
+            merged_config = global_task_config.copy()
+            merged_config.update(task_overrides)
+            return merged_config
 
     return global_task_config
 

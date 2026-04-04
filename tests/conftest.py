@@ -183,7 +183,16 @@ MOCK_CONFIG = {
     },
 }
 
-# Minimal project config (mirrors test_config.yaml)
+# Minimal project config (mirrors test_config.yaml).
+#
+# IMPORTANT: envir_dir paths must point to LOCAL directories only.
+# Never use NFS/network mounts here (e.g. /work/cglab/...) — Path.exists()
+# on a slow or unavailable NFS mount blocks indefinitely and will hang
+# pytest and any --dry-run invocation that runs preflight checks.
+#
+# Use /tmp-based paths: they resolve instantly even when they don't exist.
+# Tests that need the directories to actually exist should use the
+# `preflight_project_config` fixture below, which creates them under tmp_path.
 MOCK_PROJECT_CONFIG = {
     "prefix": "sub-",
     "scripts_dir": "scripts/test",
@@ -191,13 +200,14 @@ MOCK_PROJECT_CONFIG = {
         "db_path": "$WORK_DIR/database/pipeline_jobs.db",
     },
     "envir_dir": {
-        "container_dir": "/work/cglab/containers",
-        "virtual_envir": "/work/cglab/conda_env",
-        "template_dir": "/work/cglab/projects/BRANCH/all_data/for_AFNI/",
-        "atlas_dir": "/work/cglab/projects/BRANCH/all_data/for_AFNI/",
-        "freesurfer_dir": "/work/cglab/containers/.licenses/freesurfer",
-        "config_dir": "/work/cglab/conda_env/config_for_BIDS",
-        "stimulus_dir": "/work/cglab/projects/BRANCH/all_data/for_AFNI/processing_scripts",
+        # /tmp paths — local filesystem, .exists() returns instantly
+        "container_dir": "/tmp/mock_cglab/containers",
+        "virtual_envir": "/tmp/mock_cglab/conda_env",
+        "template_dir": "/tmp/mock_cglab/projects/BRANCH/all_data/for_AFNI",
+        "atlas_dir": "/tmp/mock_cglab/projects/BRANCH/all_data/for_AFNI",
+        "freesurfer_dir": "/tmp/mock_cglab/containers/.licenses/freesurfer",
+        "config_dir": "/tmp/mock_cglab/conda_env/config_for_BIDS",
+        "stimulus_dir": "/tmp/mock_cglab/projects/BRANCH/all_data/for_AFNI/processing_scripts",
     },
     "global_python": [
         "ml Python/3.11.3-GCCcore-12.3.0",
@@ -218,64 +228,18 @@ MOCK_PROJECT_CONFIG = {
             "ml parallel/20240722-GCCcore-13.3.0",
         ],
     },
-    "setup": {
-        "prep": [
-            {"name": "unzip", "environ": ["data_manage_1", "afni_25.1.01"]},
-            {"name": "recon_bids", "container": "dcm2bids_3.2.0.sif", "config": "branch_config.json"},
-            {"name": "afni_volume", "environ": ["afni_25.1.01"], "template": "HaskinsPeds_NL_template1.0_SSW.nii"},
-        ],
-        "rest": [
-            {
-                "name": "rest_preprocess",
-                "remove_TRs": 6,
-                "template": "MNI152NLin2009cAsym",
-                "container": "fmriprep_25.1.3.sif",
-                "license": "license.txt",
-            },
-            {
-                "name": "rest_post",
-                "remove_TRs": 6,
-                "template": "MNI152NLin2009cAsym",
-                "container": "xcp_d-0.11.0rc1.sif",
-                "rest_mode": "abcd",
-                "nuisance_regressors": "36P",
-                "license": "license.txt",
-            },
-        ],
-        "task": [
-            {
-                "name": "cards_preprocess",
-                "remove_TRs": 2,
-                "template": "HaskinsPeds_NL_template1.0_SSW.nii",
-                "blur_size": 4.0,
-                "environ": ["afni_25.1.01"],
-                "censor_motion": "0.3",
-                "censor_outliers": "0.05",
-            },
-            {
-                "name": "kidvid_preprocess",
-                "remove_TRs": 22,
-                "template": "HaskinsPeds_NL_template1.0_SSW.nii",
-                "blur_size": 4.0,
-                "environ": ["afni_25.1.01"],
-                "censor_motion": "0.3",
-                "censor_outliers": "0.05",
-            },
-        ],
-        "task_dwi": [
-            {
-                "name": "dwi_preprocess",
-                "container": "qsiprep_0.23.0.sif",
-            },
-            {
-                "name": "dwi_post",
-                "container": "qsirecon_0.23.0.sif",
-            },
-        ],
-        "qc": [
-            {"name": "mriqc_preprocess", "container": "mriqc_24.0.2.sif"},
-            {"name": "mriqc_post",       "container": "mriqc_24.0.2.sif"},
-        ],
+    "tasks": {
+        "unzip":            {"environ": ["data_manage_1", "afni_25.1.01"]},
+        "recon_bids":       {"container": "dcm2bids_3.2.0.sif", "config": "branch_config.json"},
+        "afni_volume":      {"environ": ["afni_25.1.01"], "template": "HaskinsPeds_NL_template1.0_SSW.nii"},
+        "rest_preprocess":  {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "fmriprep_25.1.3.sif", "license": "license.txt"},
+        "rest_post":        {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "xcp_d-0.11.0rc1.sif", "rest_mode": "abcd", "nuisance_regressors": "36P", "license": "license.txt"},
+        "cards_preprocess": {"remove_TRs": 2, "template": "HaskinsPeds_NL_template1.0_SSW.nii", "blur_size": 4.0, "environ": ["afni_25.1.01"], "censor_motion": "0.3", "censor_outliers": "0.05"},
+        "kidvid_preprocess":{"remove_TRs": 22, "template": "HaskinsPeds_NL_template1.0_SSW.nii", "blur_size": 4.0, "environ": ["afni_25.1.01"], "censor_motion": "0.3", "censor_outliers": "0.05"},
+        "dwi_preprocess":   {"container": "qsiprep_0.23.0.sif"},
+        "dwi_post":         {"container": "qsirecon_0.23.0.sif"},
+        "mriqc_preprocess": {"container": "mriqc_24.0.2.sif"},
+        "mriqc_post":       {"container": "mriqc_24.0.2.sif"},
     },
 }
 
@@ -294,6 +258,31 @@ def mock_config():
 def mock_project_config():
     """Return a copy of the in-memory project config."""
     return MOCK_PROJECT_CONFIG.copy()
+
+
+@pytest.fixture
+def preflight_project_config(tmp_path):
+    """Project config for preflight tests that actually call check_filesystem()."""
+    import copy
+
+    cfg = copy.deepcopy(MOCK_PROJECT_CONFIG)
+
+    # Build real local directories and point the config at them
+    envir_keys = [
+        "container_dir",
+        "virtual_envir",
+        "template_dir",
+        "atlas_dir",
+        "freesurfer_dir",
+        "config_dir",
+        "stimulus_dir",
+    ]
+    for key in envir_keys:
+        local_dir = tmp_path / key
+        local_dir.mkdir(parents=True, exist_ok=True)
+        cfg["envir_dir"][key] = str(local_dir)
+
+    return cfg
 
 
 @pytest.fixture
