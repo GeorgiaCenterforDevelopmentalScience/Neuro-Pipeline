@@ -162,7 +162,14 @@ class DAGExecutor:
         
         # Build DAG for requested tasks
         execution_order = self.build_dag(requested_tasks)
-        
+
+        typer.echo("\nDAG execution plan:")
+        for task_name in execution_order:
+            task_deps = sorted(self.nodes[task_name].dependencies)
+            dep_str = ', '.join(task_deps) if task_deps else '(no dependencies)'
+            typer.echo(f"  {task_name} <- {dep_str}")
+        typer.echo("")
+
         # Execute all tasks
         for task_name in execution_order:
             node = self.nodes[task_name]

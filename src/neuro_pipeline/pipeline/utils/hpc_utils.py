@@ -5,7 +5,7 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import typer
 import yaml
 
@@ -308,33 +308,14 @@ def submit_slurm_job(
         resources = get_hpc_resources(default_task_config)
         env_commands = []
 
-
-    # TODO: MOVE TO DAG?
-    # Handle input_from dependencies
     actual_input_dir = input_dir
     if task_config and 'input_from' in task_config:
         input_from = task_config['input_from']
-        dependency_mapping = {
-            'unzip': 'unzip',
-            'recon_bids': 'recon_bids',
-            'mriqc': 'mriqc_preprocess',
-            'mriqc_preprocess': 'mriqc_preprocess',
-            'rest_preprocess': 'rest_preprocess',
-            'rest_post': 'rest_post',
-        }
-
-        dep_task = dependency_mapping.get(input_from)
-        if dep_task and requested_tasks and dep_task in requested_tasks:
-            if input_from == 'unzip':
-                actual_input_dir = f"{output_dir}/raw"
-            elif input_from == 'recon_bids':
-                actual_input_dir = f"{output_dir}/BIDS"
-            elif input_from == 'mriqc':
-                actual_input_dir = f"{output_dir}/quality_control/mriqc"
-            elif input_from == 'rest_preprocess':
-                actual_input_dir = f"{output_dir}/BIDS_derivatives/fmriprep"
-            elif input_from == 'rest_post':
-                actual_input_dir = f"{output_dir}/BIDS_derivatives/xcpd"
+        if requested_tasks and input_from in requested_tasks:
+            from .config_utils import find_task_config_by_name
+            upstream_config = find_task_config_by_name(input_from)
+            if upstream_config and 'output_pattern' in upstream_config:
+                actual_input_dir = upstream_config['output_pattern'].format(base_output=output_dir)
 
     # Create directories
     Path(work_dir).mkdir(parents=True, exist_ok=True)
@@ -382,9 +363,6 @@ def submit_slurm_job(
     else:
         array_param = None
     
-    num_subjects = len(subjects_list)
-    subjects_array_str = " ".join(subjects_list)
-    
     # Get task name for log directory
     task_name = task_config.get('name', script_path.stem) if task_config else script_path.stem
     
@@ -400,49 +378,16 @@ def submit_slurm_job(
         slurm_output = f"{task_log_dir}/{task_name}_%A.out"
         slurm_error = f"{task_log_dir}/{task_name}_%A.err"
         
-    # Build SLURM arguments
-    slurm_args = [
-        f"--partition={resources.partition}",
-        f"--nodes={resources.nodes}",
-        f"--ntasks={resources.ntasks}",
-        f"--cpus-per-task={resources.cpus_per_task}",
-        f"--time={resources.time}",
-        f"--job-name={script_path.stem}",
-        f"--output={slurm_output}",
-        f"--error={slurm_error}"
-    ]
-
-    if resources.memory_per_cpu:
-        slurm_args.append(f"--mem-per-cpu={resources.memory_per_cpu}")
-    else:
-        slurm_args.append(f"--mem={resources.memory}")
-    if array_param:
-        slurm_args.append(f"--array={array_param}")
-    if resources.additional_args:
-        slurm_args.extend(resources.additional_args)
-    if wait_jobs:
-        dependency = "afterany:" + ":".join(wait_jobs)
-        slurm_args.append(f"--dependency={dependency}")
-
-    # Setup environment exports
-    env_exports = []
-    if env_vars:
-        for k, v in env_vars.items():
-            env_exports.append(f"{k}={v}")
-
-    if option_env:
-        for k, v in option_env.items():
-            if v is not None:
-                env_exports.append(f"{k.upper()}={v}")
-
-    env_exports.extend([
-        f"SUBJECTS_ARRAY=({subjects_array_str})",
-        f"NUM_SUBJECTS={num_subjects}",
-        f"INPUT_DIR={actual_input_dir}",
-        f"OUTPUT_DIR={actual_output_dir}",
-        f"WORK_DIR={work_dir}",
-        f"CONTAINER_DIR={container_dir}"
-    ])
+    # Build scheduler arguments via the configured backend
+    backend = get_hpc_backend()
+    slurm_args = backend.build_job_args(
+        resources=resources,
+        array_param=array_param,
+        wait_jobs=wait_jobs,
+        job_name=script_path.stem,
+        log_output=slurm_output,
+        log_error=slurm_error,
+    )
 
     # Create wrapper script
     wrapper_script, wrapper_sections = create_wrapper_script(
@@ -451,6 +396,7 @@ def submit_slurm_job(
         input_dir=actual_input_dir,
         output_dir=actual_output_dir,
         work_dir=work_dir,
+        container_dir=container_dir,
         env_vars=env_vars,
         use_array=bool(array_param),
         env_commands=env_commands,
@@ -461,39 +407,28 @@ def submit_slurm_job(
         slurm_args=slurm_args
     )
 
-    cmd = ["sbatch"] + slurm_args + [str(wrapper_script)]
-
     # Dry run mode
     if dry_run:
         return f"dry_run_{script_path.stem}"
 
-    # Submit actual job
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        job_id = result.stdout.strip().split()[-1]
-        typer.echo(f"Job submitted: {job_id}")
-        # Log wrapper content for reproducibility tracking (JSONL only)
+    # Submit via the configured backend
+    job_id = backend.submit_job(slurm_args, wrapper_script)
+    if job_id:
         try:
             from .job_db import log_wrapper_script
             log_wrapper_script(task_name, job_id, str(wrapper_script), wrapper_sections, db_path=str(db_path))
         except Exception:
             pass  # never block submission over a logging failure
-        return job_id
-    except subprocess.CalledProcessError as e:
-        typer.echo(f"Job submission failed: {e}", err=True)
-        if e.stdout:
-            typer.echo(f"STDOUT: {e.stdout}", err=True)
-        if e.stderr:
-            typer.echo(f"STDERR: {e.stderr}", err=True)
-        return None
+    return job_id
 
 
-def create_wrapper_script( 
+def create_wrapper_script(
     script_path: Path,
     subjects_list: List[str],
     input_dir: str,
     output_dir: str,
     work_dir: str,
+    container_dir: str = "",
     env_vars: Optional[Dict[str, str]] = None,
     use_array: bool = True,
     env_commands: Optional[List[str]] = None,
@@ -502,7 +437,7 @@ def create_wrapper_script(
     db_path: Optional[str] = None,
     option_env: Optional[Dict[str, str]] = None,
     slurm_args: Optional[List[str]] = None
-) -> Path:
+) -> Tuple[Path, Dict[str, str]]:
     """Generate minimal wrapper script that calls bash template"""
 
     wrapper_dir = Path(work_dir) / "log" / "wrapper"
@@ -590,6 +525,7 @@ def create_wrapper_script(
         f.write(f'export INPUT_DIR="{input_dir}"\n')
         f.write(f'export OUTPUT_DIR="{output_dir}"\n')
         f.write(f'export WORK_DIR="{work_dir}"\n')
+        f.write(f'export CONTAINER_DIR="{container_dir}"\n')
         f.write(f'export LOG_DIR="{work_dir}/log"\n')
         f.write(f'export DB_PATH="{db_path}"\n')
         f.write(f'export TASK_NAME="{task_name}"\n')
@@ -637,6 +573,7 @@ def create_wrapper_script(
             f'export INPUT_DIR="{input_dir}"',
             f'export OUTPUT_DIR="{output_dir}"',
             f'export WORK_DIR="{work_dir}"',
+            f'export CONTAINER_DIR="{container_dir}"',
             f'export LOG_DIR="{work_dir}/log"',
             f'export DB_PATH="{db_path}"',
             f'export TASK_NAME="{task_name}"',

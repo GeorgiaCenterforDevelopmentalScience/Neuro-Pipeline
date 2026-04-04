@@ -116,19 +116,23 @@ MOCK_CONFIG = {
                 "output_pattern": "{base_output}/BIDS_derivatives/xcpd",
             },
         ],
-        "task": [
+        "cards": [
             {
                 "name": "cards_preprocess",
                 "stage": "prep",
+                "multi_stage": True,
                 "profile": "standard",
                 "array": True,
                 "input_from": "recon_bids",
                 "scripts": ["afni_cards_preprocessing.sh"],
                 "output_pattern": "{base_output}/AFNI_derivatives",
             },
+        ],
+        "kidvid": [
             {
                 "name": "kidvid_preprocess",
                 "stage": "prep",
+                "multi_stage": True,
                 "profile": "standard",
                 "array": True,
                 "input_from": "recon_bids",
