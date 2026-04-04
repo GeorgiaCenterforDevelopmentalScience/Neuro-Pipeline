@@ -1,10 +1,10 @@
 """
 DAG dependency rules:
   1. unzip -> recon_bids (if both requested)
-  2. recon_bids -> all downstream tasks (bids, staged, mriqc, structural)
+  2. recon_bids -> all downstream non-staged tasks (bids, mriqc, structural)
   3. structural -> staged tasks (multi_stage: true in config)
-  4. Within each config section: post -> prep
-  Tasks in different sections run in parallel.
+  4. Without structural, staged tasks run in parallel with recon_bids
+  5. Within each config section: post -> prep
 """
 
 import os
@@ -74,24 +74,34 @@ class DAGExecutor:
             self.nodes['recon_bids'].add_dependency('unzip')
 
     def _apply_recon_dependencies(self, requested_tasks: List[str]):
-        """recon_bids -> all downstream tasks"""
+        """recon_bids -> all downstream non-staged tasks.
+
+        Staged tasks (multi_stage=true) are always excluded: without structural
+        they run in parallel with recon; with structural they depend on it instead.
+        """
         if 'recon_bids' not in requested_tasks:
             return
+
         downstream = set(requested_tasks) - {'unzip', 'recon_bids'}
         for task_name in downstream:
-            if task_name in self.nodes:
-                self.nodes[task_name].add_dependency('recon_bids')
+            if task_name not in self.nodes:
+                continue
+            if self.nodes[task_name].task_config.get('multi_stage'):
+                continue
+            self.nodes[task_name].add_dependency('recon_bids')
 
     def _apply_structural_dependencies(self, requested_tasks: List[str]):
-        """structural -> staged tasks (multi_stage: true)"""
+        """structural -> staged prep tasks only (multi_stage: true, stage: prep)"""
         from .utils.config_utils import get_all_task_names
         structural_tasks = [t for t in requested_tasks if t in get_all_task_names('structural')]
         if not structural_tasks:
             return
         for task_name in requested_tasks:
-            if task_name in self.nodes and self.nodes[task_name].task_config.get('multi_stage'):
-                for st in structural_tasks:
-                    self.nodes[task_name].add_dependency(st)
+            if task_name in self.nodes:
+                cfg = self.nodes[task_name].task_config
+                if cfg.get('multi_stage') and cfg.get('stage') == 'prep':
+                    for st in structural_tasks:
+                        self.nodes[task_name].add_dependency(st)
 
     def _apply_section_dependencies(self, requested_tasks: List[str]):
         """Within each config section, post tasks depend on prep tasks"""

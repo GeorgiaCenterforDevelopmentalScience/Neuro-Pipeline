@@ -1,6 +1,9 @@
 import dash
 from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
+import dash_cytoscape as cyto
+
+cyto.load_extra_layouts()
 
 # Import custom modules
 from .components.analysis_control import create_analysis_control_layout
@@ -25,7 +28,8 @@ app = dash.Dash(
     external_stylesheets=[
         dbc.themes.COSMO, # BOOTSTRAP COSMO
         "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    ]
+    ],
+    suppress_callback_exceptions=True,
 )
 
 app.index_string = '''
@@ -89,6 +93,7 @@ def create_main_layout():
         dcc.Store(id="subjects-store"),
         dcc.Store(id="pipeline-commands-store"),
         dcc.Store(id="job-status-store"),
+        dcc.Store(id="page-rendered-store"),
         
         # Sidebar toggle button
         html.Button([
@@ -439,21 +444,19 @@ register_callbacks(app)
 
 # Page routing callback
 @app.callback(
-    Output("page-content", "children"),
+    [Output("page-content", "children"),
+     Output("page-rendered-store", "data")],
     Input("url", "pathname")
 )
 def display_page(pathname):
-    # Default root goes to Analysis Control page
-    if pathname == "/" or pathname == "/home":
-        return create_analysis_control_layout()
-    elif pathname == "/analysis-control":
-        return create_analysis_control_layout()
+    if pathname == "/" or pathname == "/home" or pathname == "/analysis-control":
+        return create_analysis_control_layout(), pathname
     elif pathname == "/project-config":
-        return create_project_config_page()
+        return create_project_config_page(), pathname
     elif pathname == "/job-monitor":
-        return create_job_monitor_layout()
+        return create_job_monitor_layout(), pathname
     else:
-        return create_analysis_control_layout()
+        return create_analysis_control_layout(), pathname
 
 
 if __name__ == '__main__':

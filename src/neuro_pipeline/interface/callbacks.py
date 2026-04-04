@@ -314,6 +314,39 @@ def register_callbacks(app):
                 error_msg
             ], color="danger")
     
+    # Dynamic DAG visualization
+    @app.callback(
+        Output("dag-overview", "elements"),
+        [Input("page-rendered-store", "data"),
+         Input("prep-options", "value"),
+         Input("structural-radio", "value"),
+         Input("bids-prep-checklist", "value"),
+         Input("bids-post-checklist", "value"),
+         Input("staged-prep-checklist", "value"),
+         Input("staged-post-checklist", "value"),
+         Input("mriqc-options", "value")]
+    )
+    def update_dag_elements(_page, prep_option, structural_value, bids_prep, bids_post,
+                            staged_prep, staged_post, mriqc_option):
+        from .components.analysis_control import build_dag_elements
+        return build_dag_elements(
+            prep_option or 'none',
+            structural_value or 'none',
+            bids_prep or [],
+            bids_post or [],
+            staged_prep or [],
+            staged_post or [],
+            mriqc_option or 'none',
+        )
+
+    @app.callback(
+        Output("dag-overview", "layout"),
+        Input("dag-reset-btn", "n_clicks"),
+        prevent_initial_call=True
+    )
+    def reset_dag_view(_):
+        return {'name': 'dagre', 'rankDir': 'LR', 'nodeSep': 40, 'rankSep': 90, 'spacingFactor': 1.0}
+
     # Sidebar toggle callback
     @app.callback(
         [Output("sidebar", "className"),
