@@ -56,9 +56,9 @@ def get_all_task_names(category: str = None) -> List[str]:
                 names.append(task['name'])
     return names
 
-def validate_task_name(task_name: str, category: str = 'task') -> bool:
-    """Check if task exists"""
-    return task_name in get_all_task_names(category)
+def validate_task_name(task_name: str) -> bool:
+    """Check if task exists across all config sections"""
+    return task_name in get_all_task_names()
 
 def expand_task_names(task_list: List[str], suffix: str) -> List[str]:
     """Expand short names to full task names"""

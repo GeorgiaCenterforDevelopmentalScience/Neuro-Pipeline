@@ -1,0 +1,282 @@
+"""
+test_output_checker.py
+
+Tests for pipeline/utils/output_checker.py
+
+Covers:
+1. required_files check  — PASS / FAIL (missing) / FAIL (too small)
+2. count_check           — PASS / FAIL (too few) / FAIL (too many)
+3. get_pending_subjects  — returns only incomplete subjects
+4. get_completed_subjects
+5. warn_missing_configs  — tasks without config entries
+6. check_all             — empty result when no config matches
+"""
+
+import pytest
+import yaml
+from pathlib import Path
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def write_checks_yaml(tmp_path: Path, content: dict) -> str:
+    p = tmp_path / "checks.yaml"
+    with open(p, "w") as f:
+        yaml.dump(content, f)
+    return str(p)
+
+
+def make_checker(tmp_path, config_content, work_dir=None):
+    from neuro_pipeline.pipeline.utils.output_checker import OutputChecker
+    cfg_path = write_checks_yaml(tmp_path, config_content)
+    return OutputChecker(
+        config_path=cfg_path,
+        work_dir=str(work_dir or tmp_path),
+        prefix="sub-",
+        session="01",
+    )
+
+
+# ---------------------------------------------------------------------------
+# 1. required_files
+# ---------------------------------------------------------------------------
+
+class TestRequiredFilesCheck:
+
+    def test_pass_when_file_exists(self, tmp_path):
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "sub-001.html").write_text("x")
+
+        checker = make_checker(tmp_path, {
+            "mytask": {
+                "output_path": str(out),
+                "required_files": [{"pattern": "sub-{subject}.html"}],
+            }
+        }, work_dir=tmp_path)
+
+        rows = checker.check_subject("mytask", "001")
+        assert len(rows) == 1
+        assert rows[0]["status"] == "PASS"
+
+    def test_fail_when_file_missing(self, tmp_path):
+        out = tmp_path / "output"
+        out.mkdir()
+
+        checker = make_checker(tmp_path, {
+            "mytask": {
+                "output_path": str(out),
+                "required_files": [{"pattern": "sub-{subject}.html"}],
+            }
+        }, work_dir=tmp_path)
+
+        rows = checker.check_subject("mytask", "001")
+        assert rows[0]["status"].startswith("FAIL")
+
+    def test_fail_when_file_too_small(self, tmp_path):
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "sub-001.html").write_bytes(b"x" * 10)  # 10 bytes, well under 1 KB
+
+        checker = make_checker(tmp_path, {
+            "mytask": {
+                "output_path": str(out),
+                "required_files": [{"pattern": "sub-{subject}.html", "min_size_kb": 1}],
+            }
+        }, work_dir=tmp_path)
+
+        rows = checker.check_subject("mytask", "001")
+        assert "too small" in rows[0]["status"]
+
+    def test_pass_when_file_meets_min_size(self, tmp_path):
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "sub-001.html").write_bytes(b"x" * 2048)  # 2 KB
+
+        checker = make_checker(tmp_path, {
+            "mytask": {
+                "output_path": str(out),
+                "required_files": [{"pattern": "sub-{subject}.html", "min_size_kb": 1}],
+            }
+        }, work_dir=tmp_path)
+
+        rows = checker.check_subject("mytask", "001")
+        assert rows[0]["status"] == "PASS"
+
+    def test_plain_string_entry_accepted(self, tmp_path):
+        """required_files entry can be a plain string (no min_size_kb)."""
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "sub-001.html").write_text("ok")
+
+        checker = make_checker(tmp_path, {
+            "mytask": {
+                "output_path": str(out),
+                "required_files": ["sub-{subject}.html"],
+            }
+        }, work_dir=tmp_path)
+
+        rows = checker.check_subject("mytask", "001")
+        assert rows[0]["status"] == "PASS"
+
+
+# ---------------------------------------------------------------------------
+# 2. count_check
+# ---------------------------------------------------------------------------
+
+class TestCountCheck:
+
+    def _make_files(self, directory: Path, names):
+        for n in names:
+            (directory / n).write_text("x")
+
+    def test_pass_within_tolerance(self, tmp_path):
+        out = tmp_path / "bids"
+        out.mkdir()
+        self._make_files(out, ["anat1.nii.gz", "anat2.nii.gz"])
+
+        checker = make_checker(tmp_path, {
+            "recon_bids": {
+                "output_path": str(out),
+                "count_check": {
+                    "anat": {"pattern": "*.nii.gz", "expected_count": 2, "tolerance": 1}
+                },
+            }
+        })
+        rows = checker.check_subject("recon_bids", "001")
+        assert rows[0]["status"] == "PASS"
+
+    def test_fail_too_few(self, tmp_path):
+        out = tmp_path / "bids"
+        out.mkdir()
+
+        checker = make_checker(tmp_path, {
+            "recon_bids": {
+                "output_path": str(out),
+                "count_check": {
+                    "anat": {"pattern": "*.nii.gz", "expected_count": 2, "tolerance": 0}
+                },
+            }
+        })
+        rows = checker.check_subject("recon_bids", "001")
+        assert "too few" in rows[0]["status"]
+
+    def test_fail_too_many(self, tmp_path):
+        out = tmp_path / "bids"
+        out.mkdir()
+        self._make_files(out, [f"file{i}.nii.gz" for i in range(5)])
+
+        checker = make_checker(tmp_path, {
+            "recon_bids": {
+                "output_path": str(out),
+                "count_check": {
+                    "anat": {"pattern": "*.nii.gz", "expected_count": 2, "tolerance": 0}
+                },
+            }
+        })
+        rows = checker.check_subject("recon_bids", "001")
+        assert "too many" in rows[0]["status"]
+
+
+# ---------------------------------------------------------------------------
+# 3 & 4. get_pending / get_completed
+# ---------------------------------------------------------------------------
+
+class TestPendingCompleted:
+
+    def _checker_with_subjects(self, tmp_path, passing_subjects):
+        out = tmp_path / "output"
+        out.mkdir()
+        for sub in passing_subjects:
+            (out / f"sub-{sub}.html").write_text("ok")
+
+        return make_checker(tmp_path, {
+            "mytask": {
+                "output_path": str(out),
+                "required_files": ["sub-{subject}.html"],
+            }
+        })
+
+    def test_completed_subjects_returned(self, tmp_path):
+        checker = self._checker_with_subjects(tmp_path, ["001", "002"])
+        completed = checker.get_completed_subjects("mytask", ["001", "002", "003"])
+        assert "001" in completed
+        assert "002" in completed
+        assert "003" not in completed
+
+    def test_pending_is_complement_of_completed(self, tmp_path):
+        checker = self._checker_with_subjects(tmp_path, ["001"])
+        pending = checker.get_pending_subjects("mytask", ["001", "002", "003"])
+        assert "001" not in pending
+        assert "002" in pending
+        assert "003" in pending
+
+    def test_all_pending_when_no_outputs(self, tmp_path):
+        checker = self._checker_with_subjects(tmp_path, [])
+        pending = checker.get_pending_subjects("mytask", ["001", "002"])
+        assert pending == ["001", "002"]
+
+    def test_unconfigured_task_returns_empty_completed(self, tmp_path):
+        checker = self._checker_with_subjects(tmp_path, ["001"])
+        completed = checker.get_completed_subjects("unknown_task", ["001"])
+        assert completed == []
+
+
+# ---------------------------------------------------------------------------
+# 5. warn_missing_configs
+# ---------------------------------------------------------------------------
+
+class TestWarnMissingConfigs:
+
+    def test_warns_for_unconfigured_tasks(self, tmp_path):
+        checker = make_checker(tmp_path, {"recon_bids": {
+            "output_path": str(tmp_path),
+            "required_files": [],
+        }})
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            missing = checker.warn_missing_configs(["recon_bids", "ghost_task"])
+        assert "ghost_task" in missing
+        assert any("ghost_task" in str(warning.message) for warning in w)
+
+    def test_no_warning_when_all_configured(self, tmp_path):
+        checker = make_checker(tmp_path, {"mytask": {
+            "output_path": str(tmp_path),
+            "required_files": [],
+        }})
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            missing = checker.warn_missing_configs(["mytask"])
+        assert missing == []
+        assert not w
+
+
+# ---------------------------------------------------------------------------
+# 6. check_all — empty DataFrame when nothing configured
+# ---------------------------------------------------------------------------
+
+class TestCheckAll:
+
+    def test_empty_dataframe_when_no_matching_tasks(self, tmp_path):
+        checker = make_checker(tmp_path, {})
+        df = checker.check_all(["recon_bids", "rest_preprocess"], ["001", "002"])
+        assert df.empty
+
+    def test_dataframe_has_expected_columns(self, tmp_path):
+        out = tmp_path / "out"
+        out.mkdir()
+        (out / "sub-001.html").write_text("x")
+
+        checker = make_checker(tmp_path, {
+            "mytask": {
+                "output_path": str(out),
+                "required_files": ["sub-{subject}.html"],
+            }
+        })
+        df = checker.check_all(["mytask"], ["001"])
+        for col in ("task", "subject", "session", "check_type", "status"):
+            assert col in df.columns
