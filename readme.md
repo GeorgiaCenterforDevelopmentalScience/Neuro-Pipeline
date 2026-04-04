@@ -1,57 +1,155 @@
 # GCDS Neuroimaging Pipeline
 
-A comprehensive neuroimaging data processing pipeline designed for managing and analyzing fMRI and structural MRI data. This tool provides both a user-friendly graphical interface (GUI) and a powerful command-line interface (CLI) for processing neuroimaging datasets on HPC clusters.
+A modular neuroimaging preprocessing pipeline for HPC clusters, with both a GUI and CLI. Pipeline parameters and analysis workflows are configured through YAML files, allowing flexible customization without modifying the underlying code.
 
-**Full documentation:** 
+---
 
 ## Supported Pipelines
 
-| Pipeline | Tools |
-|----------|-------|
-| Data preparation | unzip, dcm2bids (DICOM → BIDS) |
-| Structural MRI | AFNI (`@SSwarper`) |
-| Resting-state fMRI | fMRIPrep + XCP-D |
-| Task fMRI | AFNI (`afni_proc.py`) |
-| Diffusion MRI (DWI) | QSIPrep + QSIRecon |
-| Quality control | MRIQC |
+The pipeline is organized into four stages. The software used at each stage is configured per-project and can be customized; the examples below reflect our defaults.
+
+| Stage | Description | Example software |
+|-------|-------------|-----------------|
+| **Data preparation** | Unzip raw data, convert DICOM to BIDS | dcm2bids |
+| **Intermediate steps** | Structural preprocessing or any intermediate step required before modality pipelines (staged pipelines only) | AFNI `@SSwarper` |
+| **BIDS pipelines** | Modality preprocessing that runs directly on BIDS data | fMRIPrep, XCP-D, QSIPrep, QSIRecon |
+| **Quality control** | Image quality metrics | MRIQC |
+
+The key distinction between pipeline types:
+- **Staged pipelines** (`--staged-prep`) require an intermediate structural or bias field correction step before modality preprocessing. Designed for workflows like AFNI that operate on locally processed data, but can be adapted to any pipeline requiring intermediate steps.
+- **BIDS pipelines** (`--bids-prep`) run directly on BIDS-formatted data without intermediate steps (e.g. fMRIPrep, QSIPrep).
+
+---
 
 ## Installation
 
-### Prerequisites
+**Prerequisites:** Python 3.10+, HPC cluster with SLURM or PBS, neuroimaging software installed on the cluster.
 
-- Python 3.10 or higher
-- Access to an HPC cluster with SLURM scheduler
-- Required neuroimaging software (fMRIPrep, XCP-D, AFNI, etc.) installed on your HPC system
+```bash
+git clone <repository-url>
+cd GCDS_Neuro_Pipeline
+pip install -e .
 
-### Install the Pipeline
+# Or developmental mode
+# pip install -e .[dev]
 
-1. Clone or download the repository to your HPC system:
-   ```bash
-   git clone <repository-url>
-   cd Neuro_Pipeline
-   ```
+# Verify
+neuropipe --help
+neuropipe-gui --help
+```
 
-2. Install the package:
-   ```bash
-   pip install -e .
+---
 
-   # Or developmental mode
-   # pip install -e .[dev]
-   ```
+## Configuration
 
-3. Verify installation:
-   ```bash
-   neuropipe --help
-   neuropipe-gui --help
-   ```
+Each project requires a `{project}_config.yaml` in `src/neuro_pipeline/pipeline/config/project_config/`. Use the GUI's **Project Config** tab to generate a template, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
+
+Modalities available under `--bids-prep` and `--staged-prep` are declared in `config.yaml`.
+
+Expected output files for `--resume` are defined in `config/results_check/{project}_checks.yaml`. Edit this file to specify which files should exist (and optionally their minimum size) for a subject to be considered complete.
+
+HPC scheduler, resource profiles (memory, walltime, CPU), and submission flags are configured in `hpc_config.yaml`. Recommended values are pre-filled; update partition names and resource limits to match your cluster.
+
+---
+
+## Quick Start
+
+```bash
+# Launch the GUI
+neuropipe-gui   # open http://localhost:8050 in your browser
+```
+
+Or use the CLI. Start with a dry-run on one subject to verify the plan:
+
+```bash
+neuropipe run \
+  --subjects 001 \
+  --input /data/BIDS \
+  --output /data/processed \
+  --work /data/work \
+  --project my_study \
+  --session 01 \
+  --bids-prep rest \
+  --dry-run
+```
+
+Full pipeline — all stages, multiple subjects:
+
+```bash
+neuropipe run \
+  --subjects subjects.txt \
+  --input /data/raw \
+  --output /data/processed \
+  --work /data/work \
+  --project my_study \
+  --session 01 \
+  --prep unzip_recon \
+  --structural \
+  --staged-prep cards,kidvid \
+  --staged-post cards,kidvid \
+  --bids-prep rest,dwi \
+  --bids-post rest,dwi \
+  --mriqc all
+```
+
+Dependencies are enforced automatically by the scheduler.
+
+---
+
+## CLI Reference
+
+### Core options
+
+| Option | Description |
+|--------|-------------|
+| `--subjects` | Comma-separated subject IDs or path to a `.txt` file |
+| `--input` | Input BIDS directory |
+| `--output` | Output directory |
+| `--work` | Work directory (logs, database, intermediate files) |
+| `--project` | Project name (must match a `{project}_config.yaml`) |
+| `--session` | Session label (e.g. `01`) |
+
+### Pipeline options
+
+| Option | Description |
+|--------|-------------|
+| `--prep` | Data preparation: `unzip`, `recon`, `unzip_recon` |
+| `--structural` | Run structural intermediate step (e.g. `@SSwarper`); required before `--staged-prep` |
+| `--bids-prep <modalities>` | BIDS pipeline preprocessing (comma-separated, e.g. `rest,dwi`) |
+| `--staged-prep <modalities>` | Staged pipeline preprocessing (comma-separated, e.g. `cards,kidvid`) |
+| `--mriqc` | Quality control: `individual`, `group`, `all` |
+
+### Run options
+
+| Option | Description |
+|--------|-------------|
+| `--dry-run` | Preview the execution plan without submitting jobs |
+| `--resume` | Skip subjects whose expected outputs already exist |
+| `--skip-bids-validation` | Skip pre-run BIDS validation |
+
+---
+
+## Resume a Partial Run
+
+```bash
+neuropipe run \
+  --subjects subjects.txt \
+  --input /data/BIDS \
+  --output /data/processed \
+  --work /data/work \
+  --project my_study \
+  --session 01 \
+  --bids-prep rest \
+  --resume
+```
+
+`--resume` checks each subject's expected output files (defined in `config/results_check/{project}_checks.yaml`) before submitting. Subjects that already have valid outputs are skipped silently.
+
+---
 
 ## Directory Structure
 
-### Input Directory Structure
-
-If you start with unpacking, the unpacking path can be in any format as long as it contains the files to be unpacked.
-
-Your raw BIDS data will be organized as:
+### Input (BIDS)
 
 ```
 input_directory/
@@ -60,131 +158,33 @@ input_directory/
 │       ├── anat/
 │       ├── func/
 │       └── ...
-├── sub-002/
-│   └── ses-01/
-│       └── ...
-└── ...
+└── sub-002/
+    └── ...
 ```
 
-### Output Directory Structure
-
-The pipeline creates:
+### Output Example
 
 ```
 output_directory/
 └── project_name/
-    ├── raw/                    # Extracted raw data
-    ├── BIDS/                   # BIDS-formatted data
-    ├── AFNI_derivatives/       # AFNI outputs
+    ├── raw/
+    ├── BIDS/
+    ├── AFNI_derivatives/
     ├── BIDS_derivatives/
-    │   ├── fmriprep/          # fMRIPrep outputs
-    │   └── xcpd/              # XCP-D outputs
+    │   ├── fmriprep/
+    │   ├── xcpd/
+    │   ├── qsirecon/    
+    │   └── qsiprep/
     └── quality_control/
-        └── mriqc/             # MRIQC reports
+        └── mriqc/
 
 work_directory/
 └── project_name/
     ├── log/
-    │   └── pipeline_jobs.db   # Job tracking database
-    └── [temporary files]
+    └── database/
 ```
 
 ---
 
-## Quick Start
-
-```bash
-# Launch the GUI
-neuropipe-gui   # then open http://localhost:8050
-
-# Or use the CLI — dry-run a single subject first
-neuropipe run \
-  --subjects 001 \
-  --input /data/BIDS \
-  --output /data/processed \
-  --work /data/work \
-  --project my_study \
-  --session 01 \
-  --structural volume \
-  --dry-run
-```
-
-## Complete Pipeline Example
-
-A full run processing structural, resting-state, task fMRI, DWI, and QC for a cohort:
-
-```bash
-neuropipe run \
-  --subjects 001,002,003,004,005 \
-  --input /data/BIDS \
-  --output /data/processed \
-  --work /data/work \
-  --project my_study \
-  --session 01 \
-  --prep unzip_recon \
-  --structural volume \
-  --rest-prep fmriprep \
-  --rest-post xcpd \
-  --task-prep all \
-  --dwi-prep qsiprep \
-  --dwi-post qsirecon \
-  --mriqc all
-```
-
-Tasks run in dependency order: unzip → recon_bids → structural/fmriprep/mriqc → xcpd/task fMRI → DWI post. Each dependency is enforced by SLURM's `--dependency=afterok`.
-
-### Resume: Skip Already-Completed Subjects
-
-`--resume` checks each subject's output files before submitting and silently skips subjects that already have valid outputs:
-
-```bash
-neuropipe run \
-  --subjects 001,002,003,004,005 \
-  --input /data/BIDS \
-  --output /data/processed \
-  --work /data/work \
-  --project my_study \
-  --session 01 \
-  --structural volume \
-  --resume
-```
-
-Before submitting each task's array job, the pipeline reads `config/results_check/{project}_checks.yaml` and tests whether each subject's expected output files exist (and optionally meet a minimum size or count). Only subjects that fail the check are included in the submitted array — subjects that already passed are silently skipped.
-
-If no checks file exists for a task, a warning is printed and all subjects are submitted.
-
-## Key CLI Options
-
-| Option | Description |
-|--------|-------------|
-| `--prep` | `unzip`, `recon`, `unzip_recon` |
-| `--structural` | `volume` (AFNI) |
-| `--rest-prep` / `--rest-post` | `fmriprep` / `xcpd` |
-| `--task-prep` / `--task-post` | `kidvid`, `cards`, `all` |
-| `--dwi-prep` / `--dwi-post` | `qsiprep` / `qsirecon` |
-| `--mriqc` | `individual`, `group`, `all` |
-| `--dry-run` | Preview without submitting |
-| `--resume` | Skip completed subjects |
-
-## Configuration
-
-Each project needs a `{project}_config.yaml` in `src/neuro_pipeline/pipeline/config/project_config/`. Use the GUI's **Project Config** tab to generate a template, then fill in your HPC paths and module names.
-
-See [docs/configuration/](docs/configuration/) for a full annotated example.
-
-## Checking Job Status
-
-```bash
-# Check which subjects finished
-neuropipe check-outputs --project my_study --work /data/work --subjects 001,002,003
-
-# Query the SQLite job database
-sqlite3 /data/work/my_study/database/pipeline_jobs.db \
-  "SELECT subject, task_name, status, error_msg FROM job_status WHERE status='FAILED';"
-```
-
-
-**Version**: 0.1.0  
-**Last Updated**: March 2026
-
-For questions or issues, please contact the pipeline maintainer, [QiuyuYu](https://github.com/QiuyuYu3), or submit an issue to the repository.
+**Version**: 0.13.0-alpha | **Updated**: April 2026  
+For questions or issues, contact [QiuyuYu](https://github.com/QiuyuYu3) or open a repository issue.

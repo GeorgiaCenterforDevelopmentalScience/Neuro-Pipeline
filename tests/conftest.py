@@ -123,7 +123,7 @@ MOCK_CONFIG = {
             "array": True,
             "input_from": "recon_bids",
             "scripts": ["qsiprep.sh"],
-            "output_pattern": "{base_output}/DWI_derivatives/qsiprep",
+            "output_pattern": "{base_output}/BIDS_derivatives/qsiprep",
         },
         {
             "name": "dwi_post",
@@ -132,7 +132,7 @@ MOCK_CONFIG = {
             "array": True,
             "input_from": "dwi_preprocess",
             "scripts": ["qsirecon.sh"],
-            "output_pattern": "{base_output}/DWI_derivatives/qsirecon",
+            "output_pattern": "{base_output}/BIDS_derivatives/qsirecon",
         },
     ],
     "cards": [

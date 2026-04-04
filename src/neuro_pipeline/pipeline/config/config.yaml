@@ -48,7 +48,7 @@ dwi:
     array: true
     input_from: recon_bids
     scripts: [qsiprep.sh]
-    output_pattern: "{base_output}/DWI_derivatives/qsiprep"
+    output_pattern: "{base_output}/BIDS_derivatives/qsiprep"
 
   - name: dwi_post
     stage: post
@@ -56,7 +56,7 @@ dwi:
     array: true
     input_from: dwi_preprocess
     scripts: [qsirecon.sh]
-    output_pattern: "{base_output}/DWI_derivatives/qsirecon"
+    output_pattern: "{base_output}/BIDS_derivatives/qsirecon"
 
 # Staged pipelines (3-step: recon_bids → structural → task)
 # Add new tasks here; reference by short name in --staged-prep/post
