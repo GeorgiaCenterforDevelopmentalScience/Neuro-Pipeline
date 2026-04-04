@@ -165,12 +165,113 @@ class SLURMBackend(HPCBackend):
                 break
 
 
-def get_hpc_backend() -> HPCBackend:
-    """Factory function: read hpc_config.yaml and return the appropriate backend.
+class PBSBackend(HPCBackend):
+    """PBS/Torque scheduler backend (qsub / qstat / qdel)."""
 
-    To add a new scheduler, add its config block to hpc_config.yaml and
-    register it here with a new elif branch.
-    """
+    def __init__(self, scheduler_cfg: Dict[str, Any]):
+        self._cfg = scheduler_cfg
+        self._flags = scheduler_cfg.get("resource_flags", {})
+
+    def _fmt(self, key: str, value: Any) -> Optional[str]:
+        template = self._flags.get(key, "")
+        if not template:
+            return None
+        return template.format(value=value)
+
+    def build_job_args(
+        self,
+        resources: "HPCResources",
+        array_param: Optional[str],
+        wait_jobs: Optional[List[str]],
+        job_name: str,
+        log_output: str,
+        log_error: str,
+    ) -> List[str]:
+        candidates = [
+            ("partition",     resources.partition),
+            ("nodes",         resources.nodes),
+            ("ntasks",        resources.ntasks),
+            ("cpus_per_task", resources.cpus_per_task),
+            ("time",          resources.time),
+            ("job_name",      job_name),
+            ("output",        log_output),
+            ("error",         log_error),
+        ]
+        args = [f for k, v in candidates if (f := self._fmt(k, v)) is not None]
+
+        mem_key = "mem_per_cpu" if resources.memory_per_cpu else "mem"
+        mem_val = resources.memory_per_cpu or resources.memory
+        mem_flag = self._fmt(mem_key, mem_val)
+        if mem_flag:
+            args.append(mem_flag)
+
+        if array_param:
+            args.append(self._cfg["array_flag"].format(array=array_param))
+
+        if resources.additional_args:
+            args.extend(resources.additional_args)
+
+        if wait_jobs:
+            args.append(self._cfg["dependency_flag"].format(jobs=":".join(wait_jobs)))
+
+        return args
+
+    def submit_job(self, args: List[str], wrapper_script: Path) -> Optional[str]:
+        submit_cmd = self._cfg["submit_cmd"]
+        cmd = [submit_cmd] + args + [str(wrapper_script)]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            parse = self._cfg.get("job_id_parse", "first_word")
+            if parse == "last_word":
+                job_id = result.stdout.strip().split()[-1]
+            elif parse == "first_word":
+                job_id = result.stdout.strip().split()[0]
+            else:
+                job_id = result.stdout.strip()
+            typer.echo(f"Job submitted: {job_id}")
+            return job_id
+        except subprocess.CalledProcessError as e:
+            typer.echo(f"Job submission failed: {e}", err=True)
+            if e.stdout:
+                typer.echo(f"STDOUT: {e.stdout}", err=True)
+            if e.stderr:
+                typer.echo(f"STDERR: {e.stderr}", err=True)
+            return None
+
+    def wait_for_jobs(self, job_ids: List[str], polling_interval: int = 60) -> None:
+        if not job_ids:
+            return
+
+        typer.echo(f"Waiting for jobs: {', '.join(job_ids)}")
+        status_cmd = self._cfg["status_cmd"]
+        active_states = set(self._cfg.get("active_states", ["Q", "R", "H"]))
+
+        while True:
+            running_jobs = []
+            for job_id in job_ids:
+                try:
+                    result = subprocess.run(
+                        [status_cmd, job_id],
+                        capture_output=True, text=True, check=True
+                    )
+                    for line in result.stdout.strip().splitlines():
+                        parts = line.split()
+                        if len(parts) >= 5 and parts[0].startswith(job_id.split(".")[0]):
+                            state = parts[4]
+                            if state in active_states:
+                                running_jobs.append(f"{job_id}({state})")
+                except subprocess.CalledProcessError:
+                    pass  # job no longer in queue = completed
+
+            if running_jobs:
+                typer.echo(f"Waiting for: {', '.join(running_jobs)}")
+                time.sleep(polling_interval)
+            else:
+                typer.echo("All jobs completed")
+                break
+
+
+def get_hpc_backend() -> HPCBackend:
     scheduler = hpc_config.get("scheduler", "slurm").lower()
     scheduler_cfg = hpc_config.get(scheduler)
 
@@ -182,6 +283,8 @@ def get_hpc_backend() -> HPCBackend:
 
     if scheduler == "slurm":
         return SLURMBackend(scheduler_cfg)
+    elif scheduler == "pbs":
+        return PBSBackend(scheduler_cfg)
     else:
         raise NotImplementedError(
             f"Scheduler '{scheduler}' is not yet implemented. "

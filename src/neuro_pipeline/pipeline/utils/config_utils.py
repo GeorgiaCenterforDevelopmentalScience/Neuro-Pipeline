@@ -42,10 +42,19 @@ def get_tasks_by_suffix(suffix: str, category: str = 'task') -> List[str]:
     all_tasks = config.get(category, [])
     return [t['name'] for t in all_tasks if isinstance(t, dict) and suffix in t['name']]
 
-def get_all_task_names(category: str = 'task') -> List[str]:
-    """Get all task names in category"""
-    all_tasks = config.get(category, [])
-    return [t['name'] for t in all_tasks if isinstance(t, dict)]
+def get_all_task_names(category: str = None) -> List[str]:
+    """Get all task names. If category is given, only that section; otherwise all sections in config order."""
+    if category:
+        return [t['name'] for t in config.get(category, []) if isinstance(t, dict)]
+    skip = {'array_config'}
+    names = []
+    for key, val in config.items():
+        if key in skip or not isinstance(val, list):
+            continue
+        for task in val:
+            if isinstance(task, dict) and 'name' in task:
+                names.append(task['name'])
+    return names
 
 def validate_task_name(task_name: str, category: str = 'task') -> bool:
     """Check if task exists"""
