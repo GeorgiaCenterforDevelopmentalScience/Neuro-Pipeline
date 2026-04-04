@@ -17,6 +17,14 @@ import shutil
 
 app = typer.Typer()
 
+
+def _parse_subjects(subjects: str) -> list:
+    subjects_path = Path(subjects)
+    if subjects_path.is_file():
+        with open(subjects_path) as f:
+            subjects = f.read().strip()
+    return [s.strip() for s in subjects.split(",") if s.strip()]
+
 # Load global config
 config_path = Path(__file__).parent / "config" / "config.yaml"
 with open(config_path, "r", encoding="utf-8") as f:
@@ -181,11 +189,7 @@ def run(
             raise typer.Exit(1)
 
         # Parse subjects (from file or string)
-        if Path(subjects).is_file():
-            with open(subjects, "r") as f:
-                subjects = f.read().strip()
-
-        user_subjects = [s.strip() for s in subjects.split(",") if s.strip()]
+        user_subjects = _parse_subjects(subjects)
         context = {'subjects': user_subjects}
         typer.echo(f"Subjects: {user_subjects}")
 
@@ -210,6 +214,9 @@ def run(
             raise typer.Exit(1)
 
         db_path = db_config['db_path'].replace('$WORK_DIR', original_work_dir)
+        if '$WORK_DIR' in db_path:
+            typer.echo("Error: 'database.db_path' contains unresolved '$WORK_DIR' — check your project config", err=True)
+            raise typer.Exit(1)
 
         # Create db directory
         db_dir = os.path.dirname(db_path)
@@ -473,12 +480,7 @@ def check_outputs_cmd(
     except FileNotFoundError:
         prefix = 'sub-'
 
-    subjects_path = Path(subjects)
-    if subjects_path.is_file():
-        with open(subjects_path) as f:
-            subject_list = [s.strip() for s in f.read().split(',') if s.strip()]
-    else:
-        subject_list = [s.strip() for s in subjects.split(',') if s.strip()]
+    subject_list = _parse_subjects(subjects)
 
     if not subject_list:
         typer.echo("Error: no subjects provided", err=True)

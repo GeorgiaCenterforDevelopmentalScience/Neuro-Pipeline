@@ -1,6 +1,28 @@
 # Dev Log - [GCDS-Neuro-Pipeline]
 
 ---
+## [0.13.0-alpha] – 2026-04-04
+
+### Changed
+- **CLI redesign (breaking):** Replaced hard-coded modality flags (`--rest-prep`, `--dwi-prep`) with two abstract flags:
+  - `--bids-prep <modalities>` — for standard BIDS pipelines (e.g. fMRIPrep) that go directly from reconstruction to preprocessing.
+  - `--staged-prep <modalities>` — for local staged pipelines (e.g. AFNI, FSL) that require intermediate structural steps (e.g. sswarper) before modality preprocessing.
+  - Modalities are now declared in `config.yaml`; no backend changes are needed when adding new modalities.
+- **Config refactor:** Both `config.yaml` and `hpc_config.yaml` were restructured to support the new pipeline model and to centralize HPC resource profiles and defaults.
+
+### Added
+- **Dynamic DAG visualization:** Pipeline graph is now generated and rendered dynamically from the DAG definition, replacing the previous static plot.
+- **HTML summary report:** A self-contained HTML report is generated at the end of each run summarizing task outcomes, logs, and pipeline structure.
+- **Resume functionality:** Tasks can now be resumed from the last successful checkpoint; each task's expected outputs are checked before re-submission.
+- PBS scheduler support: HPC backend now supports both Slurm and PBS/Torque job submission.
+- BIDS validation: Optional pre-run BIDS validation via pybids (warning-only, non-blocking).
+
+### Fixed
+- Fixed database configuration issue in the interface that prevented saving project settings.
+
+### Other
+- Interface: Project configuration page enhanced; callback functions reorganized.
+- Tests: Added unit tests for interface, input directory resolution, PBS backend smoke tests, and task name validation.
 
 ## [0.12.2-alpha] – 2026-03-10
 ### Added
@@ -98,7 +120,3 @@
 - Minor internal refactoring and project organization improvements.
 
 ---
-
-## [Unreleased]
-### Planned
-- Additional interface improvements and CLI refinements.
