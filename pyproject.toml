@@ -18,7 +18,8 @@ dependencies = [
   "dash-bootstrap-components",
   "plotly",
   "pandas",
-  "matplotlib"
+  "matplotlib",
+  "pybids"
 ]
 
 [project.optional-dependencies]
