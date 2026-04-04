@@ -89,6 +89,7 @@ def run(
     resume: bool = typer.Option(False, "--resume", help="Skip subjects whose outputs already exist"),
 
     skip_preflight: bool = typer.Option(False, "--skip-preflight", help="Skip pre-flight config and filesystem checks"),
+    skip_bids_validation: bool = typer.Option(False, "--skip-bids-validation", help="Skip BIDS format validation"),
 
     wait: bool = typer.Option(False, "--wait", help="Wait for jobs to complete"),
     polling_interval: int = typer.Option(60, "--polling-interval", help="Polling interval (seconds)")
@@ -166,7 +167,12 @@ def run(
             raise typer.Exit(1)
         
         typer.echo(f"Tasks: {requested_tasks}")
-        
+
+        if not skip_bids_validation:
+            if bids_prep or mriqc in (MRIQCChoice.individual, MRIQCChoice.all):
+                from .utils.bids_validation import run_bids_validation
+                run_bids_validation(input_dir, work_dir)
+
         dag_executor = DAGExecutor(config)
 
         # Setup context
