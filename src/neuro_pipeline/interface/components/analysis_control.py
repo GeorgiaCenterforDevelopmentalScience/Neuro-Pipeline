@@ -2,7 +2,7 @@ from dash import dcc, html
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 import os
-from ...pipeline.utils.config_utils import get_bids_pipeline_names, get_staged_pipeline_names, get_structural_task_names
+from ...pipeline.utils.config_utils import get_bids_pipeline_names, get_staged_pipeline_names, get_intermed_task_names
 
 def create_analysis_control_layout():
     """Create the analysis control layout with subject selection and pipeline options"""
@@ -159,6 +159,18 @@ def create_analysis_control_layout():
                                         "value": "resume"
                                     }],
                                     value=[],
+                                    className="mb-2"
+                                ),
+                                dbc.Checklist(
+                                    id="skip-preflight-checkbox",
+                                    options=[{"label": "Skip Preflight Checks", "value": "skip_preflight"}],
+                                    value=[],
+                                    className="mb-2"
+                                ),
+                                dbc.Checklist(
+                                    id="skip-bids-validation-checkbox",
+                                    options=[{"label": "Skip BIDS Validation", "value": "skip_bids_validation"}],
+                                    value=[],
                                     className="mb-3"
                                 )
                             ], width=4),
@@ -222,8 +234,8 @@ def create_analysis_control_layout():
 
 def create_pipeline_modules_section():
     """Create the pipeline modules configuration section"""
-    structural_options = [{"label": "None", "value": "none"}] + [
-        {"label": name, "value": name} for name in get_structural_task_names()
+    intermed_options = [{"label": "None", "value": "none"}] + [
+        {"label": name, "value": name} for name in get_intermed_task_names()
     ]
     bids_options = [{"label": name.capitalize(), "value": name} for name in get_bids_pipeline_names()]
     staged_options = [{"label": name.capitalize(), "value": name} for name in get_staged_pipeline_names()]
@@ -248,13 +260,13 @@ def create_pipeline_modules_section():
                 ])
             ], className="mb-3"),
 
-            # Structural
+            # intermed
             dbc.Card([
-                dbc.CardHeader("Structural Processing"),
+                dbc.CardHeader("Intermed Processing"),
                 dbc.CardBody([
                     dbc.RadioItems(
-                        id="structural-radio",
-                        options=structural_options,
+                        id="intermed-radio",
+                        options=intermed_options,
                         value="none",
                         inline=True
                     )
@@ -335,11 +347,11 @@ def create_pipeline_modules_section():
         ])
     ])
 
-def build_dag_elements(prep_option, structural_value, bids_prep, bids_post,
+def build_dag_elements(prep_option, intermed_value, bids_prep, bids_post,
                        staged_prep, staged_post, mriqc_option):
     has_unzip = prep_option in ('unzip', 'unzip_recon')
     has_recon = prep_option in ('recon', 'unzip_recon')
-    has_structural = bool(structural_value and structural_value != 'none')
+    has_intermed = bool(intermed_value and intermed_value != 'none')
     has_mriqc_indiv = mriqc_option in ('individual', 'all')
     has_mriqc_group = mriqc_option in ('group', 'all')
 
@@ -357,10 +369,10 @@ def build_dag_elements(prep_option, structural_value, bids_prep, bids_post,
         node('recon_bids', 'BIDS Conversion\n(recon_bids)', 'prep')
     if has_unzip and has_recon:
         edge('unzip', 'recon_bids', 'prep')
-    if has_structural:
-        node('structural', f'Structural\n({structural_value})', 'structural')
+    if has_intermed:
+        node('intermed', f'Intermed\n({intermed_value})', 'intermed')
         if has_recon:
-            edge('recon_bids', 'structural', 'structural')
+            edge('recon_bids', 'intermed', 'intermed')
 
     for p in (bids_prep or []):
         nid = f'bids_prep_{p}'
@@ -377,8 +389,8 @@ def build_dag_elements(prep_option, structural_value, bids_prep, bids_post,
     for p in (staged_prep or []):
         nid = f'staged_prep_{p}'
         node(nid, f'Staged Prep\n({p})', 'staged')
-        if has_structural:
-            edge('structural', nid, 'staged')
+        if has_intermed:
+            edge('intermed', nid, 'staged')
     for p in (staged_post or []):
         nid_post = f'staged_post_{p}'
         node(nid_post, f'Staged Post\n({p})', 'staged')
@@ -402,7 +414,7 @@ def build_dag_elements(prep_option, structural_value, bids_prep, bids_post,
 def _dag_stylesheet():
     colours = {
         'prep':       '#E67E22',
-        'structural': '#27AE60',
+        'intermed': '#27AE60',
         'bids':       '#2980B9',
         'staged':     '#16A085',
         'qc':         '#8E44AD',
@@ -455,7 +467,7 @@ def _dag_stylesheet():
 def _dag_legend():
     items = [
         ('#E67E22', 'Preprocessing'),
-        ('#27AE60', 'Structural'),
+        ('#27AE60', 'Intermed'),
         ('#2980B9', 'BIDS pipelines'),
         ('#16A085', 'Staged pipelines'),
         ('#8E44AD', 'Quality Control'),
@@ -484,6 +496,8 @@ def create_dag_visualization():
     return html.Div([
         html.Div([
             _dag_legend(),
+            dbc.Button("Download PNG", id="dag-download-btn", color="outline-secondary",
+                       size="sm", className="mb-2 float-end ms-2"),
             dbc.Button("Reset View", id="dag-reset-btn", color="outline-secondary",
                        size="sm", className="mb-2 float-end"),
         ], style={'overflow': 'hidden'}),
@@ -504,7 +518,7 @@ def create_dag_visualization():
             autoungrabify=True,
         ),
         html.P(
-            "Tip: BIDS and QC tasks wait for recon_bids. Staged tasks wait for structural (if selected), otherwise run in parallel with recon.",
+            "Tip: BIDS and QC tasks wait for recon_bids. Staged tasks wait for intermed (if selected), otherwise run in parallel with recon.",
             className="text-muted small mt-2"
         )
     ])

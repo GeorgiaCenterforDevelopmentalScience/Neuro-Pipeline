@@ -1,9 +1,9 @@
 """
 DAG dependency rules:
   1. unzip -> recon_bids (if both requested)
-  2. recon_bids -> all downstream non-staged tasks (bids, mriqc, structural)
-  3. structural -> staged tasks (multi_stage: true in config)
-  4. Without structural, staged tasks run in parallel with recon_bids
+  2. recon_bids -> all downstream non-staged tasks (bids, mriqc, intermed)
+  3. intermed -> staged tasks (multi_stage: true in config)
+  4. Without intermed, staged tasks run in parallel with recon_bids
   5. Within each config section: post -> prep
 """
 
@@ -53,7 +53,7 @@ class DAGExecutor:
 
         self._apply_prep_sequence(requested_tasks)
         self._apply_recon_dependencies(requested_tasks)
-        self._apply_structural_dependencies(requested_tasks)
+        self._apply_intermed_dependencies(requested_tasks)
         self._apply_section_dependencies(requested_tasks)
 
         return self._topological_sort()
@@ -76,8 +76,8 @@ class DAGExecutor:
     def _apply_recon_dependencies(self, requested_tasks: List[str]):
         """recon_bids -> all downstream non-staged tasks.
 
-        Staged tasks (multi_stage=true) are always excluded: without structural
-        they run in parallel with recon; with structural they depend on it instead.
+        Staged tasks (multi_stage=true) are always excluded: without intermed
+        they run in parallel with recon; with intermed they depend on it instead.
         """
         if 'recon_bids' not in requested_tasks:
             return
@@ -90,17 +90,17 @@ class DAGExecutor:
                 continue
             self.nodes[task_name].add_dependency('recon_bids')
 
-    def _apply_structural_dependencies(self, requested_tasks: List[str]):
-        """structural -> staged prep tasks only (multi_stage: true, stage: prep)"""
+    def _apply_intermed_dependencies(self, requested_tasks: List[str]):
+        """intermed -> staged prep tasks only (multi_stage: true, stage: prep)"""
         from .utils.config_utils import get_all_task_names
-        structural_tasks = [t for t in requested_tasks if t in get_all_task_names('structural')]
-        if not structural_tasks:
+        intermed_tasks = [t for t in requested_tasks if t in get_all_task_names('intermed')]
+        if not intermed_tasks:
             return
         for task_name in requested_tasks:
             if task_name in self.nodes:
                 cfg = self.nodes[task_name].task_config
                 if cfg.get('multi_stage') and cfg.get('stage') == 'prep':
-                    for st in structural_tasks:
+                    for st in intermed_tasks:
                         self.nodes[task_name].add_dependency(st)
 
     def _apply_section_dependencies(self, requested_tasks: List[str]):
@@ -308,10 +308,10 @@ class TaskRegistry:
                 task_name = prep_mapping.get(prep_choice.value, prep_choice.value)
                 tasks.append(task_name)
         
-        # Structural tasks
-        if kwargs.get('structural'):
+        # Intermed tasks
+        if kwargs.get('intermed'):
             from .utils.config_utils import get_tasks_from_section
-            tasks.extend([name for name, _ in get_tasks_from_section('structural')])
+            tasks.extend([name for name, _ in get_tasks_from_section('intermed')])
         
         # MRIQC tasks
         if kwargs.get('mriqc'):

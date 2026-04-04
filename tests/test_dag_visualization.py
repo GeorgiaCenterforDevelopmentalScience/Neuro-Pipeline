@@ -22,7 +22,7 @@ class TestBuildDagElementsEmpty:
 
     def test_no_selection_returns_empty(self):
         elements = build_dag_elements(
-            prep_option="none", structural_value="none",
+            prep_option="none", intermed_value="none",
             bids_prep=[], bids_post=[],
             staged_prep=[], staged_post=[],
             mriqc_option="none",
@@ -56,25 +56,25 @@ class TestPrepNodes:
         assert ("unzip", "recon_bids") in edge_pairs(elements)
 
 
-class TestStructuralNodes:
+class TestIntermedNodes:
 
-    def test_structural_node_created(self):
+    def test_intermed_node_created(self):
         elements = build_dag_elements(
             "recon", "afni_volume", [], [], [], [], "none"
         )
-        assert "structural" in node_ids(elements)
+        assert "intermed" in node_ids(elements)
 
-    def test_recon_to_structural_edge(self):
+    def test_recon_to_intermed_edge(self):
         elements = build_dag_elements(
             "recon", "afni_volume", [], [], [], [], "none"
         )
-        assert ("recon_bids", "structural") in edge_pairs(elements)
+        assert ("recon_bids", "intermed") in edge_pairs(elements)
 
-    def test_no_structural_node_when_none(self):
+    def test_no_intermed_node_when_none(self):
         elements = build_dag_elements(
             "recon", "none", [], [], [], [], "none"
         )
-        assert "structural" not in node_ids(elements)
+        assert "intermed" not in node_ids(elements)
 
 
 class TestBIDSPipelines:
@@ -118,19 +118,19 @@ class TestStagedPipelines:
         )
         assert "staged_prep_cards" in node_ids(elements)
 
-    def test_structural_to_staged_prep_edge(self):
+    def test_intermed_to_staged_prep_edge(self):
         elements = build_dag_elements(
             "recon", "afni_volume", [], [], ["cards"], [], "none"
         )
-        assert ("structural", "staged_prep_cards") in edge_pairs(elements)
+        assert ("intermed", "staged_prep_cards") in edge_pairs(elements)
 
-    def test_staged_prep_no_structural_edge_when_structural_absent(self):
+    def test_staged_prep_no_intermed_edge_when_intermed_absent(self):
         elements = build_dag_elements(
             "none", "none", [], [], ["cards"], [], "none"
         )
-        assert "structural" not in node_ids(elements)
+        assert "intermed" not in node_ids(elements)
         assert all(e["data"].get("target") != "staged_prep_cards"
-                   or e["data"].get("source") != "structural"
+                   or e["data"].get("source") != "intermed"
                    for e in elements if "source" in e["data"])
 
     def test_staged_prep_to_post_edge(self):
@@ -177,7 +177,7 @@ class TestFullPipelineSelection:
     def test_full_pipeline_has_all_expected_nodes(self):
         elements = build_dag_elements(
             prep_option="unzip_recon",
-            structural_value="afni_volume",
+            intermed_value="afni_volume",
             bids_prep=["rest"],
             bids_post=["rest"],
             staged_prep=["cards"],
@@ -187,7 +187,7 @@ class TestFullPipelineSelection:
         ids = node_ids(elements)
         assert "unzip" in ids
         assert "recon_bids" in ids
-        assert "structural" in ids
+        assert "intermed" in ids
         assert "bids_prep_rest" in ids
         assert "bids_post_rest" in ids
         assert "staged_prep_cards" in ids

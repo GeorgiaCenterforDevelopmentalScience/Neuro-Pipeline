@@ -3,10 +3,10 @@ test_dag.py — Tests for pipeline/dag.py
 
 DAG rules under test:
   1. unzip -> recon_bids (if both requested)
-  2. recon_bids -> all non-staged downstream tasks (bids, mriqc, structural)
-  3. structural -> staged prep tasks (multi_stage=true, stage=prep) only
+  2. recon_bids -> all non-staged downstream tasks (bids, mriqc, intermed)
+  3. intermed -> staged prep tasks (multi_stage=true, stage=prep) only
   4. staged post tasks depend only on their matching staged prep (same section)
-  5. Without structural, staged tasks run in parallel with recon_bids
+  5. Without intermed, staged tasks run in parallel with recon_bids
   6. Within each config section: post -> prep
 """
 
@@ -113,7 +113,7 @@ class TestPrepChain:
 
 class TestReconDependencies:
 
-    def test_structural_depends_on_recon(self):
+    def test_intermed_depends_on_recon(self):
         executor, order = build(["recon_bids", "afni_volume"])
         assert "recon_bids" in deps(executor, "afni_volume")
         assert order.index("recon_bids") < order.index("afni_volume")
@@ -128,23 +128,23 @@ class TestReconDependencies:
 
 
 # ===========================================================================
-# Rule 3: structural -> staged prep only (not staged post)
+# Rule 3: intermed -> staged prep only (not staged post)
 # ===========================================================================
 
-class TestStructuralDependencies:
+class TestIntermedDependencies:
 
-    def test_staged_prep_depends_on_structural(self):
+    def test_staged_prep_depends_on_intermed(self):
         executor, order = build(["afni_volume", "cards_preprocess"])
         assert "afni_volume" in deps(executor, "cards_preprocess")
         assert order.index("afni_volume") < order.index("cards_preprocess")
 
-    def test_structural_does_not_wire_to_staged_post_directly(self):
-        """staged_post has no prep in this request — structural must NOT connect to it."""
+    def test_intermed_does_not_wire_to_staged_post_directly(self):
+        """staged_post has no prep in this request — intermed must NOT connect to it."""
         executor, _ = build(["afni_volume", "kidvid_preprocess"])
-        # there is no kidvid_post in MOCK_CONFIG so we verify structural only touches prep
+        # there is no kidvid_post in MOCK_CONFIG so we verify intermed only touches prep
         assert "afni_volume" in deps(executor, "kidvid_preprocess")
 
-    def test_both_staged_preps_depend_on_structural(self):
+    def test_both_staged_preps_depend_on_intermed(self):
         executor, order = build(["afni_volume", "cards_preprocess", "kidvid_preprocess"])
         assert "afni_volume" in deps(executor, "cards_preprocess")
         assert "afni_volume" in deps(executor, "kidvid_preprocess")
@@ -181,20 +181,20 @@ class TestSectionDependencies:
 
 
 # ===========================================================================
-# Rule 5: without structural, staged runs parallel with recon
+# Rule 5: without intermed, staged runs parallel with recon
 # ===========================================================================
 
-class TestStagedParallelWithoutStructural:
+class TestStagedParallelWithoutIntermed:
 
-    def test_staged_prep_has_no_recon_dep_without_structural(self):
+    def test_staged_prep_has_no_recon_dep_without_intermed(self):
         executor, _ = build(["recon_bids", "cards_preprocess"])
         assert "recon_bids" not in deps(executor, "cards_preprocess")
 
-    def test_staged_prep_has_no_structural_dep_when_structural_not_requested(self):
+    def test_staged_prep_has_no_intermed_dep_when_intermed_not_requested(self):
         executor, _ = build(["cards_preprocess"])
         assert "afni_volume" not in deps(executor, "cards_preprocess")
 
-    def test_two_staged_preps_parallel_without_structural(self):
+    def test_two_staged_preps_parallel_without_intermed(self):
         executor, _ = build(["recon_bids", "cards_preprocess", "kidvid_preprocess"])
         assert "recon_bids" not in deps(executor, "cards_preprocess")
         assert "recon_bids" not in deps(executor, "kidvid_preprocess")
@@ -203,18 +203,18 @@ class TestStagedParallelWithoutStructural:
 
 
 # ===========================================================================
-# Full chain: recon -> structural -> staged prep -> (staged post via section)
+# Full chain: recon -> intermed -> staged prep -> (staged post via section)
 # ===========================================================================
 
 class TestFullChain:
 
-    def test_recon_structural_staged_prep_chain(self):
+    def test_recon_intermed_staged_prep_chain(self):
         executor, order = build(["recon_bids", "afni_volume", "cards_preprocess"])
         assert "recon_bids" in deps(executor, "afni_volume")
         assert "afni_volume" in deps(executor, "cards_preprocess")
         assert order.index("recon_bids") < order.index("afni_volume") < order.index("cards_preprocess")
 
-    def test_two_staged_pipelines_parallel_after_structural(self):
+    def test_two_staged_pipelines_parallel_after_intermed(self):
         executor, order = build(["afni_volume", "cards_preprocess", "kidvid_preprocess"])
         assert "afni_volume" in deps(executor, "cards_preprocess")
         assert "afni_volume" in deps(executor, "kidvid_preprocess")

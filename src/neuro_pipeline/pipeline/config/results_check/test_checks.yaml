@@ -52,7 +52,7 @@ recon_bids:
       expected_count: 1
       tolerance: 0
 
-# Structural
+# Intermed
 
 afni_volume:
   output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/ses-{session}/sswarp2/T1_results"

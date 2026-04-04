@@ -117,11 +117,11 @@ def find_task_config_by_name_with_project(task_name: str, project_config: dict =
     return global_task_config
 
 
-def get_structural_task_names() -> List[str]:
-    """Return task names from the structural section of config.yaml."""
-    return [t['name'] for t in config.get('structural', []) if isinstance(t, dict) and 'name' in t]
+def get_intermed_task_names() -> List[str]:
+    """Return task names from the intermed section of config.yaml."""
+    return [t['name'] for t in config.get('intermed', []) if isinstance(t, dict) and 'name' in t]
 
-_SYSTEM_SECTIONS = {'prep', 'structural', 'qc', 'array_config'}
+_SYSTEM_SECTIONS = {'prep', 'intermed', 'qc', 'array_config'}
 
 def get_bids_pipeline_names() -> List[str]:
     """Return section names for BIDS-native pipelines (tasks without multi_stage)."""

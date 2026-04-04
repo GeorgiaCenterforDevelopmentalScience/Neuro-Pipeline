@@ -11,7 +11,7 @@ The pipeline is organized into four stages. The software used at each stage is c
 | Stage | Description | Example software |
 |-------|-------------|-----------------|
 | **Data preparation** | Unzip raw data, convert DICOM to BIDS | dcm2bids |
-| **Intermediate steps** | Structural preprocessing or any intermediate step required before modality pipelines (staged pipelines only) | AFNI `@SSwarper` |
+| **Intermediate steps** | Any intermediate step required before modality pipelines (staged pipelines only) | AFNI `@SSwarper` |
 | **BIDS pipelines** | Modality preprocessing that runs directly on BIDS data | fMRIPrep, XCP-D, QSIPrep, QSIRecon |
 | **Quality control** | Image quality metrics | MRIQC |
 
@@ -84,7 +84,7 @@ neuropipe run \
   --project my_study \
   --session 01 \
   --prep unzip_recon \
-  --structural \
+  --intermed \
   --staged-prep cards,kidvid \
   --staged-post cards,kidvid \
   --bids-prep rest,dwi \
@@ -114,7 +114,7 @@ Dependencies are enforced automatically by the scheduler.
 | Option | Description |
 |--------|-------------|
 | `--prep` | Data preparation: `unzip`, `recon`, `unzip_recon` |
-| `--structural` | Run structural intermediate step (e.g. `@SSwarper`); required before `--staged-prep` |
+| `--intermed` | Run intermediate step (e.g. `@SSwarper`); required before `--staged-prep` |
 | `--bids-prep <modalities>` | BIDS pipeline preprocessing (comma-separated, e.g. `rest,dwi`) |
 | `--staged-prep <modalities>` | Staged pipeline preprocessing (comma-separated, e.g. `cards,kidvid`) |
 | `--mriqc` | Quality control: `individual`, `group`, `all` |

@@ -6,7 +6,7 @@
 ### Changed
 - **CLI redesign (breaking):** Replaced hard-coded modality flags (`--rest-prep`, `--dwi-prep`) with two abstract flags:
   - `--bids-prep <modalities>` — for standard BIDS pipelines (e.g. fMRIPrep) that go directly from reconstruction to preprocessing.
-  - `--staged-prep <modalities>` — for local staged pipelines (e.g. AFNI, FSL) that require intermediate structural steps (e.g. sswarper) before modality preprocessing.
+  - `--staged-prep <modalities>` — for local staged pipelines (e.g. AFNI, FSL) that require intermediate steps (e.g. sswarper) before modality preprocessing.
   - Modalities are now declared in `config.yaml`; no backend changes are needed when adding new modalities.
 - **Config refactor:** Both `config.yaml` and `hpc_config.yaml` were restructured to support the new pipeline model and to centralize HPC resource profiles and defaults.
 

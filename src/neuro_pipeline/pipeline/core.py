@@ -35,8 +35,8 @@ class TaskOptions:
     # Preprocessing
     prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps")
     
-    # Structural
-    structural: bool = typer.Option(False, "--structural", help="Structural MRI processing")
+    # intermed
+    intermed: bool = typer.Option(False, "--intermed", help="intermed MRI processing")
 
     # Quality Control
     mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing")
@@ -83,7 +83,7 @@ def run(
 
     prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps"),
 
-    structural: bool = typer.Option(False, "--structural", help="Structural MRI processing"),
+    intermed: bool = typer.Option(False, "--intermed", help="intermed MRI processing"),
     mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing"),
     session: Optional[str] = typer.Option(..., help="Session or wave ID"),
 
@@ -110,7 +110,7 @@ def run(
     try:
         options = TaskOptions(
             prep=prep,
-            structural=structural,
+            intermed=intermed,
             mriqc=mriqc,
             session=session,
             bids_prep=bids_prep,

@@ -13,8 +13,8 @@ prep:
     input_from: unzip
     output_pattern: "{base_output}/BIDS"
 
-# Structural MRI (intermediate step required by staged pipelines)
-structural:
+# Intermed MRI (intermediate step required by staged pipelines)
+intermed:
   - name: afni_volume
     profile: standard_short
     array: true
@@ -58,7 +58,7 @@ dwi:
     scripts: [qsirecon.sh]
     output_pattern: "{base_output}/BIDS_derivatives/qsirecon"
 
-# Staged pipelines (3-step: recon_bids → structural → task)
+# Staged pipelines (3-step: recon_bids → intermed → task)
 # Add new tasks here; reference by short name in --staged-prep/post
 cards:
   - name: cards_preprocess

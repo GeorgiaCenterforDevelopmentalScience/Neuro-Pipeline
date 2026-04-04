@@ -276,7 +276,7 @@ def register_config_callbacks(app):
         if err:
             return err
         if _trigger_id() == "validate-global-config-btn":
-            expected = {"prep", "structural", "qc", "array_config"}
+            expected = {"prep", "intermed", "qc", "array_config"}
             missing = expected - (set(parsed.keys()) if isinstance(parsed, dict) else set())
             if missing:
                 return _alert_warn(f"Valid YAML but missing expected top-level keys: {', '.join(sorted(missing))}")

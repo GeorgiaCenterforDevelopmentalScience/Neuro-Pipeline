@@ -103,19 +103,21 @@ def register_analysis_callbacks(app):
         State("project-name", "value"),
         State("session-id", "value"),
         State("prep-options", "value"),
-        State("structural-radio", "value"),
+        State("intermed-radio", "value"),
         State("bids-prep-checklist", "value"),
         State("bids-post-checklist", "value"),
         State("staged-prep-checklist", "value"),
         State("staged-post-checklist", "value"),
         State("mriqc-options", "value"),
         State("dry-run-checkbox", "value"),
-        State("resume-checkbox", "value")]
+        State("resume-checkbox", "value"),
+        State("skip-preflight-checkbox", "value"),
+        State("skip-bids-validation-checkbox", "value")]
     )
     def generate_command_callback(n_clicks, subjects, input_dir, output_dir, work_dir,
-                                project_name, session, prep_option, structural_value,
+                                project_name, session, prep_option, intermed_value,
                                 bids_prep, bids_post, staged_prep, staged_post,
-                                mriqc_option, dry_run, resume):
+                                mriqc_option, dry_run, resume, skip_preflight, skip_bids_validation):
         if n_clicks is None:
             return "Click 'Generate Command' to preview the pipeline command", {}
 
@@ -148,8 +150,8 @@ def register_analysis_callbacks(app):
             if prep_option and prep_option != "none":
                 cmd_parts.append(f'  --prep {prep_option} \\')
 
-            if structural_value and structural_value != "none":
-                cmd_parts.append(f'  --structural \\')
+            if intermed_value and intermed_value != "none":
+                cmd_parts.append(f'  --intermed \\')
 
             if bids_prep:
                 cmd_parts.append(f'  --bids-prep {",".join(bids_prep)} \\')
@@ -168,10 +170,16 @@ def register_analysis_callbacks(app):
                 cmd_parts.append(f'  --dry-run \\')
 
             if resume and "resume" in resume:
-                cmd_parts.append(f'  --resume')
-            else:
-                if cmd_parts[-1].endswith(' \\'):
-                    cmd_parts[-1] = cmd_parts[-1][:-2]
+                cmd_parts.append(f'  --resume \\')
+
+            if skip_preflight and "skip_preflight" in skip_preflight:
+                cmd_parts.append(f'  --skip-preflight \\')
+
+            if skip_bids_validation and "skip_bids_validation" in skip_bids_validation:
+                cmd_parts.append(f'  --skip-bids-validation \\')
+
+            if cmd_parts[-1].endswith(' \\'):
+                cmd_parts[-1] = cmd_parts[-1][:-2]
 
             command_str = "\n".join(cmd_parts)
 
@@ -183,14 +191,16 @@ def register_analysis_callbacks(app):
                 "project_name": project_name,
                 "session": session,
                 "prep_option": prep_option,
-                "structural_value": structural_value,
+                "intermed_value": intermed_value,
                 "bids_prep": bids_prep,
                 "bids_post": bids_post,
                 "staged_prep": staged_prep,
                 "staged_post": staged_post,
                 "mriqc_option": mriqc_option,
                 "dry_run": dry_run,
-                "resume": resume
+                "resume": resume,
+                "skip_preflight": skip_preflight,
+                "skip_bids_validation": skip_bids_validation
             }
 
             return command_str, command_data
@@ -204,10 +214,12 @@ def register_analysis_callbacks(app):
         [Input("execute-pipeline-btn", "n_clicks")],
         [State("pipeline-commands-store", "data"),
         State("dry-run-checkbox", "value"),
-        State("resume-checkbox", "value")],
+        State("resume-checkbox", "value"),
+        State("skip-preflight-checkbox", "value"),
+        State("skip-bids-validation-checkbox", "value")],
         prevent_initial_call=True
     )
-    def execute_pipeline_callback(n_clicks, command_data, dry_run, resume):
+    def execute_pipeline_callback(n_clicks, command_data, dry_run, resume, skip_preflight, skip_bids_validation):
         if n_clicks is None:
             return ""
 
@@ -235,8 +247,8 @@ def register_analysis_callbacks(app):
             if command_data.get("prep_option") and command_data["prep_option"] != "none":
                 cmd.extend(["--prep", command_data["prep_option"]])
 
-            if command_data.get("structural_value") and command_data["structural_value"] != "none":
-                cmd.append("--structural")
+            if command_data.get("intermed_value") and command_data["intermed_value"] != "none":
+                cmd.append("--intermed")
 
             if command_data.get("bids_prep"):
                 cmd.extend(["--bids-prep", ",".join(command_data["bids_prep"])])
@@ -257,6 +269,12 @@ def register_analysis_callbacks(app):
             is_resume = "resume" in (resume or []) or "resume" in (command_data.get("resume") or [])
             if is_resume:
                 cmd.append("--resume")
+
+            if "skip_preflight" in (skip_preflight or []) or "skip_preflight" in (command_data.get("skip_preflight") or []):
+                cmd.append("--skip-preflight")
+
+            if "skip_bids_validation" in (skip_bids_validation or []) or "skip_bids_validation" in (command_data.get("skip_bids_validation") or []):
+                cmd.append("--skip-bids-validation")
 
             result = subprocess.run(cmd, capture_output=True, text=True)
 
@@ -284,19 +302,19 @@ def register_analysis_callbacks(app):
         Output("dag-overview", "elements"),
         [Input("page-rendered-store", "data"),
          Input("prep-options", "value"),
-         Input("structural-radio", "value"),
+         Input("intermed-radio", "value"),
          Input("bids-prep-checklist", "value"),
          Input("bids-post-checklist", "value"),
          Input("staged-prep-checklist", "value"),
          Input("staged-post-checklist", "value"),
          Input("mriqc-options", "value")]
     )
-    def update_dag_elements(_page, prep_option, structural_value, bids_prep, bids_post,
+    def update_dag_elements(_page, prep_option, intermed_value, bids_prep, bids_post,
                             staged_prep, staged_post, mriqc_option):
         from ..components.analysis_control import build_dag_elements
         return build_dag_elements(
             prep_option or 'none',
-            structural_value or 'none',
+            intermed_value or 'none',
             bids_prep or [],
             bids_post or [],
             staged_prep or [],
@@ -311,6 +329,14 @@ def register_analysis_callbacks(app):
     )
     def reset_dag_view(_):
         return {'name': 'dagre', 'rankDir': 'LR', 'nodeSep': 40, 'rankSep': 90, 'spacingFactor': 1.0}
+
+    @app.callback(
+        Output("dag-overview", "generateImage"),
+        Input("dag-download-btn", "n_clicks"),
+        prevent_initial_call=True
+    )
+    def download_dag_image(_):
+        return {"type": "png", "action": "download", "filename": "pipeline_dag"}
 
     # Sidebar toggle callback
     @app.callback(

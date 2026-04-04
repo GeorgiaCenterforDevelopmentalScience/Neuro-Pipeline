@@ -85,7 +85,7 @@ MOCK_CONFIG = {
             "output_pattern": "{base_output}/BIDS",
         },
     ],
-    "structural": [
+    "intermed": [
         {
             "name": "afni_volume",
             "profile": "standard_short",
