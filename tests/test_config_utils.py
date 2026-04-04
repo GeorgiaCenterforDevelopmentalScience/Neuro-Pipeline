@@ -118,20 +118,36 @@ class TestFindTaskConfigByNameWithProject:
 
 class TestTaskNameHelpers:
 
-    def test_get_all_task_names_task_afni(self):
+    def test_get_all_task_names_all_sections(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
-            names = get_all_task_names("task")
+            names = get_all_task_names()
         assert "cards_preprocess" in names
         assert "kidvid_preprocess" in names
-        assert len(names) == 2
+        assert "unzip" in names
+        assert "recon_bids" in names
+        assert "mriqc_preprocess" in names
 
-    def test_get_all_task_names_qc(self):
+    def test_get_all_task_names_preserves_config_order(self):
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
+            names = get_all_task_names()
+        assert names.index("unzip") < names.index("recon_bids")
+        assert names.index("recon_bids") < names.index("rest_preprocess")
+
+    def test_get_all_task_names_single_section(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
             names = get_all_task_names("qc")
         assert "mriqc_preprocess" in names
         assert "mriqc_post" in names
+        assert "unzip" not in names
+
+    def test_get_all_task_names_cards_section(self):
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
+            names = get_all_task_names("cards")
+        assert names == ["cards_preprocess"]
 
     def test_get_all_task_names_unknown_category_returns_empty(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):

@@ -40,70 +40,62 @@ modules:
     - ml p7zip/17.05-GCCcore-13.3.0
     - ml parallel/20240722-GCCcore-13.3.0
 
-setup:
-  prep:
-    - name: unzip
-      environ: ["data_manage_1", "afni_25.1.01"]
+# Task-specific configuration (keyed by task name)
+tasks:
+  unzip:
+    environ: ["data_manage_1", "afni_25.1.01"]
 
-    - name: recon_bids
-      container: "dcm2bids_3.2.0.sif"
-      config: "branch_config.json"
+  recon_bids:
+    container: "dcm2bids_3.2.0.sif"
+    config: "branch_config.json"
 
-  structural:
-    - name: afni_volume
-      environ: ["afni_25.1.01"]
-      template: "HaskinsPeds_NL_template1.0_SSW.nii"
+  afni_volume:
+    environ: ["afni_25.1.01"]
+    template: "HaskinsPeds_NL_template1.0_SSW.nii"
 
-  rest:
-    - name: rest_preprocess
-      remove_TRs: 6
-      template: "MNI152NLin2009cAsym"
-      container: "fmriprep_25.1.3.sif"
-      license: "license.txt"
+  rest_preprocess:
+    remove_TRs: 6
+    template: "MNI152NLin2009cAsym"
+    container: "fmriprep_25.1.3.sif"
+    license: "license.txt"
 
-    - name: rest_post
-      remove_TRs: 6
-      template: "MNI152NLin2009cAsym"
-      container: "xcp_d-0.11.0rc1.sif"
-      rest_mode: "abcd"
-      motion_filter_type: "notch"
-      band_stop_min: "15"
-      band_stop_max: "25"
-      nuisance_regressors: "36P"
-      license: "license.txt"
+  rest_post:
+    remove_TRs: 6
+    template: "MNI152NLin2009cAsym"
+    container: "xcp_d-0.11.0rc1.sif"
+    rest_mode: "abcd"
+    motion_filter_type: "notch"
+    band_stop_min: "15"
+    band_stop_max: "25"
+    nuisance_regressors: "36P"
+    license: "license.txt"
 
-  task:
-    - name: cards_preprocess
-      remove_TRs: 2
-      template: "HaskinsPeds_NL_template1.0_SSW.nii"
-      blur_size: 4.0
-      environ: ["afni_25.1.01"]
-      censor_motion: "0.3"
-      censor_outliers: "0.05"
+  cards_preprocess:
+    remove_TRs: 2
+    template: "HaskinsPeds_NL_template1.0_SSW.nii"
+    blur_size: 4.0
+    environ: ["afni_25.1.01"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
 
-    - name: kidvid_preprocess
-      remove_TRs: 22
-      template: "HaskinsPeds_NL_template1.0_SSW.nii"
-      blur_size: 4.0
-      environ: ["afni_25.1.01"]
-      censor_motion: "0.3"
-      censor_outliers: "0.05"
+  kidvid_preprocess:
+    remove_TRs: 22
+    template: "HaskinsPeds_NL_template1.0_SSW.nii"
+    blur_size: 4.0
+    environ: ["afni_25.1.01"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
 
-  task_dwi:
-      - name: dwi_preprocess
-        template: "HaskinsPeds_NL_template1.0_SSW.nii"
-        environ: ["fsl_6.0.7.14"]
-        container: "qsiprep_0.15.0.sif"
-        license: "license.txt"
+  dwi_preprocess:
+    environ: ["fsl_6.0.7.14"]
+    container: "qsiprep_0.15.0.sif"
+    license: "license.txt"
 
-      - name: dwi_post
-        template: "HaskinsPeds_NL_template1.0_SSW.nii"
-        environ: ["fsl_6.0.7.14"]
+  dwi_post:
+    environ: ["fsl_6.0.7.14"]
 
-  # Quality control
-  qc:
-    - name: mriqc_preprocess
-      container: "mriqc_24.0.2.sif"
+  mriqc_preprocess:
+    container: "mriqc_24.0.2.sif"
 
-    - name: mriqc_post
-      container: "mriqc_24.0.2.sif"
+  mriqc_post:
+    container: "mriqc_24.0.2.sif"

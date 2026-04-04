@@ -1,11 +1,12 @@
 from dash import dcc, html
 import dash_bootstrap_components as dbc
+import dash_cytoscape as cyto
 import os
-from ...pipeline.utils.config_utils import get_task_options
+from ...pipeline.utils.config_utils import get_bids_pipeline_names, get_staged_pipeline_names, get_structural_task_names
 
 def create_analysis_control_layout():
     """Create the analysis control layout with subject selection and pipeline options"""
-    
+
     return dbc.Container([
         dbc.Row([
             dbc.Col([
@@ -13,7 +14,7 @@ def create_analysis_control_layout():
                 html.Hr()
             ])
         ]),
-        
+
         # Subject Selection Section
         dbc.Row([
             dbc.Col([
@@ -41,9 +42,9 @@ def create_analysis_control_layout():
                                 )
                             ], width=7),
                             dbc.Col([
-                                dbc.Button("Detect Subjects", id="detect-subjects-btn", 
+                                dbc.Button("Detect Subjects", id="detect-subjects-btn",
                                          color="primary", className="mt-4 me-2"),
-                                dbc.Button("Clear", id="clear-subjects-btn", 
+                                dbc.Button("Clear", id="clear-subjects-btn",
                                          color="secondary", className="mt-4")
                             ], width=3)
                         ]),
@@ -64,7 +65,7 @@ def create_analysis_control_layout():
                 ])
             ])
         ], className="mb-4"),
-        
+
         # Pipeline Configuration Section
         dbc.Row([
             dbc.Col([
@@ -101,7 +102,7 @@ def create_analysis_control_layout():
                                 )
                             ], width=4)
                         ]),
-                        
+
                         # Project Settings
                         dbc.Row([
                             dbc.Col([
@@ -123,17 +124,17 @@ def create_analysis_control_layout():
                                 )
                             ], width=6)
                         ]),
-                        
+
                         html.Hr(),
-                        
+
                         # Pipeline Modules
                         create_pipeline_modules_section()
-                        
+
                     ])
                 ])
             ])
         ], className="mb-4"),
-        
+
         # Execution Control
         dbc.Row([
             dbc.Col([
@@ -162,9 +163,9 @@ def create_analysis_control_layout():
                                 )
                             ], width=4),
                             dbc.Col([
-                                dbc.Button("Generate Command", id="generate-commands-btn", 
+                                dbc.Button("Generate Command", id="generate-commands-btn",
                                          color="info", className="mb-3 me-2"),
-                                dbc.Button("Execute Pipeline", id="execute-pipeline-btn", 
+                                dbc.Button("Execute Pipeline", id="execute-pipeline-btn",
                                          color="success", className="mb-3")
                             ], width=8)
                         ]),
@@ -177,7 +178,7 @@ def create_analysis_control_layout():
                 ])
             ])
         ]),
-        
+
         # Command Preview Section
         dbc.Row([
             dbc.Col([
@@ -199,12 +200,34 @@ def create_analysis_control_layout():
                     ])
                 ])
             ])
+        ], className="mb-4"),
+
+        # DAG Overview
+        dbc.Row([
+            dbc.Col([
+                html.H4("Task Execution Order (DAG)", className="mb-1 mt-2"),
+                html.P(
+                    "This diagram shows how pipeline tasks are chained. "
+                    "Each arrow means the downstream task waits for the upstream one to finish.",
+                    className="text-muted small mb-3"
+                ),
+                dbc.Card([
+                    dbc.CardBody([
+                        create_dag_visualization()
+                    ])
+                ])
+            ])
         ], className="mb-4")
     ], fluid=True)
 
 def create_pipeline_modules_section():
     """Create the pipeline modules configuration section"""
-    
+    structural_options = [{"label": "None", "value": "none"}] + [
+        {"label": name, "value": name} for name in get_structural_task_names()
+    ]
+    bids_options = [{"label": name.capitalize(), "value": name} for name in get_bids_pipeline_names()]
+    staged_options = [{"label": name.capitalize(), "value": name} for name in get_staged_pipeline_names()]
+
     return dbc.Row([
         dbc.Col([
             # Preprocessing
@@ -224,108 +247,39 @@ def create_pipeline_modules_section():
                     )
                 ])
             ], className="mb-3"),
-            
+
             # Structural
             dbc.Card([
                 dbc.CardHeader("Structural Processing"),
                 dbc.CardBody([
                     dbc.RadioItems(
-                        id="structural-options",
-                        options=[
-                            {"label": "None", "value": "none"},
-                            {"label": "Volume", "value": "volume"}
-                        ],
+                        id="structural-radio",
+                        options=structural_options,
                         value="none",
                         inline=True
                     )
                 ])
             ], className="mb-3"),
-            
-            # Resting State fMRI
+
+            # BIDS Pipelines
             dbc.Card([
-                dbc.CardHeader("Resting State fMRI"),
+                dbc.CardHeader("BIDS Pipelines"),
                 dbc.CardBody([
                     dbc.Row([
                         dbc.Col([
-                            dbc.Label("Preprocessing:"),
-                            dbc.RadioItems(
-                                id="rest-prep",
-                                options=[
-                                    {"label": "None", "value": "none"},
-                                    {"label": "fMRIPrep", "value": "fmriprep"}
-                                ],
-                                value="none",
-                                inline=True
-                            )
-                        ], width=6),
-                        dbc.Col([
-                            dbc.Label("Postprocessing:"),
-                            dbc.RadioItems(
-                                id="rest-post",
-                                options=[
-                                    {"label": "None", "value": "none"},
-                                    {"label": "XCP-D", "value": "xcpd"}
-                                ],
-                                value="none",
-                                inline=True
-                            )
-                        ], width=6)
-                    ])
-                ])
-            ], className="mb-3"),
-            
-            # DWI
-            dbc.Card([
-                dbc.CardHeader("DWI (Diffusion Weighted Imaging)"),
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Preprocessing:"),
-                            dbc.RadioItems(
-                                id="dwi-prep",
-                                options=[
-                                    {"label": "None", "value": "none"},
-                                    {"label": "QSIPrep", "value": "qsiprep"}
-                                ],
-                                value="none",
-                                inline=True
-                            )
-                        ], width=6),
-                        dbc.Col([
-                            dbc.Label("Postprocessing:"),
-                            dbc.RadioItems(
-                                id="dwi-post",
-                                options=[
-                                    {"label": "None", "value": "none"},
-                                    {"label": "QSIRecon", "value": "qsirecon"}
-                                ],
-                                value="none",
-                                inline=True
-                            )
-                        ], width=6)
-                    ])
-                ])
-            ], className="mb-3"),
-            
-            # Task fMRI
-            dbc.Card([
-                dbc.CardHeader("Task fMRI"),
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Preprocessing:", html_for="task-prep"),
+                            dbc.Label("Preprocessing (--bids-prep):"),
                             dbc.Checklist(
-                                id="task-prep",
-                                options=get_task_options('_preprocess'),
+                                id="bids-prep-checklist",
+                                options=bids_options,
                                 value=[],
                                 inline=True
                             )
                         ], width=6),
                         dbc.Col([
-                            dbc.Label("Postprocessing:", html_for="task-post"),
+                            dbc.Label("Postprocessing (--bids-post):"),
                             dbc.Checklist(
-                                id="task-post",
-                                options=get_task_options('_postprocess'),
+                                id="bids-post-checklist",
+                                options=bids_options,
                                 value=[],
                                 inline=True
                             )
@@ -333,7 +287,34 @@ def create_pipeline_modules_section():
                     ])
                 ])
             ], className="mb-3"),
-            
+
+            # Staged Pipelines
+            dbc.Card([
+                dbc.CardHeader("Staged Pipelines"),
+                dbc.CardBody([
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Preprocessing (--staged-prep):"),
+                            dbc.Checklist(
+                                id="staged-prep-checklist",
+                                options=staged_options,
+                                value=[],
+                                inline=True
+                            )
+                        ], width=6),
+                        dbc.Col([
+                            dbc.Label("Postprocessing (--staged-post):"),
+                            dbc.Checklist(
+                                id="staged-post-checklist",
+                                options=staged_options,
+                                value=[],
+                                inline=True
+                            )
+                        ], width=6)
+                    ])
+                ])
+            ], className="mb-3"),
+
             # Quality Control
             dbc.Card([
                 dbc.CardHeader("Quality Control (MRIQC)"),
@@ -352,4 +333,178 @@ def create_pipeline_modules_section():
                 ])
             ])
         ])
+    ])
+
+def build_dag_elements(prep_option, structural_value, bids_prep, bids_post,
+                       staged_prep, staged_post, mriqc_option):
+    has_unzip = prep_option in ('unzip', 'unzip_recon')
+    has_recon = prep_option in ('recon', 'unzip_recon')
+    has_structural = bool(structural_value and structural_value != 'none')
+    has_mriqc_indiv = mriqc_option in ('individual', 'all')
+    has_mriqc_group = mriqc_option in ('group', 'all')
+
+    nodes, edges = [], []
+
+    def node(nid, label, cls):
+        nodes.append({'data': {'id': nid, 'label': label}, 'classes': cls})
+
+    def edge(src, tgt, cls):
+        edges.append({'data': {'source': src, 'target': tgt}, 'classes': cls})
+
+    if has_unzip:
+        node('unzip', 'Unzip', 'prep')
+    if has_recon:
+        node('recon_bids', 'BIDS Conversion\n(recon_bids)', 'prep')
+    if has_unzip and has_recon:
+        edge('unzip', 'recon_bids', 'prep')
+    if has_structural:
+        node('structural', f'Structural\n({structural_value})', 'structural')
+        if has_recon:
+            edge('recon_bids', 'structural', 'structural')
+
+    for p in (bids_prep or []):
+        nid = f'bids_prep_{p}'
+        node(nid, f'BIDS Prep\n({p})', 'bids')
+        if has_recon:
+            edge('recon_bids', nid, 'bids')
+    for p in (bids_post or []):
+        nid_post = f'bids_post_{p}'
+        node(nid_post, f'BIDS Post\n({p})', 'bids')
+        nid_prep = f'bids_prep_{p}'
+        if p in (bids_prep or []):
+            edge(nid_prep, nid_post, 'bids')
+
+    for p in (staged_prep or []):
+        nid = f'staged_prep_{p}'
+        node(nid, f'Staged Prep\n({p})', 'staged')
+        if has_structural:
+            edge('structural', nid, 'staged')
+    for p in (staged_post or []):
+        nid_post = f'staged_post_{p}'
+        node(nid_post, f'Staged Post\n({p})', 'staged')
+        if p in (staged_prep or []):
+            edge(f'staged_prep_{p}', nid_post, 'staged')
+
+    if has_mriqc_indiv:
+        node('mriqc_indiv', 'MRIQC Individual', 'qc')
+        if has_recon:
+            edge('recon_bids', 'mriqc_indiv', 'qc')
+    if has_mriqc_group:
+        node('mriqc_group', 'MRIQC Group', 'qc')
+        if has_mriqc_indiv:
+            edge('mriqc_indiv', 'mriqc_group', 'qc')
+        elif has_recon:
+            edge('recon_bids', 'mriqc_group', 'qc')
+
+    return nodes + edges
+
+
+def _dag_stylesheet():
+    colours = {
+        'prep':       '#E67E22',
+        'structural': '#27AE60',
+        'bids':       '#2980B9',
+        'staged':     '#16A085',
+        'qc':         '#8E44AD',
+    }
+
+    base = [
+        {
+            'selector': 'node',
+            'style': {
+                'content': 'data(label)',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'text-wrap': 'wrap',
+                'shape': 'round-rectangle',
+                'width': '150px',
+                'height': '50px',
+                'font-size': '12px',
+                'font-family': 'sans-serif',
+                'background-opacity': 0,   # transparent fill
+                'border-width': 2,
+                'color': '#374151',        # dark-grey text for all nodes
+                'font-weight': 'bold',
+            }
+        },
+        {
+            'selector': 'edge',
+            'style': {
+                'curve-style': 'bezier',
+                'width': 1.5,
+                'target-arrow-shape': 'triangle',
+                'arrow-scale': 0.9,
+            }
+        },
+    ]
+
+    # Per-class overrides: only border / line / arrow colour changes
+    for cls, colour in colours.items():
+        base.append({
+            'selector': f'.{cls}',
+            'style': {
+                'border-color': colour,
+                'line-color': colour,
+                'target-arrow-color': colour,
+            }
+        })
+
+    return base
+
+
+def _dag_legend():
+    items = [
+        ('#E67E22', 'Preprocessing'),
+        ('#27AE60', 'Structural'),
+        ('#2980B9', 'BIDS pipelines'),
+        ('#16A085', 'Staged pipelines'),
+        ('#8E44AD', 'Quality Control'),
+    ]
+    badges = []
+    for colour, label in items:
+        badges.append(
+            html.Span(
+                label,
+                style={
+                    'display': 'inline-block',
+                    'marginRight': '12px',
+                    'padding': '2px 8px',
+                    'borderRadius': '4px',
+                    'border': f'2px solid {colour}',
+                    'color': '#374151',
+                    'fontSize': '12px',
+                    'fontWeight': 'bold',
+                }
+            )
+        )
+    return html.Div(badges, className="mb-2")
+
+
+def create_dag_visualization():
+    return html.Div([
+        html.Div([
+            _dag_legend(),
+            dbc.Button("Reset View", id="dag-reset-btn", color="outline-secondary",
+                       size="sm", className="mb-2 float-end"),
+        ], style={'overflow': 'hidden'}),
+        cyto.Cytoscape(
+            id='dag-overview',
+            elements=[],
+            stylesheet=_dag_stylesheet(),
+            style={'width': '100%', 'height': '280px', 'backgroundColor': '#FAFAFA'},
+            layout={
+                'name': 'dagre',
+                'rankDir': 'LR',
+                'nodeSep': 40,
+                'rankSep': 90,
+                'spacingFactor': 1.0,
+            },
+            userZoomingEnabled=True,
+            userPanningEnabled=True,
+            autoungrabify=True,
+        ),
+        html.P(
+            "Tip: BIDS and QC tasks wait for recon_bids. Staged tasks wait for structural (if selected), otherwise run in parallel with recon.",
+            className="text-muted small mt-2"
+        )
     ])

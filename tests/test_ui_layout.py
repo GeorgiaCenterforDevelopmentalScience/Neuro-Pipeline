@@ -91,6 +91,26 @@ class TestJobMonitorLayout:
         assert "sql-query-results" in self.ids
         assert "sql-query-charts" in self.ids
 
+    def test_generate_report_ids_present(self):
+        for expected_id in (
+            "report-project",
+            "report-session",
+            "report-check-results",
+            "report-output-path",
+            "generate-report-btn",
+            "generate-report-result",
+        ):
+            assert expected_id in self.ids, f"Missing component id: {expected_id}"
+
+    def test_wrapper_inspector_ids_present(self):
+        for expected_id in (
+            "wrapper-task-filter",
+            "wrapper-job-id",
+            "load-wrapper-btn",
+            "wrapper-inspect-result",
+        ):
+            assert expected_id in self.ids, f"Missing component id: {expected_id}"
+
 
 # ---------------------------------------------------------------------------
 # Analysis Control layout
@@ -122,25 +142,22 @@ class TestAppRouting:
         self._display_page = app_module.display_page
 
     def test_root_returns_analysis_control(self):
-        result = self._display_page("/")
-        ids = collect_ids(result)
-        # Analysis control page should have some components
-        assert result is not None
+        component, _ = self._display_page("/")
+        assert component is not None
 
     def test_analysis_control_route(self):
-        result = self._display_page("/analysis-control")
-        assert result is not None
+        component, _ = self._display_page("/analysis-control")
+        assert component is not None
 
     def test_job_monitor_route_returns_container(self):
-        result = self._display_page("/job-monitor")
-        assert isinstance(result, dbc.Container)
-        ids = collect_ids(result)
-        assert "db-path" in ids
+        component, _ = self._display_page("/job-monitor")
+        assert isinstance(component, dbc.Container)
+        assert "db-path" in collect_ids(component)
 
     def test_project_config_route(self):
-        result = self._display_page("/project-config")
-        assert result is not None
+        component, _ = self._display_page("/project-config")
+        assert component is not None
 
     def test_unknown_route_returns_default(self):
-        result = self._display_page("/nonexistent-page")
-        assert result is not None
+        component, _ = self._display_page("/nonexistent-page")
+        assert component is not None

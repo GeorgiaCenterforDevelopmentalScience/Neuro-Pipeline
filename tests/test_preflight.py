@@ -9,7 +9,6 @@ import os
 import pytest
 import yaml
 from pathlib import Path
-from unittest.mock import patch
 
 from tests.conftest import MOCK_CONFIG, MOCK_HPC_CONFIG, MOCK_PROJECT_CONFIG
 from neuro_pipeline.pipeline.utils.preflight import (
@@ -23,13 +22,11 @@ from neuro_pipeline.pipeline.utils.preflight import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-def make_checker(project_config=None, global_config=None, hpc_config=None, work_dir=None, input_dir=None, tmp_path=None):
+def make_checker(project_config=None, global_config=None, hpc_config=None, **_):
     return PreflightChecker(
         project_config=project_config or MOCK_PROJECT_CONFIG,
         global_config=global_config or MOCK_CONFIG,
         hpc_config=hpc_config if hpc_config is not None else MOCK_HPC_CONFIG,
-        work_dir=work_dir or (tmp_path / "work" if tmp_path else "/tmp/work"),
-        input_dir=input_dir or (tmp_path / "input" if tmp_path else "/tmp/input"),
     )
 
 # ---------------------------------------------------------------------------
@@ -73,7 +70,7 @@ class TestSchemaChecks:
         errors = [i for i in checker._issues if i.severity == "ERROR" and i.category == "schema"]
         assert errors == [], f"Unexpected schema errors: {errors}"
 
-    @pytest.mark.parametrize("missing_key", ["prefix", "scripts_dir", "envir_dir", "database", "setup"])
+    @pytest.mark.parametrize("missing_key", ["prefix", "scripts_dir", "envir_dir", "database", "tasks"])
     def test_error_for_missing_required_key(self, missing_key, tmp_path):
         pc = {k: v for k, v in MOCK_PROJECT_CONFIG.items() if k != missing_key}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
@@ -95,28 +92,18 @@ class TestSchemaChecks:
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
         assert any("db_path" in m for m in messages)
 
-    # --- Setup task references ---------------------------------------------
+    # --- Tasks entry references --------------------------------------------
 
-    def test_error_when_setup_task_not_in_global_config(self, tmp_path):
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "setup": {
-                "prep": [{"name": "nonexistent_task"}]
-            }
-        }
+    def test_error_when_task_not_in_global_config(self, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"nonexistent_task": {}}}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
         assert any("nonexistent_task" in m for m in messages)
 
     def test_no_error_for_known_task(self, tmp_path):
-        # unzip exists in MOCK_CONFIG tasks.prep
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "setup": {
-                "prep": [{"name": "unzip"}]
-            }
-        }
+        # unzip exists in MOCK_CONFIG
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"environ": ["data_manage_1"]}}}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         task_errors = [
@@ -125,29 +112,24 @@ class TestSchemaChecks:
         ]
         assert task_errors == []
 
-    def test_error_when_setup_section_is_not_list(self, tmp_path):
-        pc = {**MOCK_PROJECT_CONFIG, "setup": {"prep": "not_a_list"}}
+    def test_error_when_tasks_is_not_a_dict(self, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": "not_a_dict"}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
-        assert any("must be a list" in m for m in messages)
+        assert any("must be a mapping" in m for m in messages)
 
-    def test_error_when_entry_missing_name(self, tmp_path):
-        pc = {**MOCK_PROJECT_CONFIG, "setup": {"prep": [{"environ": ["data_manage_1"]}]}}
+    def test_error_when_task_entry_is_not_a_dict(self, tmp_path):
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": "invalid"}}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
-        assert any("missing the 'name'" in m for m in messages)
+        assert any("must be a mapping" in m for m in messages)
 
     # --- Environ references ------------------------------------------------
 
     def test_error_when_environ_module_not_defined(self, tmp_path):
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "setup": {
-                "prep": [{"name": "unzip", "environ": ["nonexistent_module"]}]
-            }
-        }
+        pc = {**MOCK_PROJECT_CONFIG, "tasks": {"unzip": {"environ": ["nonexistent_module"]}}}
         checker = make_checker(project_config=pc, tmp_path=tmp_path)
         checker.check_schema()
         messages = [i.message for i in checker._issues if i.severity == "ERROR"]
@@ -176,170 +158,24 @@ class TestSchemaChecks:
 
 
 # ===========================================================================
-# Filesystem checks
-# ===========================================================================
-
-class TestFilesystemChecks:
-
-    def test_error_when_input_dir_missing(self, tmp_path):
-        checker = make_checker(
-            input_dir=tmp_path / "nonexistent_input",
-            work_dir=tmp_path / "work",
-            tmp_path=tmp_path,
-        )
-        checker.check_filesystem()
-        messages = [i.message for i in checker._issues if i.severity == "ERROR"]
-        assert any("input directory" in m for m in messages)
-
-    def test_no_error_when_input_dir_exists(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        checker = make_checker(
-            input_dir=tmp_path / "input",
-            work_dir=tmp_path / "work",
-            tmp_path=tmp_path,
-        )
-        checker.check_filesystem()
-        input_errors = [
-            i for i in checker._issues
-            if i.severity == "ERROR" and "input directory" in i.message
-        ]
-        assert input_errors == []
-
-    def test_error_when_scripts_dir_missing(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        pc = {**MOCK_PROJECT_CONFIG, "scripts_dir": "scripts/does_not_exist"}
-        checker = make_checker(
-            project_config=pc,
-            input_dir=tmp_path / "input",
-            work_dir=tmp_path / "work",
-        )
-        # Patch _PIPELINE_ROOT to tmp_path so the path resolves under tmp
-        with patch.object(type(checker), "_PIPELINE_ROOT", tmp_path):
-            checker.check_filesystem()
-        messages = [i.message for i in checker._issues if i.severity == "ERROR"]
-        assert any("scripts_dir" in m for m in messages)
-
-    def test_error_when_script_file_missing(self, tmp_path):
-        """scripts_dir exists but one of the scripts referenced by a task is absent."""
-        (tmp_path / "input").mkdir()
-        scripts_dir = tmp_path / "scripts" / "test"
-        scripts_dir.mkdir(parents=True)
-        # Do NOT create the scripts → should trigger errors
-
-        pc = {**MOCK_PROJECT_CONFIG, "scripts_dir": "scripts/test"}
-        checker = make_checker(
-            project_config=pc,
-            input_dir=tmp_path / "input",
-            work_dir=tmp_path / "work",
-        )
-        with patch.object(type(checker), "_PIPELINE_ROOT", tmp_path):
-            checker.check_filesystem()
-        script_errors = [i for i in checker._issues if i.category == "scripts" and i.severity == "ERROR"]
-        assert len(script_errors) > 0
-
-    def test_no_script_errors_when_all_scripts_present(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        scripts_dir = tmp_path / "scripts" / "test"
-        scripts_dir.mkdir(parents=True)
-        # Create all scripts referenced in MOCK_CONFIG
-        for section_tasks in MOCK_CONFIG["tasks"].values():
-            for task in section_tasks:
-                for script in task.get("scripts", []):
-                    (scripts_dir / script).write_text("#!/bin/bash\necho mock\n")
-
-        pc = {**MOCK_PROJECT_CONFIG, "scripts_dir": "scripts/test"}
-        checker = make_checker(
-            project_config=pc,
-            input_dir=tmp_path / "input",
-            work_dir=tmp_path / "work",
-        )
-        with patch.object(type(checker), "_PIPELINE_ROOT", tmp_path):
-            checker.check_filesystem()
-        script_errors = [i for i in checker._issues if i.category == "scripts" and i.severity == "ERROR"]
-        assert script_errors == []
-
-    def test_warning_when_container_dir_missing(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "envir_dir": {**MOCK_PROJECT_CONFIG["envir_dir"], "container_dir": str(tmp_path / "no_containers")},
-        }
-        checker = make_checker(
-            project_config=pc,
-            input_dir=tmp_path / "input",
-            work_dir=tmp_path / "work",
-        )
-        checker.check_filesystem()
-        warnings = [i for i in checker._issues if i.category == "containers" and i.severity == "WARNING"]
-        assert len(warnings) > 0
-
-    def test_warning_when_container_file_missing(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        container_dir = tmp_path / "containers"
-        container_dir.mkdir()
-        # container_dir exists but .sif files are absent
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "envir_dir": {**MOCK_PROJECT_CONFIG["envir_dir"], "container_dir": str(container_dir)},
-        }
-        checker = make_checker(
-            project_config=pc,
-            input_dir=tmp_path / "input",
-            work_dir=tmp_path / "work",
-        )
-        checker.check_filesystem()
-        container_warnings = [i for i in checker._issues if i.category == "containers" and i.severity == "WARNING"]
-        assert len(container_warnings) > 0
-
-    def test_no_container_warnings_when_all_sifs_present(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        container_dir = tmp_path / "containers"
-        container_dir.mkdir()
-
-        # Collect all containers referenced in setup
-        for section_tasks in MOCK_PROJECT_CONFIG.get("setup", {}).values():
-            for task in section_tasks:
-                c = task.get("container")
-                if c:
-                    (container_dir / c).write_text("mock sif")
-
-        pc = {
-            **MOCK_PROJECT_CONFIG,
-            "envir_dir": {**MOCK_PROJECT_CONFIG["envir_dir"], "container_dir": str(container_dir)},
-        }
-        checker = make_checker(
-            project_config=pc,
-            input_dir=tmp_path / "input",
-            work_dir=tmp_path / "work",
-        )
-        checker.check_filesystem()
-        container_warnings = [i for i in checker._issues if i.category == "containers" and i.severity == "WARNING"]
-        assert container_warnings == []
-
-
-# ===========================================================================
 # run_all integration
 # ===========================================================================
 
 class TestRunAll:
 
-    def test_returns_preflight_result(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        checker = make_checker(input_dir=tmp_path / "input", work_dir=tmp_path / "work")
-        result = checker.run_all()
+    def test_returns_preflight_result(self):
+        result = make_checker().run_all()
         assert isinstance(result, PreflightResult)
 
-    def test_clean_state_resets_between_calls(self, tmp_path):
-        (tmp_path / "input").mkdir()
-        checker = make_checker(input_dir=tmp_path / "input", work_dir=tmp_path / "work")
+    def test_clean_state_resets_between_calls(self):
+        checker = make_checker()
         r1 = checker.run_all()
         r2 = checker.run_all()
         assert len(r1.issues) == len(r2.issues)
 
-    def test_bad_config_produces_errors(self, tmp_path):
+    def test_bad_config_produces_errors(self):
         pc = {"prefix": "sub-"}  # missing most keys
-        checker = make_checker(project_config=pc, tmp_path=tmp_path)
-        result = checker.run_all()
+        result = make_checker(project_config=pc).run_all()
         assert not result.ok
 
 

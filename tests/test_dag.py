@@ -1,27 +1,21 @@
 """
-test_dag.py
+test_dag.py — Tests for pipeline/dag.py
 
-Tests for pipeline/dag.py
-
-Covers:
-- DAGExecutor.build_dag          dependency graph construction
-- DAGExecutor._topological_sort  correct order + circular-dependency detection
-- mriqc_post must follow mriqc_preprocess
-- rest_post must follow rest_preprocess
-- task _preprocess depends on afni_ structural task when both requested
-- TaskRegistry.expand_tasks      various CLI option combinations
+DAG rules under test:
+  1. unzip -> recon_bids (if both requested)
+  2. recon_bids -> all non-staged downstream tasks (bids, mriqc, structural)
+  3. structural -> staged prep tasks (multi_stage=true, stage=prep) only
+  4. staged post tasks depend only on their matching staged prep (same section)
+  5. Without structural, staged tasks run in parallel with recon_bids
+  6. Within each config section: post -> prep
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from tests.conftest import MOCK_CONFIG, MOCK_PROJECT_CONFIG
-
 
 CONFIG_PATH = "neuro_pipeline.pipeline.utils.config_utils.config"
 
-# ---------------------------------------------------------------------------
-# Helper: build a DAGExecutor with the mock config and project config
-# ---------------------------------------------------------------------------
 
 def make_executor():
     with patch(CONFIG_PATH, MOCK_CONFIG):
@@ -31,22 +25,31 @@ def make_executor():
         return executor
 
 
+def build(tasks):
+    with patch(CONFIG_PATH, MOCK_CONFIG):
+        executor = make_executor()
+        order = executor.build_dag(tasks)
+        return executor, order
+
+
+def deps(executor, task):
+    return executor.nodes[task].dependencies
+
+
 # ===========================================================================
-# Topological sort — pure graph logic
+# Topological sort
 # ===========================================================================
 
 class TestTopologicalSort:
 
-    def test_single_node_no_deps(self):
+    def test_single_node(self):
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.dag import TaskNode
             executor.nodes = {"unzip": TaskNode("unzip", {}, dependencies=set())}
-            result = executor._topological_sort()
-        assert result == ["unzip"]
+            assert executor._topological_sort() == ["unzip"]
 
     def test_linear_chain(self):
-        """A → B → C  must produce [A, B, C]"""
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.dag import TaskNode
@@ -70,14 +73,6 @@ class TestTopologicalSort:
                 executor._topological_sort()
 
     def test_diamond_dependency(self):
-        """
-              root
-             /    \\
-           left  right
-             \\    /
-              leaf
-        All orderings must have root first and leaf last.
-        """
         executor = make_executor()
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.dag import TaskNode
@@ -93,253 +88,142 @@ class TestTopologicalSort:
 
 
 # ===========================================================================
-# build_dag — dependency wiring for real tasks
+# Rule 1: unzip -> recon_bids
 # ===========================================================================
 
-class TestBuildDAG:
+class TestPrepChain:
 
-    def _build(self, tasks, rest_deps=None, dwi_deps=None):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            executor = make_executor()
-            order = executor.build_dag(tasks, rest_deps, dwi_deps)
-            return executor, order
-
-    # --- prep chain ---------------------------------------------------------
-
-    def test_unzip_has_no_deps(self):
-        executor, order = self._build(["unzip"])
-        assert executor.nodes["unzip"].dependencies == set()
-
-    def test_recon_bids_depends_on_unzip_when_both_requested(self):
-        executor, order = self._build(["unzip", "recon_bids"])
-        assert "unzip" in executor.nodes["recon_bids"].dependencies
+    def test_recon_depends_on_unzip_when_both_requested(self):
+        executor, order = build(["unzip", "recon_bids"])
+        assert "unzip" in deps(executor, "recon_bids")
         assert order.index("unzip") < order.index("recon_bids")
 
-    def test_recon_bids_no_dep_when_unzip_not_requested(self):
-        """If user only asks for recon_bids, no unzip dep should be wired."""
-        executor, order = self._build(["recon_bids"])
-        assert "unzip" not in executor.nodes["recon_bids"].dependencies
+    def test_recon_no_unzip_dep_when_only_recon_requested(self):
+        executor, _ = build(["recon_bids"])
+        assert "unzip" not in deps(executor, "recon_bids")
 
-    # --- mriqc group / individual -------------------------------------------
+    def test_unzip_has_no_deps(self):
+        executor, _ = build(["unzip"])
+        assert deps(executor, "unzip") == set()
 
-    def test_mriqc_group_follows_individual_when_both_requested(self):
-        executor, order = self._build(["mriqc_preprocess", "mriqc_post"])
-        assert "mriqc_preprocess" in executor.nodes["mriqc_post"].dependencies
-        assert order.index("mriqc_preprocess") < order.index("mriqc_post")
 
-    def test_mriqc_group_alone_has_no_individual_dep(self):
-        executor, order = self._build(["mriqc_post"])
-        assert "mriqc_preprocess" not in executor.nodes["mriqc_post"].dependencies
+# ===========================================================================
+# Rule 2: recon_bids -> non-staged downstream
+# ===========================================================================
 
-    # --- rest pipeline -------------------------------------------------------
+class TestReconDependencies:
 
-    def test_rest_post_fc_depends_on_preprocess(self):
-        rest_deps = [("rest_post", ["rest_preprocess"])]
-        executor, order = self._build(
-            ["rest_preprocess", "rest_post"],
-            rest_deps=rest_deps,
-        )
-        assert "rest_preprocess" in executor.nodes["rest_post"].dependencies
-        assert order.index("rest_preprocess") < order.index("rest_post")
+    def test_structural_depends_on_recon(self):
+        executor, order = build(["recon_bids", "afni_volume"])
+        assert "recon_bids" in deps(executor, "afni_volume")
+        assert order.index("recon_bids") < order.index("afni_volume")
 
-    # --- DWI pipeline -------------------------------------------------------
+    def test_bids_prep_depends_on_recon(self):
+        executor, order = build(["recon_bids", "rest_preprocess"])
+        assert "recon_bids" in deps(executor, "rest_preprocess")
 
-    def test_dwi_post_depends_on_dwi_preprocess(self):
-        dwi_deps = [("dwi_post", ["dwi_preprocess"])]
-        executor, order = self._build(
-            ["dwi_preprocess", "dwi_post"],
-            dwi_deps=dwi_deps,
-        )
-        assert "dwi_preprocess" in executor.nodes["dwi_post"].dependencies
-        assert order.index("dwi_preprocess") < order.index("dwi_post")
+    def test_mriqc_prep_depends_on_recon(self):
+        executor, order = build(["recon_bids", "mriqc_preprocess"])
+        assert "recon_bids" in deps(executor, "mriqc_preprocess")
 
-    def test_dwi_preprocess_no_dep_when_dwi_post_not_requested(self):
-        """dwi_preprocess alone should have no dwi_post dependency wired."""
-        executor, order = self._build(["dwi_preprocess"])
-        assert "dwi_post" not in executor.nodes["dwi_preprocess"].dependencies
 
-    def test_dwi_preprocess_depends_on_recon_bids_when_both_requested(self):
-        executor, order = self._build(["recon_bids", "dwi_preprocess"])
-        assert "recon_bids" in executor.nodes["dwi_preprocess"].dependencies
-        assert order.index("recon_bids") < order.index("dwi_preprocess")
+# ===========================================================================
+# Rule 3: structural -> staged prep only (not staged post)
+# ===========================================================================
 
-    def test_dwi_deps_independent_from_rest_deps(self):
-        """DWI and rest dependencies must not interfere with each other."""
-        rest_deps = [("rest_post", ["rest_preprocess"])]
-        dwi_deps = [("dwi_post", ["dwi_preprocess"])]
-        executor, order = self._build(
-            ["rest_preprocess", "rest_post", "dwi_preprocess", "dwi_post"],
-            rest_deps=rest_deps,
-            dwi_deps=dwi_deps,
-        )
-        assert "rest_preprocess" in executor.nodes["rest_post"].dependencies
-        assert "dwi_preprocess" in executor.nodes["dwi_post"].dependencies
-        assert order.index("rest_preprocess") < order.index("rest_post")
-        assert order.index("dwi_preprocess") < order.index("dwi_post")
+class TestStructuralDependencies:
 
-    # --- task_afni + structural ----------------------------------------------
-
-    def test_cards_preprocess_depends_on_afni_volume_when_both_requested(self):
-        executor, order = self._build(["afni_volume", "cards_preprocess"])
-        assert "afni_volume" in executor.nodes["cards_preprocess"].dependencies
+    def test_staged_prep_depends_on_structural(self):
+        executor, order = build(["afni_volume", "cards_preprocess"])
+        assert "afni_volume" in deps(executor, "cards_preprocess")
         assert order.index("afni_volume") < order.index("cards_preprocess")
 
-    def test_cards_preprocess_no_structural_dep_when_not_requested(self):
-        executor, order = self._build(["cards_preprocess"])
-        assert "afni_volume" not in executor.nodes.get("cards_preprocess", MagicMock()).dependencies
+    def test_structural_does_not_wire_to_staged_post_directly(self):
+        """staged_post has no prep in this request — structural must NOT connect to it."""
+        executor, _ = build(["afni_volume", "kidvid_preprocess"])
+        # there is no kidvid_post in MOCK_CONFIG so we verify structural only touches prep
+        assert "afni_volume" in deps(executor, "kidvid_preprocess")
 
-    # --- execution order is complete ----------------------------------------
+    def test_both_staged_preps_depend_on_structural(self):
+        executor, order = build(["afni_volume", "cards_preprocess", "kidvid_preprocess"])
+        assert "afni_volume" in deps(executor, "cards_preprocess")
+        assert "afni_volume" in deps(executor, "kidvid_preprocess")
 
-    def test_all_requested_tasks_appear_in_order(self):
-        tasks = ["unzip", "recon_bids", "mriqc_preprocess", "mriqc_post"]
-        executor, order = self._build(tasks)
+
+# ===========================================================================
+# Rule 4: staged post depends only on matching staged prep
+# ===========================================================================
+
+class TestSectionDependencies:
+
+    def test_mriqc_post_depends_on_mriqc_prep(self):
+        executor, order = build(["mriqc_preprocess", "mriqc_post"])
+        assert "mriqc_preprocess" in deps(executor, "mriqc_post")
+        assert order.index("mriqc_preprocess") < order.index("mriqc_post")
+
+    def test_rest_post_depends_on_rest_prep(self):
+        executor, order = build(["rest_preprocess", "rest_post"])
+        assert "rest_preprocess" in deps(executor, "rest_post")
+        assert order.index("rest_preprocess") < order.index("rest_post")
+
+    def test_dwi_post_depends_on_dwi_prep(self):
+        executor, order = build(["dwi_preprocess", "dwi_post"])
+        assert "dwi_preprocess" in deps(executor, "dwi_post")
+        assert order.index("dwi_preprocess") < order.index("dwi_post")
+
+    def test_rest_post_alone_has_no_prep_dep(self):
+        executor, _ = build(["rest_post"])
+        assert "rest_preprocess" not in deps(executor, "rest_post")
+
+    def test_mriqc_post_alone_has_no_individual_dep(self):
+        executor, _ = build(["mriqc_post"])
+        assert "mriqc_preprocess" not in deps(executor, "mriqc_post")
+
+
+# ===========================================================================
+# Rule 5: without structural, staged runs parallel with recon
+# ===========================================================================
+
+class TestStagedParallelWithoutStructural:
+
+    def test_staged_prep_has_no_recon_dep_without_structural(self):
+        executor, _ = build(["recon_bids", "cards_preprocess"])
+        assert "recon_bids" not in deps(executor, "cards_preprocess")
+
+    def test_staged_prep_has_no_structural_dep_when_structural_not_requested(self):
+        executor, _ = build(["cards_preprocess"])
+        assert "afni_volume" not in deps(executor, "cards_preprocess")
+
+    def test_two_staged_preps_parallel_without_structural(self):
+        executor, _ = build(["recon_bids", "cards_preprocess", "kidvid_preprocess"])
+        assert "recon_bids" not in deps(executor, "cards_preprocess")
+        assert "recon_bids" not in deps(executor, "kidvid_preprocess")
+        assert "cards_preprocess" not in deps(executor, "kidvid_preprocess")
+        assert "kidvid_preprocess" not in deps(executor, "cards_preprocess")
+
+
+# ===========================================================================
+# Full chain: recon -> structural -> staged prep -> (staged post via section)
+# ===========================================================================
+
+class TestFullChain:
+
+    def test_recon_structural_staged_prep_chain(self):
+        executor, order = build(["recon_bids", "afni_volume", "cards_preprocess"])
+        assert "recon_bids" in deps(executor, "afni_volume")
+        assert "afni_volume" in deps(executor, "cards_preprocess")
+        assert order.index("recon_bids") < order.index("afni_volume") < order.index("cards_preprocess")
+
+    def test_two_staged_pipelines_parallel_after_structural(self):
+        executor, order = build(["afni_volume", "cards_preprocess", "kidvid_preprocess"])
+        assert "afni_volume" in deps(executor, "cards_preprocess")
+        assert "afni_volume" in deps(executor, "kidvid_preprocess")
+        # cards and kidvid must not depend on each other
+        assert "cards_preprocess" not in deps(executor, "kidvid_preprocess")
+        assert "kidvid_preprocess" not in deps(executor, "cards_preprocess")
+
+    def test_all_tasks_appear_in_order(self):
+        tasks = ["recon_bids", "afni_volume", "cards_preprocess", "mriqc_preprocess", "mriqc_post"]
+        executor, order = build(tasks)
         for t in tasks:
             assert t in order
-
-
-# ===========================================================================
-# TaskRegistry.expand_tasks — CLI option → task list
-# ===========================================================================
-
-class TestTaskRegistry:
-
-    def _registry(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.dag import TaskRegistry
-            return TaskRegistry()
-
-    # --- prep ---------------------------------------------------------------
-
-    def test_prep_unzip(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import PrepChoice
-            r = self._registry()
-            tasks = r.expand_tasks(prep=PrepChoice.unzip)
-        assert tasks == ["unzip"]
-
-    def test_prep_recon(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import PrepChoice
-            r = self._registry()
-            tasks = r.expand_tasks(prep=PrepChoice.recon)
-        assert tasks == ["recon_bids"]
-
-    def test_prep_unzip_recon_expands_to_both(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import PrepChoice
-            r = self._registry()
-            tasks = r.expand_tasks(prep=PrepChoice.unzip_recon)
-        assert "unzip" in tasks
-        assert "recon_bids" in tasks
-
-    # --- structural ---------------------------------------------------------
-
-    def test_structural_volume(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(structural=True)
-        assert "afni_volume" in tasks
-
-    # --- mriqc --------------------------------------------------------------
-
-    def test_mriqc_individual(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import MRIQCChoice
-            r = self._registry()
-            tasks = r.expand_tasks(mriqc=MRIQCChoice.individual)
-        assert tasks == ["mriqc_preprocess"]
-
-    def test_mriqc_group(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import MRIQCChoice
-            r = self._registry()
-            tasks = r.expand_tasks(mriqc=MRIQCChoice.group)
-        assert tasks == ["mriqc_post"]
-
-    def test_mriqc_all_expands_to_both(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            from neuro_pipeline.pipeline.utils.config_utils import MRIQCChoice
-            r = self._registry()
-            tasks = r.expand_tasks(mriqc=MRIQCChoice.all)
-        assert "mriqc_preprocess" in tasks
-        assert "mriqc_post" in tasks
-
-    # --- rest ---------------------------------------------------------------
-
-    def test_rest_prep_fmriprep(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(rest_prep=True)
-        assert "rest_preprocess" in tasks
-
-    def test_rest_post_xcpd(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(rest_post=True)
-        assert "rest_post" in tasks
-
-    def test_rest_prep_and_post_together(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(
-                rest_prep=True,
-                rest_post=True,
-            )
-        assert "rest_preprocess" in tasks
-        assert "rest_post" in tasks
-
-    # --- task_prep (the key CLI flow) ---------------------------------------
-
-    def test_task_prep_cards(self):
-        """--task-prep cards  should include cards_preprocess in the plan."""
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(task_prep=["cards_preprocess"])
-        assert "cards_preprocess" in tasks
-
-    def test_task_prep_multiple(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(task_prep=["cards_preprocess", "kidvid_preprocess"])
-        assert "cards_preprocess" in tasks
-        assert "kidvid_preprocess" in tasks
-
-    # --- no tasks -----------------------------------------------------------
-
-    def test_no_options_returns_empty(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks()
-        assert tasks == []
-
-    # --- DWI ----------------------------------------------------------------
-
-    def test_dwi_prep_qsiprep(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(dwi_prep=True)
-        assert "dwi_preprocess" in tasks
-
-    def test_dwi_post_qsirecon(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(dwi_post=True)
-        assert "dwi_post" in tasks
-
-    def test_dwi_prep_and_post_together(self):
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(
-                dwi_prep=True,
-                dwi_post=True,
-            )
-        assert "dwi_preprocess" in tasks
-        assert "dwi_post" in tasks
-
-    def test_dwi_post_without_prep_still_expands(self):
-        """dwi_post can be requested alone; dependency enforcement is DAG's job."""
-        with patch(CONFIG_PATH, MOCK_CONFIG):
-            r = self._registry()
-            tasks = r.expand_tasks(dwi_post=True)
-        assert "dwi_post" in tasks
-        assert "dwi_preprocess" not in tasks

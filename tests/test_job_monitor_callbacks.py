@@ -41,7 +41,7 @@ class FakeApp:
 def callbacks():
     """Register all job monitor callbacks once and return the FakeApp."""
     fake_app = FakeApp()
-    from neuro_pipeline.interface.job_monitor_callbacks import register_job_monitor_callbacks
+    from neuro_pipeline.interface.callbacks.job_monitor_callbacks import register_job_monitor_callbacks
     register_job_monitor_callbacks(fake_app)
     return fake_app
 
@@ -54,7 +54,7 @@ class TestRenderCheckTable:
 
     @pytest.fixture(autouse=True)
     def _import(self):
-        from neuro_pipeline.interface.job_monitor_callbacks import _render_check_table
+        from neuro_pipeline.interface.callbacks.job_monitor_callbacks import _render_check_table
         self.render = _render_check_table
 
     def _make_df(self, rows):
@@ -109,13 +109,13 @@ class TestMergeLogsCallback:
 
     def test_empty_work_dir_returns_warning(self, callbacks):
         fn = callbacks.get("merge_logs_callback")
-        result = fn(n_clicks=1, work_dir="")
+        result = fn(n_clicks=1, work_dir="", db_path="")
         assert isinstance(result, dbc.Alert)
         assert result.color == "warning"
 
     def test_nonexistent_work_dir_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("merge_logs_callback")
-        result = fn(n_clicks=1, work_dir=str(tmp_path / "does_not_exist"))
+        result = fn(n_clicks=1, work_dir=str(tmp_path / "does_not_exist"), db_path="")
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
 
@@ -125,9 +125,9 @@ class TestMergeLogsCallback:
         mock_result.returncode = 0
         mock_result.stdout = "Merged 5 records."
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.subprocess.run",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.subprocess.run",
                    return_value=mock_result):
-            result = fn(n_clicks=1, work_dir=str(tmp_path))
+            result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "success"
@@ -139,9 +139,9 @@ class TestMergeLogsCallback:
         mock_result.stderr = "merge failed"
         mock_result.stdout = ""
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.subprocess.run",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.subprocess.run",
                    return_value=mock_result):
-            result = fn(n_clicks=1, work_dir=str(tmp_path))
+            result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
@@ -150,9 +150,9 @@ class TestMergeLogsCallback:
         import subprocess
         fn = callbacks.get("merge_logs_callback")
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.subprocess.run",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.subprocess.run",
                    side_effect=subprocess.TimeoutExpired(cmd="neuropipe", timeout=120)):
-            result = fn(n_clicks=1, work_dir=str(tmp_path))
+            result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
@@ -161,9 +161,9 @@ class TestMergeLogsCallback:
     def test_neuropipe_not_found_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("merge_logs_callback")
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.subprocess.run",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.subprocess.run",
                    side_effect=FileNotFoundError):
-            result = fn(n_clicks=1, work_dir=str(tmp_path))
+            result = fn(n_clicks=1, work_dir=str(tmp_path), db_path="")
 
         assert isinstance(result, dbc.Alert)
         assert result.color == "danger"
@@ -200,7 +200,7 @@ class TestRunOutputCheckCallback:
     def test_checks_config_not_found_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("run_output_check_callback")
         with patch(
-            "neuro_pipeline.interface.job_monitor_callbacks.load_checks_config",
+            "neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
             side_effect=FileNotFoundError("no checks file"),
         ):
             result = fn(1, project="ghost", work_dir=str(tmp_path),
@@ -219,9 +219,9 @@ class TestRunOutputCheckCallback:
         mock_checker.check_all.return_value = fake_df
         mock_checker._config = {"my_task": {}}
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.load_checks_config",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.job_monitor_callbacks.OutputChecker",
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -239,9 +239,9 @@ class TestRunOutputCheckCallback:
         mock_checker.check_all.return_value = fake_df
         mock_checker._config = {"t": {}}
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.load_checks_config",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.job_monitor_callbacks.OutputChecker",
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -260,9 +260,9 @@ class TestRunOutputCheckCallback:
         mock_checker.check_all.return_value = fake_df
         mock_checker._config = {"t": {}}
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.load_checks_config",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.job_monitor_callbacks.OutputChecker",
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -281,9 +281,9 @@ class TestRunOutputCheckCallback:
         mock_checker.check_all.return_value = fake_df
         mock_checker._config = {}
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.load_checks_config",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.job_monitor_callbacks.OutputChecker",
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             fn(1, project="myproject", work_dir=str(tmp_path),
                subjects_raw="001,002", task_filter="specific_task",
@@ -316,9 +316,9 @@ class TestExportCheckCsvCallback:
         mock_checker._config = {"t": {}}
         mock_checker.save_csv.return_value = fake_csv
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.load_checks_config",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.job_monitor_callbacks.OutputChecker",
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -330,7 +330,7 @@ class TestExportCheckCsvCallback:
     def test_file_not_found_returns_danger(self, callbacks, tmp_path):
         fn = callbacks.get("export_check_csv_callback")
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.load_checks_config",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    side_effect=FileNotFoundError("no file")):
             result = fn(1, project="ghost", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")
@@ -344,9 +344,9 @@ class TestExportCheckCsvCallback:
         mock_checker.check_all.side_effect = RuntimeError("disk full")
         mock_checker._config = {}
 
-        with patch("neuro_pipeline.interface.job_monitor_callbacks.load_checks_config",
+        with patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.load_checks_config",
                    return_value="/fake/path.yaml"), \
-             patch("neuro_pipeline.interface.job_monitor_callbacks.OutputChecker",
+             patch("neuro_pipeline.interface.callbacks.job_monitor_callbacks.OutputChecker",
                    return_value=mock_checker):
             result = fn(1, project="myproject", work_dir=str(tmp_path),
                         subjects_raw="001", task_filter="", session="01", prefix="sub-")

@@ -13,7 +13,6 @@ except FileNotFoundError:
     config = {}
 
 
-# Enum definitions — only kept where the choice is meaningful
 class PrepChoice(str, Enum):
     unzip = "unzip"
     recon = "recon"
@@ -25,15 +24,12 @@ class MRIQCChoice(str, Enum):
     individual = "individual"
     all = "all"
 
-
-# ---------------------------------------------------------------------------
-# Config-driven task lookup
-# ---------------------------------------------------------------------------
-
 def get_tasks_from_section(section: str, stage: str = None) -> List[Tuple[str, List[str]]]:
-    section_tasks = config.get('tasks', {}).get(section, [])
+    section_tasks = config.get(section, [])
     result = []
     for task in section_tasks:
+        if not isinstance(task, dict):
+            continue
         if stage is None or task.get('stage') == stage:
             dep = task.get('input_from')
             deps = [dep] if dep else []
@@ -41,39 +37,39 @@ def get_tasks_from_section(section: str, stage: str = None) -> List[Tuple[str, L
     return result
 
 
-def get_task_options(suffix):
-    """Load task options from config dynamically"""
-    config_path = Path(__file__).parent.parent / "config" / "config.yaml"
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
+def get_tasks_by_suffix(suffix: str, category: str = None) -> List[str]:
+    """Get task names by suffix pattern.
 
-    # For postprocessing, use the same options as preprocessing
-    if suffix == '_postprocess':
-        suffix = '_preprocess'
+    If category is given, search only that config section.
+    If category is None (default), search all sections.
+    """
+    if category:
+        all_tasks = config.get(category, [])
+    else:
+        skip = {'array_config'}
+        all_tasks = []
+        for key, val in config.items():
+            if key not in skip and isinstance(val, list):
+                all_tasks.extend(val)
+    return [t['name'] for t in all_tasks if isinstance(t, dict) and suffix in t.get('name', '')]
 
-    tasks = config.get('tasks', {}).get('task', [])
-    options = []
-    for task in tasks:
-        if suffix in task['name']:
-            short_name = task['name'].replace(suffix, '')
-            label = short_name.capitalize()
-            options.append({"label": label, "value": short_name})
+def get_all_task_names(category: str = None) -> List[str]:
+    """Get all task names. If category is given, only that section; otherwise all sections in config order."""
+    if category:
+        return [t['name'] for t in config.get(category, []) if isinstance(t, dict)]
+    skip = {'array_config'}
+    names = []
+    for key, val in config.items():
+        if key in skip or not isinstance(val, list):
+            continue
+        for task in val:
+            if isinstance(task, dict) and 'name' in task:
+                names.append(task['name'])
+    return names
 
-    return options
-
-def get_tasks_by_suffix(suffix: str, category: str = 'task') -> List[str]:
-    """Get task names by suffix pattern"""
-    all_tasks = config.get('tasks', {}).get(category, [])
-    return [t['name'] for t in all_tasks if suffix in t['name']]
-
-def get_all_task_names(category: str = 'task') -> List[str]:
-    """Get all task names in category"""
-    all_tasks = config.get('tasks', {}).get(category, [])
-    return [t['name'] for t in all_tasks]
-
-def validate_task_name(task_name: str, category: str = 'task') -> bool:
-    """Check if task exists"""
-    return task_name in get_all_task_names(category)
+def validate_task_name(task_name: str) -> bool:
+    """Check if task exists across all config sections"""
+    return task_name in get_all_task_names()
 
 def expand_task_names(task_list: List[str], suffix: str) -> List[str]:
     """Expand short names to full task names"""
@@ -89,11 +85,10 @@ def clean_all_only(argval: List[str], name: str) -> List[str]:
 # TODO: need add to pytest
 def find_task_config_by_name(task_name: str) -> Optional[Dict[str, Any]]:
     """Find task configuration by name"""
-    tasks = config.get('tasks', {})
-    for section_name, section_tasks in tasks.items():
+    for section_name, section_tasks in config.items():
         if isinstance(section_tasks, list):
             for task in section_tasks:
-                if task.get('name') == task_name:
+                if isinstance(task, dict) and task.get('name') == task_name:
                     return task
         elif isinstance(section_tasks, dict):
             if section_name == task_name:
@@ -111,23 +106,42 @@ def find_task_config_by_name_with_project(task_name: str, project_config: dict =
         typer.echo(f"Warning: No global config for: {task_name}")
         return None
 
-    if project_config and 'setup' in project_config:
-        setup_config = project_config['setup']
-
-        for section_name, section_tasks in setup_config.items():
-            if isinstance(section_tasks, list):
-                for task in section_tasks:
-                    if task.get('name') == task_name:
-                        merged_config = global_task_config.copy()
-                        merged_config.update(task)
-                        return merged_config
-            elif isinstance(section_tasks, dict) and section_name == task_name:
-                merged_config = global_task_config.copy()
-                merged_config.update(section_tasks)
-                return merged_config
+    if project_config and 'tasks' in project_config:
+        project_tasks = project_config['tasks'] or {}
+        task_overrides = project_tasks.get(task_name)
+        if task_overrides and isinstance(task_overrides, dict):
+            merged_config = global_task_config.copy()
+            merged_config.update(task_overrides)
+            return merged_config
 
     return global_task_config
 
+
+def get_structural_task_names() -> List[str]:
+    """Return task names from the structural section of config.yaml."""
+    return [t['name'] for t in config.get('structural', []) if isinstance(t, dict) and 'name' in t]
+
+_SYSTEM_SECTIONS = {'prep', 'structural', 'qc', 'array_config'}
+
+def get_bids_pipeline_names() -> List[str]:
+    """Return section names for BIDS-native pipelines (tasks without multi_stage)."""
+    names = []
+    for section, tasks in config.items():
+        if section in _SYSTEM_SECTIONS or not isinstance(tasks, list):
+            continue
+        if not any(t.get('multi_stage') for t in tasks if isinstance(t, dict)):
+            names.append(section)
+    return names
+
+def get_staged_pipeline_names() -> List[str]:
+    """Return section names for staged pipelines (tasks with multi_stage: true)."""
+    names = []
+    for section, tasks in config.items():
+        if section in _SYSTEM_SECTIONS or not isinstance(tasks, list):
+            continue
+        if any(t.get('multi_stage') for t in tasks if isinstance(t, dict)):
+            names.append(section)
+    return names
 
 def load_project_config(project_name: str, config_dir: str = None):
     """Load project configuration from YAML file"""

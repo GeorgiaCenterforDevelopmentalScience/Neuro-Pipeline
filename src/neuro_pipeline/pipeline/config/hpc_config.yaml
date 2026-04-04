@@ -1,8 +1,6 @@
 # HPC Scheduler Configuration
 # Set `scheduler` to match your cluster's job scheduler.
-# Currently supported: slurm
-# To add a new scheduler, implement HPCBackend in hpc_utils.py and add a
-# config block here following the same structure as the slurm block below.
+# Supported: slurm, pbs
 
 scheduler: slurm
 
@@ -82,3 +80,26 @@ slurm:
 
   # Job cancellation
   cancel_cmd: scancel
+
+# PBS/Torque
+# To use PBS: change `scheduler` above to `pbs` and adjust values below.
+#
+# pbs:
+#   submit_cmd: qsub
+#   job_id_parse: first_word        # qsub prints "12345.cluster.example.com"
+#   dependency_flag: "-W depend=afterany:{jobs}"
+#   array_flag: "-J 1-{array}"
+#   resource_flags:
+#     partition:     "-q {value}"   # PBS calls this a queue
+#     nodes:         "-l nodes={value}"
+#     ntasks:        ""             # not a standalone flag in PBS
+#     cpus_per_task: "-l ncpus={value}"
+#     time:          "-l walltime={value}"
+#     mem:           "-l mem={value}"
+#     mem_per_cpu:   ""
+#     job_name:      "-N {value}"
+#     output:        "-o {value}"
+#     error:         "-e {value}"
+#   status_cmd: qstat
+#   active_states: [Q, R, H]
+#   cancel_cmd: qdel

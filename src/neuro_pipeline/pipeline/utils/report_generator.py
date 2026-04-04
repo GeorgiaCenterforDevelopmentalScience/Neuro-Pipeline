@@ -19,13 +19,8 @@ from matplotlib.patches import Patch
 
 from .report_html import render_html
 
-TASK_ORDER = [
-    'unzip', 'recon_bids', 'afni_volume',
-    'rest_fmriprep_preprocess', 'rest_fmriprep_post_fc',
-    'cards_preprocess', 'kidvid_preprocess',
-    'dwi_preprocess', 'dwi_post',
-    'mriqc_individual', 'mriqc_group',
-]
+from .config_utils import get_all_task_names
+TASK_ORDER = get_all_task_names()
 
 STATUS_COLOR = {
     'SUCCESS': '#C5E0B3',
