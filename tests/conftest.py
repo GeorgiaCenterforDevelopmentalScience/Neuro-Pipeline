@@ -260,30 +260,6 @@ def mock_project_config():
     return MOCK_PROJECT_CONFIG.copy()
 
 
-@pytest.fixture
-def preflight_project_config(tmp_path):
-    """Project config for preflight tests that actually call check_filesystem()."""
-    import copy
-
-    cfg = copy.deepcopy(MOCK_PROJECT_CONFIG)
-
-    # Build real local directories and point the config at them
-    envir_keys = [
-        "container_dir",
-        "virtual_envir",
-        "template_dir",
-        "atlas_dir",
-        "freesurfer_dir",
-        "config_dir",
-        "stimulus_dir",
-    ]
-    for key in envir_keys:
-        local_dir = tmp_path / key
-        local_dir.mkdir(parents=True, exist_ok=True)
-        cfg["envir_dir"][key] = str(local_dir)
-
-    return cfg
-
 
 @pytest.fixture
 def config_yaml_file(tmp_path):

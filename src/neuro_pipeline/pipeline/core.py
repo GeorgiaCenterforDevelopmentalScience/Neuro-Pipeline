@@ -151,8 +151,6 @@ def run(
             checker = PreflightChecker(
                 project_config=project_config,
                 global_config=config,
-                work_dir=work_dir,
-                input_dir=input_dir,
             )
             preflight_result = checker.run_all()
             print_preflight_report(preflight_result)
