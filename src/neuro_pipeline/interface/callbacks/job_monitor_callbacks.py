@@ -6,7 +6,7 @@ from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
 from neuro_pipeline.pipeline.utils.output_checker import OutputChecker, load_checks_config
-from .utils.plot_utils import (
+from ..utils.plot_utils import (
     create_timeline_chart,
     create_status_donut,
     create_duration_radar,
