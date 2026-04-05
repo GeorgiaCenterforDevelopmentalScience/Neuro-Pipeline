@@ -330,13 +330,35 @@ def register_analysis_callbacks(app):
     def reset_dag_view(_):
         return {'name': 'dagre', 'rankDir': 'LR', 'nodeSep': 40, 'rankSep': 90, 'spacingFactor': 1.0}
 
-    @app.callback(
+    app.clientside_callback(
+        """
+        function(n_clicks) {
+            if (!n_clicks) return window.dash_clientside.no_update;
+
+            var cy = document.getElementById('dag-overview')._cyreg?.cy;
+            if (!cy) return window.dash_clientside.no_update;
+
+            var png = cy.png({
+                output: 'blob',
+                scale: 4,
+                full: true,
+                bg: '#FAFAFA'
+            });
+
+            var url = URL.createObjectURL(png);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'pipeline_dag.png';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            return window.dash_clientside.no_update;
+        }
+        """,
         Output("dag-overview", "generateImage"),
         Input("dag-download-btn", "n_clicks"),
         prevent_initial_call=True
     )
-    def download_dag_image(_):
-        return {"type": "png", "action": "download", "filename": "pipeline_dag"}
 
     # Sidebar toggle callback
     @app.callback(
