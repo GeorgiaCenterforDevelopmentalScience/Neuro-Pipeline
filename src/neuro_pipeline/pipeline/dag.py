@@ -310,8 +310,13 @@ class TaskRegistry:
         
         # Intermed tasks
         if kwargs.get('intermed'):
-            from .utils.config_utils import get_tasks_from_section
-            tasks.extend([name for name, _ in get_tasks_from_section('intermed')])
+            from .utils.config_utils import get_all_task_names
+            valid_intermed = get_all_task_names('intermed')
+            for name in kwargs['intermed']:
+                if name in valid_intermed:
+                    tasks.append(name)
+                else:
+                    typer.echo(f"Warning: '{name}' is not a valid intermed task, skipping")
         
         # MRIQC tasks
         if kwargs.get('mriqc'):

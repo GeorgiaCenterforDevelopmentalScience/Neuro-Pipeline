@@ -84,7 +84,7 @@ neuropipe run \
   --project my_study \
   --session 01 \
   --prep unzip_recon \
-  --intermed \
+  --intermed volume \
   --staged-prep cards,kidvid \
   --staged-post cards,kidvid \
   --bids-prep rest,dwi \
@@ -114,7 +114,7 @@ Dependencies are enforced automatically by the scheduler.
 | Option | Description |
 |--------|-------------|
 | `--prep` | Data preparation: `unzip`, `recon`, `unzip_recon` |
-| `--intermed` | Run intermediate step (e.g. `@SSwarper`); required before `--staged-prep` |
+| `--intermed <tasks>` | Intermed tasks to run (comma-separated, e.g. `volume`); required before `--staged-prep` |
 | `--bids-prep <modalities>` | BIDS pipeline preprocessing (comma-separated, e.g. `rest,dwi`) |
 | `--staged-prep <modalities>` | Staged pipeline preprocessing (comma-separated, e.g. `cards,kidvid`) |
 | `--mriqc` | Quality control: `individual`, `group`, `all` |

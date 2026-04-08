@@ -28,8 +28,8 @@ def job_status_df():
     return pd.DataFrame([
         {"subject": "001", "task_name": "rest_prep",   "status": "SUCCESS", "start_time": "2025-01-06", "duration_hours": 2.5},
         {"subject": "002", "task_name": "rest_prep",   "status": "FAILED",  "start_time": "2025-01-07", "duration_hours": 0.3},
-        {"subject": "003", "task_name": "afni_volume", "status": "SUCCESS", "start_time": "2025-01-13", "duration_hours": 1.8},
-        {"subject": "004", "task_name": "afni_volume", "status": "RUNNING", "start_time": "2025-01-14", "duration_hours": 0.5},
+        {"subject": "003", "task_name": "volume", "status": "SUCCESS", "start_time": "2025-01-13", "duration_hours": 1.8},
+        {"subject": "004", "task_name": "volume", "status": "RUNNING", "start_time": "2025-01-14", "duration_hours": 0.5},
     ])
 
 

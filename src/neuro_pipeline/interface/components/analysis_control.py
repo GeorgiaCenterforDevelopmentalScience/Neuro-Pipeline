@@ -234,9 +234,7 @@ def create_analysis_control_layout():
 
 def create_pipeline_modules_section():
     """Create the pipeline modules configuration section"""
-    intermed_options = [{"label": "None", "value": "none"}] + [
-        {"label": name, "value": name} for name in get_intermed_task_names()
-    ]
+    intermed_options = [{"label": name, "value": name} for name in get_intermed_task_names()]
     bids_options = [{"label": name.capitalize(), "value": name} for name in get_bids_pipeline_names()]
     staged_options = [{"label": name.capitalize(), "value": name} for name in get_staged_pipeline_names()]
 
@@ -262,12 +260,12 @@ def create_pipeline_modules_section():
 
             # intermed
             dbc.Card([
-                dbc.CardHeader("Intermed Processing"),
+                dbc.CardHeader("Intermed Processing (--intermed):"),
                 dbc.CardBody([
-                    dbc.RadioItems(
-                        id="intermed-radio",
+                    dbc.Checklist(
+                        id="intermed-checklist",
                         options=intermed_options,
-                        value="none",
+                        value=[],
                         inline=True
                     )
                 ])
@@ -351,7 +349,7 @@ def build_dag_elements(prep_option, intermed_value, bids_prep, bids_post,
                        staged_prep, staged_post, mriqc_option):
     has_unzip = prep_option in ('unzip', 'unzip_recon')
     has_recon = prep_option in ('recon', 'unzip_recon')
-    has_intermed = bool(intermed_value and intermed_value != 'none')
+    has_intermed = bool(intermed_value)
     has_mriqc_indiv = mriqc_option in ('individual', 'all')
     has_mriqc_group = mriqc_option in ('group', 'all')
 
@@ -370,7 +368,7 @@ def build_dag_elements(prep_option, intermed_value, bids_prep, bids_post,
     if has_unzip and has_recon:
         edge('unzip', 'recon_bids', 'prep')
     if has_intermed:
-        node('intermed', f'Intermed\n({intermed_value})', 'intermed')
+        node('intermed', f'Intermed\n({", ".join(intermed_value)})', 'intermed')
         if has_recon:
             edge('recon_bids', 'intermed', 'intermed')
 

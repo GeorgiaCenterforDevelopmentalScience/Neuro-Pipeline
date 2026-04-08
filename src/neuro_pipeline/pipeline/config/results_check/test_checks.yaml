@@ -54,7 +54,7 @@ recon_bids:
 
 # Intermed
 
-afni_volume:
+volume:
   output_path: "{work_dir}/AFNI_derivatives/{prefix}{subject}/ses-{session}/sswarp2/T1_results"
   required_files:
     - pattern: "QC_anatSS.{prefix}{subject}.jpg"

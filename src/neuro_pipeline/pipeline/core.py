@@ -36,7 +36,7 @@ class TaskOptions:
     prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps")
     
     # intermed
-    intermed: bool = typer.Option(False, "--intermed", help="intermed MRI processing")
+    intermed: Optional[List[str]] = typer.Option(None, "--intermed", help="Intermed tasks (e.g. volume,bfc)")
 
     # Quality Control
     mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing")
@@ -58,7 +58,7 @@ def collect_and_expand_tasks(registry, options: TaskOptions):
 
 def parse_and_expand_tasks(registry, **kwargs):
     """Parse options and expand to concrete task names"""
-    for key in ('bids_prep', 'bids_post', 'staged_prep', 'staged_post'):
+    for key in ('intermed', 'bids_prep', 'bids_post', 'staged_prep', 'staged_post'):
         if kwargs.get(key):
             kwargs[key] = _parse_comma_list(kwargs[key])
 
@@ -83,7 +83,7 @@ def run(
 
     prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps"),
 
-    intermed: bool = typer.Option(False, "--intermed", help="intermed MRI processing"),
+    intermed: Optional[List[str]] = typer.Option(None, "--intermed", help="Intermed tasks (e.g. volume,bfc)"),
     mriqc: Optional[MRIQCChoice] = typer.Option(None, help="MRIQC processing"),
     session: Optional[str] = typer.Option(..., help="Session or wave ID"),
 

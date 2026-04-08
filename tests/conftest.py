@@ -87,11 +87,19 @@ MOCK_CONFIG = {
     ],
     "intermed": [
         {
-            "name": "afni_volume",
+            "name": "volume",
             "profile": "standard_short",
             "array": True,
             "input_from": "recon_bids",
             "scripts": ["sswarp_scratch.sh"],
+            "output_pattern": "{base_output}/AFNI_derivatives",
+        },
+        {
+            "name": "bfc",
+            "profile": "standard_short",
+            "array": True,
+            "input_from": "recon_bids",
+            "scripts": ["bfc_scratch.sh"],
             "output_pattern": "{base_output}/AFNI_derivatives",
         },
     ],
@@ -231,7 +239,8 @@ MOCK_PROJECT_CONFIG = {
     "tasks": {
         "unzip":            {"environ": ["data_manage_1", "afni_25.1.01"]},
         "recon_bids":       {"container": "dcm2bids_3.2.0.sif", "config": "branch_config.json"},
-        "afni_volume":      {"environ": ["afni_25.1.01"], "template": "HaskinsPeds_NL_template1.0_SSW.nii"},
+        "volume":           {"environ": ["afni_25.1.01"], "template": "HaskinsPeds_NL_template1.0_SSW.nii"},
+        "bfc":              {"environ": ["afni_25.1.01"]},
         "rest_preprocess":  {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "fmriprep_25.1.3.sif", "license": "license.txt"},
         "rest_post":        {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "xcp_d-0.11.0rc1.sif", "rest_mode": "abcd", "nuisance_regressors": "36P", "license": "license.txt"},
         "cards_preprocess": {"remove_TRs": 2, "template": "HaskinsPeds_NL_template1.0_SSW.nii", "blur_size": 4.0, "environ": ["afni_25.1.01"], "censor_motion": "0.3", "censor_outliers": "0.05"},

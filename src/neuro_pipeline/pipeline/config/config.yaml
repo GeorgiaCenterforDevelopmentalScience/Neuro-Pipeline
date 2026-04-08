@@ -15,7 +15,7 @@ prep:
 
 # Intermed MRI (intermediate step required by staged pipelines)
 intermed:
-  - name: afni_volume
+  - name: volume
     profile: standard_short
     array: true
     input_from: recon_bids

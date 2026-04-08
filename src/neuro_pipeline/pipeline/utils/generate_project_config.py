@@ -38,7 +38,7 @@ def generate_project_config(project_name: str, output_dir: str = "./config/proje
         "tasks": {
             "unzip":             {"environ": ["data_manage_1", "afni_25.1.01"]},
             "recon_bids":        {"container": "dcm2bids_3.2.0.sif", "config": "config.json"},
-            "afni_volume":       {"environ": ["afni_25.1.01"], "template": ""},
+            "volume":            {"environ": ["afni_25.1.01"], "template": ""},
             "rest_preprocess":   {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "fmriprep_25.1.3.sif", "license": "license.txt"},
             "rest_post":         {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "xcp_d-0.11.0rc1.sif", "rest_mode": "abcd", "motion_filter_type": "notch", "band_stop_min": "15", "band_stop_max": "25", "nuisance_regressors": "36P", "license": "license.txt"},
             "cards_preprocess":  {"remove_TRs": 2, "template": "", "blur_size": 4.0, "environ": ["afni_25.1.01"], "censor_motion": "0.3", "censor_outliers": "0.05"},

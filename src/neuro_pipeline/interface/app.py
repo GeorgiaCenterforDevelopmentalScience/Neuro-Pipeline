@@ -64,6 +64,9 @@ def create_sidebar():
         ], className="p-3")
     ], className="bg-dark", style={"height": "100vh", "width": "250px"})
 
+_SHOW = {"display": "block"}
+_HIDE = {"display": "none"}
+
 def create_main_layout():
     """Create the main layout with collapsible sidebar"""
     return html.Div([
@@ -72,25 +75,30 @@ def create_main_layout():
         dcc.Store(id="pipeline-commands-store"),
         dcc.Store(id="job-status-store"),
         dcc.Store(id="page-rendered-store"),
-        
+
         # Sidebar toggle button
         html.Button([
             html.I(className="fas fa-bars")
         ], id="sidebar-toggle", className="sidebar-toggle", n_clicks=0),
-        
+
         # Theme toggle button
         html.Button([
             html.I(className="fas fa-palette")
         ], id="theme-toggle", className="theme-toggle", n_clicks=0),
-        
+
         # Sidebar
         html.Div([
             create_sidebar()
         ], id="sidebar", className="sidebar sidebar-transition", style={"width": "250px"}),
-        
+
         # Main content area
         html.Div([
-            html.Div(id="page-content")
+            html.Div(create_analysis_control_layout(),
+                     id="page-analysis-control", style=_SHOW),
+            html.Div(create_project_config_page(),
+                     id="page-project-config",   style=_HIDE),
+            html.Div(create_job_monitor_layout(),
+                     id="page-job-monitor",       style=_HIDE),
         ], id="main-content", className="main-content")
     ], id="app-container", className="theme-dark")
 
@@ -101,21 +109,24 @@ app.layout = create_main_layout()
 from .callbacks import register_callbacks
 register_callbacks(app)
 
-# Page routing callback
+# Page routing callback — toggles CSS display only; components stay in DOM
 @app.callback(
-    [Output("page-content", "children"),
-     Output("page-rendered-store", "data")],
+    [Output("page-analysis-control", "style"),
+     Output("page-project-config",   "style"),
+     Output("page-job-monitor",      "style"),
+     Output("page-rendered-store",   "data")],
     Input("url", "pathname")
 )
 def display_page(pathname):
-    if pathname == "/" or pathname == "/home" or pathname == "/analysis-control":
-        return create_analysis_control_layout(), pathname
-    elif pathname == "/project-config":
-        return create_project_config_page(), pathname
-    elif pathname == "/job-monitor":
-        return create_job_monitor_layout(), pathname
-    else:
-        return create_analysis_control_layout(), pathname
+    is_ac  = pathname in ("/", "/home", "/analysis-control") or pathname not in ("/project-config", "/job-monitor")
+    is_pc  = pathname == "/project-config"
+    is_jm  = pathname == "/job-monitor"
+    return (
+        _SHOW if is_ac else _HIDE,
+        _SHOW if is_pc else _HIDE,
+        _SHOW if is_jm else _HIDE,
+        pathname,
+    )
 
 
 if __name__ == '__main__':

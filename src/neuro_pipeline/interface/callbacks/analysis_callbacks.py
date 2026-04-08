@@ -103,7 +103,7 @@ def register_analysis_callbacks(app):
         State("project-name", "value"),
         State("session-id", "value"),
         State("prep-options", "value"),
-        State("intermed-radio", "value"),
+        State("intermed-checklist", "value"),
         State("bids-prep-checklist", "value"),
         State("bids-post-checklist", "value"),
         State("staged-prep-checklist", "value"),
@@ -150,8 +150,8 @@ def register_analysis_callbacks(app):
             if prep_option and prep_option != "none":
                 cmd_parts.append(f'  --prep {prep_option} \\')
 
-            if intermed_value and intermed_value != "none":
-                cmd_parts.append(f'  --intermed \\')
+            if intermed_value:
+                cmd_parts.append(f'  --intermed {",".join(intermed_value)} \\')
 
             if bids_prep:
                 cmd_parts.append(f'  --bids-prep {",".join(bids_prep)} \\')
@@ -247,8 +247,8 @@ def register_analysis_callbacks(app):
             if command_data.get("prep_option") and command_data["prep_option"] != "none":
                 cmd.extend(["--prep", command_data["prep_option"]])
 
-            if command_data.get("intermed_value") and command_data["intermed_value"] != "none":
-                cmd.append("--intermed")
+            if command_data.get("intermed_value"):
+                cmd.extend(["--intermed", ",".join(command_data["intermed_value"])])
 
             if command_data.get("bids_prep"):
                 cmd.extend(["--bids-prep", ",".join(command_data["bids_prep"])])
@@ -302,7 +302,7 @@ def register_analysis_callbacks(app):
         Output("dag-overview", "elements"),
         [Input("page-rendered-store", "data"),
          Input("prep-options", "value"),
-         Input("intermed-radio", "value"),
+         Input("intermed-checklist", "value"),
          Input("bids-prep-checklist", "value"),
          Input("bids-post-checklist", "value"),
          Input("staged-prep-checklist", "value"),
@@ -314,7 +314,7 @@ def register_analysis_callbacks(app):
         from ..components.analysis_control import build_dag_elements
         return build_dag_elements(
             prep_option or 'none',
-            intermed_value or 'none',
+            intermed_value or [],
             bids_prep or [],
             bids_post or [],
             staged_prep or [],

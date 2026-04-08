@@ -8,6 +8,8 @@ DAG rules under test:
   4. staged post tasks depend only on their matching staged prep (same section)
   5. Without intermed, staged tasks run in parallel with recon_bids
   6. Within each config section: post -> prep
+  7. Multiple intermed tasks run in parallel; staged prep waits for ALL of them;
+     BIDS pipelines remain parallel with intermed tasks
 """
 
 import pytest
@@ -114,9 +116,9 @@ class TestPrepChain:
 class TestReconDependencies:
 
     def test_intermed_depends_on_recon(self):
-        executor, order = build(["recon_bids", "afni_volume"])
-        assert "recon_bids" in deps(executor, "afni_volume")
-        assert order.index("recon_bids") < order.index("afni_volume")
+        executor, order = build(["recon_bids", "volume"])
+        assert "recon_bids" in deps(executor, "volume")
+        assert order.index("recon_bids") < order.index("volume")
 
     def test_bids_prep_depends_on_recon(self):
         executor, order = build(["recon_bids", "rest_preprocess"])
@@ -134,20 +136,20 @@ class TestReconDependencies:
 class TestIntermedDependencies:
 
     def test_staged_prep_depends_on_intermed(self):
-        executor, order = build(["afni_volume", "cards_preprocess"])
-        assert "afni_volume" in deps(executor, "cards_preprocess")
-        assert order.index("afni_volume") < order.index("cards_preprocess")
+        executor, order = build(["volume", "cards_preprocess"])
+        assert "volume" in deps(executor, "cards_preprocess")
+        assert order.index("volume") < order.index("cards_preprocess")
 
     def test_intermed_does_not_wire_to_staged_post_directly(self):
         """staged_post has no prep in this request — intermed must NOT connect to it."""
-        executor, _ = build(["afni_volume", "kidvid_preprocess"])
+        executor, _ = build(["volume", "kidvid_preprocess"])
         # there is no kidvid_post in MOCK_CONFIG so we verify intermed only touches prep
-        assert "afni_volume" in deps(executor, "kidvid_preprocess")
+        assert "volume" in deps(executor, "kidvid_preprocess")
 
     def test_both_staged_preps_depend_on_intermed(self):
-        executor, order = build(["afni_volume", "cards_preprocess", "kidvid_preprocess"])
-        assert "afni_volume" in deps(executor, "cards_preprocess")
-        assert "afni_volume" in deps(executor, "kidvid_preprocess")
+        executor, order = build(["volume", "cards_preprocess", "kidvid_preprocess"])
+        assert "volume" in deps(executor, "cards_preprocess")
+        assert "volume" in deps(executor, "kidvid_preprocess")
 
 
 # ===========================================================================
@@ -192,7 +194,7 @@ class TestStagedParallelWithoutIntermed:
 
     def test_staged_prep_has_no_intermed_dep_when_intermed_not_requested(self):
         executor, _ = build(["cards_preprocess"])
-        assert "afni_volume" not in deps(executor, "cards_preprocess")
+        assert "volume" not in deps(executor, "cards_preprocess")
 
     def test_two_staged_preps_parallel_without_intermed(self):
         executor, _ = build(["recon_bids", "cards_preprocess", "kidvid_preprocess"])
@@ -203,27 +205,71 @@ class TestStagedParallelWithoutIntermed:
 
 
 # ===========================================================================
+# Multiple intermed tasks run in parallel, staged waits for all of them,
+# BIDS pipelines are parallel with intermed (same as before)
+# ===========================================================================
+
+class TestMultipleIntermedParallel:
+
+    def test_two_intermed_tasks_have_no_dependency_on_each_other(self):
+        executor, _ = build(["volume", "bfc"])
+        assert "bfc" not in deps(executor, "volume")
+        assert "volume" not in deps(executor, "bfc")
+
+    def test_both_intermed_tasks_depend_on_recon(self):
+        executor, order = build(["recon_bids", "volume", "bfc"])
+        assert "recon_bids" in deps(executor, "volume")
+        assert "recon_bids" in deps(executor, "bfc")
+        assert order.index("recon_bids") < order.index("volume")
+        assert order.index("recon_bids") < order.index("bfc")
+
+    def test_staged_prep_waits_for_all_intermed_tasks(self):
+        executor, order = build(["volume", "bfc", "cards_preprocess"])
+        assert "volume" in deps(executor, "cards_preprocess")
+        assert "bfc" in deps(executor, "cards_preprocess")
+        assert order.index("volume") < order.index("cards_preprocess")
+        assert order.index("bfc") < order.index("cards_preprocess")
+
+    def test_bids_pipeline_parallel_with_intermed(self):
+        executor, _ = build(["recon_bids", "volume", "bfc", "rest_preprocess"])
+        assert "volume" not in deps(executor, "rest_preprocess")
+        assert "bfc" not in deps(executor, "rest_preprocess")
+        assert "recon_bids" in deps(executor, "rest_preprocess")
+
+    def test_full_multi_intermed_chain(self):
+        tasks = ["recon_bids", "volume", "bfc", "cards_preprocess", "rest_preprocess"]
+        executor, order = build(tasks)
+        assert order.index("recon_bids") < order.index("volume")
+        assert order.index("recon_bids") < order.index("bfc")
+        assert order.index("volume") < order.index("cards_preprocess")
+        assert order.index("bfc") < order.index("cards_preprocess")
+        assert order.index("recon_bids") < order.index("rest_preprocess")
+        assert "volume" not in deps(executor, "rest_preprocess")
+        assert "bfc" not in deps(executor, "rest_preprocess")
+
+
+# ===========================================================================
 # Full chain: recon -> intermed -> staged prep -> (staged post via section)
 # ===========================================================================
 
 class TestFullChain:
 
     def test_recon_intermed_staged_prep_chain(self):
-        executor, order = build(["recon_bids", "afni_volume", "cards_preprocess"])
-        assert "recon_bids" in deps(executor, "afni_volume")
-        assert "afni_volume" in deps(executor, "cards_preprocess")
-        assert order.index("recon_bids") < order.index("afni_volume") < order.index("cards_preprocess")
+        executor, order = build(["recon_bids", "volume", "cards_preprocess"])
+        assert "recon_bids" in deps(executor, "volume")
+        assert "volume" in deps(executor, "cards_preprocess")
+        assert order.index("recon_bids") < order.index("volume") < order.index("cards_preprocess")
 
     def test_two_staged_pipelines_parallel_after_intermed(self):
-        executor, order = build(["afni_volume", "cards_preprocess", "kidvid_preprocess"])
-        assert "afni_volume" in deps(executor, "cards_preprocess")
-        assert "afni_volume" in deps(executor, "kidvid_preprocess")
+        executor, order = build(["volume", "cards_preprocess", "kidvid_preprocess"])
+        assert "volume" in deps(executor, "cards_preprocess")
+        assert "volume" in deps(executor, "kidvid_preprocess")
         # cards and kidvid must not depend on each other
         assert "cards_preprocess" not in deps(executor, "kidvid_preprocess")
         assert "kidvid_preprocess" not in deps(executor, "cards_preprocess")
 
     def test_all_tasks_appear_in_order(self):
-        tasks = ["recon_bids", "afni_volume", "cards_preprocess", "mriqc_preprocess", "mriqc_post"]
+        tasks = ["recon_bids", "volume", "cards_preprocess", "mriqc_preprocess", "mriqc_post"]
         executor, order = build(tasks)
         for t in tasks:
             assert t in order

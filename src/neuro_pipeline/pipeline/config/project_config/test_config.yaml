@@ -49,7 +49,7 @@ tasks:
     container: "dcm2bids_3.2.0.sif"
     config: "branch_config.json"
 
-  afni_volume:
+  volume:
     environ: ["afni_25.1.01"]
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
 

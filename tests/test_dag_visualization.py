@@ -22,7 +22,7 @@ class TestBuildDagElementsEmpty:
 
     def test_no_selection_returns_empty(self):
         elements = build_dag_elements(
-            prep_option="none", intermed_value="none",
+            prep_option="none", intermed_value=[],
             bids_prep=[], bids_post=[],
             staged_prep=[], staged_post=[],
             mriqc_option="none",
@@ -34,21 +34,21 @@ class TestPrepNodes:
 
     def test_unzip_only(self):
         elements = build_dag_elements(
-            "unzip", "none", [], [], [], [], "none"
+            "unzip", [], [], [], [], [], "none"
         )
         assert "unzip" in node_ids(elements)
         assert "recon_bids" not in node_ids(elements)
 
     def test_recon_only(self):
         elements = build_dag_elements(
-            "recon", "none", [], [], [], [], "none"
+            "recon", [], [], [], [], [], "none"
         )
         assert "recon_bids" in node_ids(elements)
         assert "unzip" not in node_ids(elements)
 
     def test_unzip_recon_creates_edge(self):
         elements = build_dag_elements(
-            "unzip_recon", "none", [], [], [], [], "none"
+            "unzip_recon", [], [], [], [], [], "none"
         )
         ids = node_ids(elements)
         assert "unzip" in ids
@@ -60,19 +60,19 @@ class TestIntermedNodes:
 
     def test_intermed_node_created(self):
         elements = build_dag_elements(
-            "recon", "afni_volume", [], [], [], [], "none"
+            "recon", ["volume"], [], [], [], [], "none"
         )
         assert "intermed" in node_ids(elements)
 
     def test_recon_to_intermed_edge(self):
         elements = build_dag_elements(
-            "recon", "afni_volume", [], [], [], [], "none"
+            "recon", ["volume"], [], [], [], [], "none"
         )
         assert ("recon_bids", "intermed") in edge_pairs(elements)
 
     def test_no_intermed_node_when_none(self):
         elements = build_dag_elements(
-            "recon", "none", [], [], [], [], "none"
+            "recon", [], [], [], [], [], "none"
         )
         assert "intermed" not in node_ids(elements)
 
@@ -81,31 +81,31 @@ class TestBIDSPipelines:
 
     def test_bids_prep_node_created(self):
         elements = build_dag_elements(
-            "recon", "none", ["rest"], [], [], [], "none"
+            "recon", [], ["rest"], [], [], [], "none"
         )
         assert "bids_prep_rest" in node_ids(elements)
 
     def test_recon_to_bids_prep_edge(self):
         elements = build_dag_elements(
-            "recon", "none", ["rest"], [], [], [], "none"
+            "recon", [], ["rest"], [], [], [], "none"
         )
         assert ("recon_bids", "bids_prep_rest") in edge_pairs(elements)
 
     def test_bids_post_node_created(self):
         elements = build_dag_elements(
-            "recon", "none", [], ["rest"], [], [], "none"
+            "recon", [], [], ["rest"], [], [], "none"
         )
         assert "bids_post_rest" in node_ids(elements)
 
     def test_bids_prep_to_post_edge_when_both_selected(self):
         elements = build_dag_elements(
-            "recon", "none", ["rest"], ["rest"], [], [], "none"
+            "recon", [], ["rest"], ["rest"], [], [], "none"
         )
         assert ("bids_prep_rest", "bids_post_rest") in edge_pairs(elements)
 
     def test_bids_post_no_prep_edge_when_prep_not_selected(self):
         elements = build_dag_elements(
-            "recon", "none", [], ["rest"], [], [], "none"
+            "recon", [], [], ["rest"], [], [], "none"
         )
         assert ("bids_prep_rest", "bids_post_rest") not in edge_pairs(elements)
 
@@ -114,19 +114,19 @@ class TestStagedPipelines:
 
     def test_staged_prep_node_created(self):
         elements = build_dag_elements(
-            "none", "none", [], [], ["cards"], [], "none"
+            "none", [], [], [], ["cards"], [], "none"
         )
         assert "staged_prep_cards" in node_ids(elements)
 
     def test_intermed_to_staged_prep_edge(self):
         elements = build_dag_elements(
-            "recon", "afni_volume", [], [], ["cards"], [], "none"
+            "recon", ["volume"], [], [], ["cards"], [], "none"
         )
         assert ("intermed", "staged_prep_cards") in edge_pairs(elements)
 
     def test_staged_prep_no_intermed_edge_when_intermed_absent(self):
         elements = build_dag_elements(
-            "none", "none", [], [], ["cards"], [], "none"
+            "none", [], [], [], ["cards"], [], "none"
         )
         assert "intermed" not in node_ids(elements)
         assert all(e["data"].get("target") != "staged_prep_cards"
@@ -135,7 +135,7 @@ class TestStagedPipelines:
 
     def test_staged_prep_to_post_edge(self):
         elements = build_dag_elements(
-            "none", "none", [], [], ["cards"], ["cards"], "none"
+            "none", [], [], [], ["cards"], ["cards"], "none"
         )
         assert ("staged_prep_cards", "staged_post_cards") in edge_pairs(elements)
 
@@ -144,19 +144,19 @@ class TestMRIQCNodes:
 
     def test_mriqc_individual_node(self):
         elements = build_dag_elements(
-            "recon", "none", [], [], [], [], "individual"
+            "recon", [], [], [], [], [], "individual"
         )
         assert "mriqc_indiv" in node_ids(elements)
 
     def test_recon_to_mriqc_individual_edge(self):
         elements = build_dag_elements(
-            "recon", "none", [], [], [], [], "individual"
+            "recon", [], [], [], [], [], "individual"
         )
         assert ("recon_bids", "mriqc_indiv") in edge_pairs(elements)
 
     def test_mriqc_group_only(self):
         elements = build_dag_elements(
-            "recon", "none", [], [], [], [], "group"
+            "recon", [], [], [], [], [], "group"
         )
         ids = node_ids(elements)
         assert "mriqc_group" in ids
@@ -164,7 +164,7 @@ class TestMRIQCNodes:
 
     def test_mriqc_all_creates_chain(self):
         elements = build_dag_elements(
-            "recon", "none", [], [], [], [], "all"
+            "recon", [], [], [], [], [], "all"
         )
         ids = node_ids(elements)
         assert "mriqc_indiv" in ids
@@ -172,12 +172,55 @@ class TestMRIQCNodes:
         assert ("mriqc_indiv", "mriqc_group") in edge_pairs(elements)
 
 
+class TestMultipleIntermedVisualization:
+    """With multiple intermed tasks the visualization still renders a single
+    'intermed' node (the bubble label lists all selected tasks)."""
+
+    def test_single_intermed_node_for_two_tasks(self):
+        elements = build_dag_elements(
+            "recon", ["volume", "bfc"], [], [], [], [], "none"
+        )
+        ids = node_ids(elements)
+        assert "intermed" in ids
+        assert len([e for e in elements if "id" in e["data"] and e["data"]["id"] == "intermed"]) == 1
+
+    def test_recon_to_intermed_edge_with_two_tasks(self):
+        elements = build_dag_elements(
+            "recon", ["volume", "bfc"], [], [], [], [], "none"
+        )
+        assert ("recon_bids", "intermed") in edge_pairs(elements)
+
+    def test_intermed_to_staged_prep_edge_with_two_tasks(self):
+        elements = build_dag_elements(
+            "recon", ["volume", "bfc"], [], [], ["cards"], [], "none"
+        )
+        assert ("intermed", "staged_prep_cards") in edge_pairs(elements)
+
+    def test_bids_pipeline_has_no_intermed_edge(self):
+        elements = build_dag_elements(
+            "recon", ["volume", "bfc"], ["rest"], [], [], [], "none"
+        )
+        assert ("intermed", "bids_prep_rest") not in edge_pairs(elements)
+        assert ("recon_bids", "bids_prep_rest") in edge_pairs(elements)
+
+    def test_intermed_label_contains_both_task_names(self):
+        elements = build_dag_elements(
+            "recon", ["volume", "bfc"], [], [], [], [], "none"
+        )
+        intermed_node = next(
+            e for e in elements
+            if "id" in e["data"] and e["data"]["id"] == "intermed"
+        )
+        assert "volume" in intermed_node["data"]["label"]
+        assert "bfc" in intermed_node["data"]["label"]
+
+
 class TestFullPipelineSelection:
 
     def test_full_pipeline_has_all_expected_nodes(self):
         elements = build_dag_elements(
             prep_option="unzip_recon",
-            intermed_value="afni_volume",
+            intermed_value=["volume"],
             bids_prep=["rest"],
             bids_post=["rest"],
             staged_prep=["cards"],
@@ -197,7 +240,7 @@ class TestFullPipelineSelection:
 
     def test_full_pipeline_edge_count_reasonable(self):
         elements = build_dag_elements(
-            "unzip_recon", "afni_volume",
+            "unzip_recon", ["volume"],
             ["rest"], ["rest"], ["cards"], ["cards"], "all",
         )
         edges = edge_pairs(elements)
