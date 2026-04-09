@@ -6,7 +6,7 @@ prep:
     scripts: [unzip_rename.sh]
     output_pattern: "{base_output}/raw"
 
-  - name: recon_bids
+  - name: recon
     profile: light_short
     array: true
     scripts: [dcm2bids_convert_BIDS.sh]
@@ -18,18 +18,18 @@ intermed:
   - name: volume
     profile: standard_short
     array: true
-    input_from: recon_bids
+    input_from: recon
     scripts: [sswarp_scratch.sh]
     output_pattern: "{base_output}/AFNI_derivatives"
 
-# BIDS-native containerized pipelines (2-step: recon_bids → task)
+# BIDS-native containerized pipelines (2-step: recon → task)
 # Add new BIDS pipelines as subsections here
 rest:
   - name: rest_preprocess
     stage: prep
     profile: heavy_long
     array: true
-    input_from: recon_bids
+    input_from: recon
     scripts: [fmriprep_rs.sh]
     output_pattern: "{base_output}/BIDS_derivatives/fmriprep"
 
@@ -46,7 +46,7 @@ dwi:
     stage: prep
     profile: standard
     array: true
-    input_from: recon_bids
+    input_from: recon
     scripts: [qsiprep.sh]
     output_pattern: "{base_output}/BIDS_derivatives/qsiprep"
 
@@ -58,14 +58,14 @@ dwi:
     scripts: [qsirecon.sh]
     output_pattern: "{base_output}/BIDS_derivatives/qsirecon"
 
-# Staged pipelines (3-step: recon_bids → intermed → task)
+# Staged pipelines (3-step: recon → intermed → task)
 # Add new tasks here; reference by short name in --staged-prep/post
 cards:
   - name: cards_preprocess
     stage: prep
     profile: standard
     array: true
-    input_from: recon_bids
+    input_from: recon
     multi_stage: true
     scripts: [afni_cards_preprocessing.sh]
     output_pattern: "{base_output}/AFNI_derivatives"
@@ -75,7 +75,7 @@ kidvid:
     stage: prep
     profile: standard
     array: true
-    input_from: recon_bids
+    input_from: recon
     multi_stage: true
     scripts: [afni_kidvid_preprocess.sh]
     output_pattern: "{base_output}/AFNI_derivatives"
@@ -86,14 +86,14 @@ qc:
     stage: prep
     profile: heavy_long
     array: true
-    input_from: recon_bids
+    input_from: recon
     scripts: [mriqc_individual.sh]
     output_pattern: "{base_output}/quality_control/mriqc"
 
   - name: mriqc_post
     stage: post
     profile: light_short
-    input_from: recon_bids
+    input_from: recon
     scripts: [mriqc_group.sh]
     output_pattern: "{base_output}/quality_control/mriqc"
 

@@ -54,8 +54,8 @@ def _run_submit(tmp_path, scripts_dir, task_config, requested_tasks,
 
 class TestActualInputDirResolution:
 
-    RECON_BIDS_TASK = {
-        "name": "recon_bids",
+    recon_TASK = {
+        "name": "recon",
         "profile": "light_short",
         "array": True,
         "scripts": ["dcm2bids_convert_BIDS.sh"],
@@ -69,41 +69,41 @@ class TestActualInputDirResolution:
         "profile": "heavy_long",
         "array": True,
         "scripts": ["fmriprep_rs.sh"],
-        "input_from": "recon_bids",
+        "input_from": "recon",
         "output_pattern": "{base_output}/BIDS_derivatives/fmriprep",
     }
 
     def test_input_redirected_when_upstream_in_requested_tasks(self, tmp_path, scripts_dir):
-        """recon_bids in requested_tasks → INPUT_DIR becomes output_dir/BIDS"""
+        """recon in requested_tasks → INPUT_DIR becomes output_dir/BIDS"""
         output_dir = str(tmp_path / "output")
         content, _ = _run_submit(
             tmp_path, scripts_dir,
-            task_config=self.RECON_BIDS_TASK,
-            requested_tasks=["unzip", "recon_bids"],
+            task_config=self.recon_TASK,
+            requested_tasks=["unzip", "recon"],
             output_dir=output_dir,
         )
         assert f'export INPUT_DIR="{output_dir}/raw"' in content
 
     def test_input_not_redirected_when_upstream_absent(self, tmp_path, scripts_dir):
-        """recon_bids alone (no unzip) → INPUT_DIR stays as provided"""
+        """recon alone (no unzip) → INPUT_DIR stays as provided"""
         input_dir = str(tmp_path / "raw")
         output_dir = str(tmp_path / "output")
         content, _ = _run_submit(
             tmp_path, scripts_dir,
-            task_config=self.RECON_BIDS_TASK,
-            requested_tasks=["recon_bids"],
+            task_config=self.recon_TASK,
+            requested_tasks=["recon"],
             input_dir=input_dir,
             output_dir=output_dir,
         )
         assert f'export INPUT_DIR="{input_dir}"' in content
 
     def test_nested_upstream_resolution(self, tmp_path, scripts_dir):
-        """rest_preprocess with recon_bids in run → INPUT_DIR = output_dir/BIDS"""
+        """rest_preprocess with recon in run → INPUT_DIR = output_dir/BIDS"""
         output_dir = str(tmp_path / "output")
         content, _ = _run_submit(
             tmp_path, scripts_dir,
             task_config=self.REST_TASK,
-            requested_tasks=["recon_bids", "rest_preprocess"],
+            requested_tasks=["recon", "rest_preprocess"],
             output_dir=output_dir,
         )
         assert f'export INPUT_DIR="{output_dir}/BIDS"' in content

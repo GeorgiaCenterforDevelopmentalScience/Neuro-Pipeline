@@ -1,9 +1,9 @@
 """
 DAG dependency rules:
-  1. unzip -> recon_bids (if both requested)
-  2. recon_bids -> all downstream non-staged tasks (bids, mriqc, intermed)
+  1. unzip -> recon (if both requested)
+  2. recon -> all downstream non-staged tasks (bids, mriqc, intermed)
   3. intermed -> staged tasks (multi_stage: true in config)
-  4. Without intermed, staged tasks run in parallel with recon_bids
+  4. Without intermed, staged tasks run in parallel with recon
   5. Within each config section: post -> prep
 """
 
@@ -69,26 +69,26 @@ class DAGExecutor:
         self.add_task(task_name, task_config)
 
     def _apply_prep_sequence(self, requested_tasks: List[str]):
-        """unzip -> recon_bids if both requested"""
-        if 'unzip' in requested_tasks and 'recon_bids' in requested_tasks:
-            self.nodes['recon_bids'].add_dependency('unzip')
+        """unzip -> recon if both requested"""
+        if 'unzip' in requested_tasks and 'recon' in requested_tasks:
+            self.nodes['recon'].add_dependency('unzip')
 
     def _apply_recon_dependencies(self, requested_tasks: List[str]):
-        """recon_bids -> all downstream non-staged tasks.
+        """recon -> all downstream non-staged tasks.
 
         Staged tasks (multi_stage=true) are always excluded: without intermed
         they run in parallel with recon; with intermed they depend on it instead.
         """
-        if 'recon_bids' not in requested_tasks:
+        if 'recon' not in requested_tasks:
             return
 
-        downstream = set(requested_tasks) - {'unzip', 'recon_bids'}
+        downstream = set(requested_tasks) - {'unzip', 'recon'}
         for task_name in downstream:
             if task_name not in self.nodes:
                 continue
             if self.nodes[task_name].task_config.get('multi_stage'):
                 continue
-            self.nodes[task_name].add_dependency('recon_bids')
+            self.nodes[task_name].add_dependency('recon')
 
     def _apply_intermed_dependencies(self, requested_tasks: List[str]):
         """intermed -> staged prep tasks only (multi_stage: true, stage: prep)"""
@@ -302,7 +302,7 @@ class TaskRegistry:
                 tasks.extend(self.task_expanders[prep_choice](kwargs))
             else:
                 prep_mapping = {
-                    'recon': 'recon_bids',
+                    'recon': 'recon',
                     'unzip': 'unzip',
                 }
                 task_name = prep_mapping.get(prep_choice.value, prep_choice.value)
@@ -353,7 +353,7 @@ class TaskRegistry:
         return tasks
     
     def _expand_unzip_recon(self, kwargs) -> List[str]:
-        return ['unzip', 'recon_bids']
+        return ['unzip', 'recon']
     
     def _expand_mriqc_all(self, kwargs) -> List[str]:
         from .utils.config_utils import get_tasks_from_section

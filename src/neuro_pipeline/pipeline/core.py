@@ -11,6 +11,7 @@ from .utils.config_utils import (
     PrepChoice,
     MRIQCChoice,
     load_project_config,
+    _CONFIG_DIR,
 )
 from .utils.job_db import log_pipeline_execution, update_pipeline_execution
 import shutil
@@ -26,8 +27,7 @@ def _parse_subjects(subjects: str) -> list:
     return [s.strip() for s in subjects.split(",") if s.strip()]
 
 # Load global config
-config_path = Path(__file__).parent / "config" / "config.yaml"
-with open(config_path, "r", encoding="utf-8") as f:
+with open(_CONFIG_DIR / "config.yaml", "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
 
 @dataclass

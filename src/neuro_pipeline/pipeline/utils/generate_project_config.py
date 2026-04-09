@@ -3,11 +3,14 @@
 import argparse
 import yaml
 from pathlib import Path
+from .config_utils import _CONFIG_DIR
 
-def generate_project_config(project_name: str, output_dir: str = "./config/project_config"):
+def generate_project_config(project_name: str, output_dir: str = None):
     config_template = {
         "prefix": "sub-",
-        
+
+        "scripts_dir": f"scripts/{project_name}",
+
         "database": {
             "db_path": "$WORK_DIR/log/pipeline_jobs.db",
             "include_project_name": True
@@ -37,7 +40,7 @@ def generate_project_config(project_name: str, output_dir: str = "./config/proje
         
         "tasks": {
             "unzip":             {"environ": ["data_manage_1", "afni_25.1.01"]},
-            "recon_bids":        {"container": "dcm2bids_3.2.0.sif", "config": "config.json"},
+            "recon":        {"container": "dcm2bids_3.2.0.sif", "config": "config.json"},
             "volume":            {"environ": ["afni_25.1.01"], "template": ""},
             "rest_preprocess":   {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "fmriprep_25.1.3.sif", "license": "license.txt"},
             "rest_post":         {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "xcp_d-0.11.0rc1.sif", "rest_mode": "abcd", "motion_filter_type": "notch", "band_stop_min": "15", "band_stop_max": "25", "nuisance_regressors": "36P", "license": "license.txt"},
@@ -48,8 +51,9 @@ def generate_project_config(project_name: str, output_dir: str = "./config/proje
         }
     }
     
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    config_file = Path(output_dir) / f"{project_name}_config.yaml"
+    out = Path(output_dir) if output_dir else _CONFIG_DIR / "project_config"
+    out.mkdir(parents=True, exist_ok=True)
+    config_file = out / f"{project_name}_config.yaml"
     
     with open(config_file, 'w', encoding='utf-8') as f:
         yaml.dump(config_template, f, default_flow_style=False, indent=2, sort_keys=False)
@@ -59,7 +63,7 @@ def generate_project_config(project_name: str, output_dir: str = "./config/proje
 def main():
     parser = argparse.ArgumentParser(description="Generate project configuration yaml file")
     parser.add_argument("project_name", type=str, help="Project name (e.g., branch, study1)")
-    parser.add_argument("--output-dir", type=str, default="./config/project_config", help="Output directory")
+    parser.add_argument("--output-dir", type=str, default=None, help="Output directory (default: repo root config/project_config/)")
     args = parser.parse_args()
 
     generate_project_config(args.project_name, args.output_dir)

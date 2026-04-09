@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import yaml as _yaml
+from neuro_pipeline.pipeline.utils.config_utils import _CONFIG_DIR
 from dash import html, Input, Output, State, callback_context
 import dash_bootstrap_components as dbc
 
@@ -100,7 +101,7 @@ def register_config_callbacks(app):
         try:
             from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
 
-            output_dir = os.path.dirname(config_path) if config_path else "config/project_config"
+            output_dir = os.path.dirname(config_path) if config_path else str(_CONFIG_DIR / "project_config")
             generate_project_config(project_name, output_dir)
 
             config_file = os.path.join(output_dir, f"{project_name}_config.yaml")
@@ -190,7 +191,7 @@ def register_config_callbacks(app):
                 "#     - pattern: \"sub-{subject}*.html\"\n"
                 "#       min_size_kb: 500\n\n"
                 "# Example — count_check:\n"
-                "# recon_bids:\n"
+                "# recon:\n"
                 "#   output_path: \"{work_dir}/BIDS/sub-{subject}/ses-{session}/\"\n"
                 "#   count_check:\n"
                 "#     anat:\n"
@@ -255,7 +256,7 @@ def register_config_callbacks(app):
     def load_global_config_callback(n_clicks):
         if not n_clicks:
             return "", ""
-        config_path = Path(__file__).parent.parent.parent / "pipeline" / "config" / "config.yaml"
+        config_path = _CONFIG_DIR / "config.yaml"
         content, err = _load_file(str(config_path))
         if err:
             return "", _alert_err(err)
@@ -283,7 +284,7 @@ def register_config_callbacks(app):
             task_count = sum(len(v) for v in parsed.values() if isinstance(v, list))
             section_count = sum(1 for v in parsed.values() if isinstance(v, list))
             return _alert_ok(f"Valid YAML · {task_count} task(s) across {section_count} section(s)")
-        config_path = Path(__file__).parent.parent.parent / "pipeline" / "config" / "config.yaml"
+        config_path = _CONFIG_DIR / "config.yaml"
         return _save_file(str(config_path), yaml_content, restart_note=True)
 
     # ── HPC Config: load ──────────────────────────────────────────────────────
@@ -296,7 +297,7 @@ def register_config_callbacks(app):
     def load_hpc_config_callback(n_clicks):
         if not n_clicks:
             return "", ""
-        config_path = Path(__file__).parent.parent.parent / "pipeline" / "config" / "hpc_config.yaml"
+        config_path = _CONFIG_DIR / "hpc_config.yaml"
         content, err = _load_file(str(config_path))
         if err:
             return "", _alert_err(err)
@@ -323,5 +324,5 @@ def register_config_callbacks(app):
                 return _alert_warn(f"Valid YAML but missing expected keys: {', '.join(sorted(missing))}")
             profile_count = len(parsed.get("resource_profiles", {}))
             return _alert_ok(f"Valid YAML · {profile_count} resource profile(s)")
-        config_path = Path(__file__).parent.parent.parent / "pipeline" / "config" / "hpc_config.yaml"
+        config_path = _CONFIG_DIR / "hpc_config.yaml"
         return _save_file(str(config_path), yaml_content, restart_note=True)

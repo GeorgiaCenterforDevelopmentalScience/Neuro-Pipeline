@@ -12,9 +12,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-_HPC_CONFIG_PATH = Path(__file__).parent.parent / "config" / "hpc_config.yaml"
+from .config_utils import _CONFIG_DIR
+
 try:
-    with open(_HPC_CONFIG_PATH, "r", encoding="utf-8") as _f:
+    with open(_CONFIG_DIR / "hpc_config.yaml", "r", encoding="utf-8") as _f:
         _hpc_config: Dict[str, Any] = yaml.safe_load(_f) or {}
 except FileNotFoundError:
     _hpc_config = {}

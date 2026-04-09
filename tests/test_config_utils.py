@@ -102,7 +102,7 @@ class TestFindTaskConfigByNameWithProject:
     def test_project_config_adds_container_field(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.utils.config_utils import find_task_config_by_name_with_project
-            result = find_task_config_by_name_with_project("recon_bids", MOCK_PROJECT_CONFIG)
+            result = find_task_config_by_name_with_project("recon", MOCK_PROJECT_CONFIG)
         assert result["container"] == "dcm2bids_3.2.0.sif"
 
     def test_returns_none_for_unknown_task(self):
@@ -125,15 +125,15 @@ class TestTaskNameHelpers:
         assert "cards_preprocess" in names
         assert "kidvid_preprocess" in names
         assert "unzip" in names
-        assert "recon_bids" in names
+        assert "recon" in names
         assert "mriqc_preprocess" in names
 
     def test_get_all_task_names_preserves_config_order(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.utils.config_utils import get_all_task_names
             names = get_all_task_names()
-        assert names.index("unzip") < names.index("recon_bids")
-        assert names.index("recon_bids") < names.index("rest_preprocess")
+        assert names.index("unzip") < names.index("recon")
+        assert names.index("recon") < names.index("rest_preprocess")
 
     def test_get_all_task_names_single_section(self):
         with patch(CONFIG_PATH, MOCK_CONFIG):

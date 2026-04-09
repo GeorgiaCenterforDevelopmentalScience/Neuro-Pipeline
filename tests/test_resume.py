@@ -124,15 +124,15 @@ class TestDAGExecutorResume:
 
     def test_resume_respects_dag_dependency_order(self):
         """
-        Scenario: recon_bids complete, preprocess + post_fc pending.
+        Scenario: recon complete, preprocess + post_fc pending.
         post_fc must still receive wait_jobs from preprocess job id.
         """
         _, all_job_ids, mock_execute, _ = self._run_execute(
-            requested_tasks=["recon_bids", "rest_preprocess", "rest_post"],
-            completed_map={"recon_bids": self.SUBJECTS},
+            requested_tasks=["recon", "rest_preprocess", "rest_post"],
+            completed_map={"recon": self.SUBJECTS},
         )
 
-        assert all_job_ids["recon_bids"] == []
+        assert all_job_ids["recon"] == []
         assert all_job_ids["rest_preprocess"] != []
 
         calls = mock_execute.call_args_list

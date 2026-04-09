@@ -201,7 +201,7 @@ def create_project_config_page():
                                         dbc.Row([
                                             dbc.Col([
                                                 html.Small(
-                                                    "src/neuro_pipeline/pipeline/config/config.yaml",
+                                                    "config/config.yaml",
                                                     className="text-muted", style=_MONO
                                                 )
                                             ], className="d-flex align-items-center"),
@@ -267,7 +267,7 @@ def create_project_config_page():
                                         dbc.Row([
                                             dbc.Col([
                                                 html.Small(
-                                                    "src/neuro_pipeline/pipeline/config/hpc_config.yaml",
+                                                    "config/hpc_config.yaml",
                                                     className="text-muted", style=_MONO
                                                 )
                                             ], width=9, className="d-flex align-items-center"),

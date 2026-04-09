@@ -364,19 +364,19 @@ def build_dag_elements(prep_option, intermed_value, bids_prep, bids_post,
     if has_unzip:
         node('unzip', 'Unzip', 'prep')
     if has_recon:
-        node('recon_bids', 'BIDS Conversion\n(recon_bids)', 'prep')
+        node('recon', 'BIDS Conversion\n(recon)', 'prep')
     if has_unzip and has_recon:
-        edge('unzip', 'recon_bids', 'prep')
+        edge('unzip', 'recon', 'prep')
     if has_intermed:
         node('intermed', f'Intermed\n({", ".join(intermed_value)})', 'intermed')
         if has_recon:
-            edge('recon_bids', 'intermed', 'intermed')
+            edge('recon', 'intermed', 'intermed')
 
     for p in (bids_prep or []):
         nid = f'bids_prep_{p}'
         node(nid, f'BIDS Prep\n({p})', 'bids')
         if has_recon:
-            edge('recon_bids', nid, 'bids')
+            edge('recon', nid, 'bids')
     for p in (bids_post or []):
         nid_post = f'bids_post_{p}'
         node(nid_post, f'BIDS Post\n({p})', 'bids')
@@ -398,13 +398,13 @@ def build_dag_elements(prep_option, intermed_value, bids_prep, bids_post,
     if has_mriqc_indiv:
         node('mriqc_indiv', 'MRIQC Individual', 'qc')
         if has_recon:
-            edge('recon_bids', 'mriqc_indiv', 'qc')
+            edge('recon', 'mriqc_indiv', 'qc')
     if has_mriqc_group:
         node('mriqc_group', 'MRIQC Group', 'qc')
         if has_mriqc_indiv:
             edge('mriqc_indiv', 'mriqc_group', 'qc')
         elif has_recon:
-            edge('recon_bids', 'mriqc_group', 'qc')
+            edge('recon', 'mriqc_group', 'qc')
 
     return nodes + edges
 
@@ -516,7 +516,7 @@ def create_dag_visualization():
             autoungrabify=True,
         ),
         html.P(
-            "Tip: BIDS and QC tasks wait for recon_bids. Staged tasks wait for intermed (if selected), otherwise run in parallel with recon.",
+            "Tip: BIDS and QC tasks wait for recon. Staged tasks wait for intermed (if selected), otherwise run in parallel with recon.",
             className="text-muted small mt-2"
         )
     ])

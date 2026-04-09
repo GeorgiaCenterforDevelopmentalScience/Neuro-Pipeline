@@ -24,7 +24,7 @@
 
 # Prep
 
-recon_bids:
+recon:
   output_path: "{work_dir}/BIDS/sub-{subject}/ses-{session}/"
   count_check:
     anat:

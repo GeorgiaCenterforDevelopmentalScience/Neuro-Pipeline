@@ -138,14 +138,14 @@ class TestCountCheck:
         self._make_files(out, ["anat1.nii.gz", "anat2.nii.gz"])
 
         checker = make_checker(tmp_path, {
-            "recon_bids": {
+            "recon": {
                 "output_path": str(out),
                 "count_check": {
                     "anat": {"pattern": "*.nii.gz", "expected_count": 2, "tolerance": 1}
                 },
             }
         })
-        rows = checker.check_subject("recon_bids", "001")
+        rows = checker.check_subject("recon", "001")
         assert rows[0]["status"] == "PASS"
 
     def test_fail_too_few(self, tmp_path):
@@ -153,14 +153,14 @@ class TestCountCheck:
         out.mkdir()
 
         checker = make_checker(tmp_path, {
-            "recon_bids": {
+            "recon": {
                 "output_path": str(out),
                 "count_check": {
                     "anat": {"pattern": "*.nii.gz", "expected_count": 2, "tolerance": 0}
                 },
             }
         })
-        rows = checker.check_subject("recon_bids", "001")
+        rows = checker.check_subject("recon", "001")
         assert "too few" in rows[0]["status"]
 
     def test_fail_too_many(self, tmp_path):
@@ -169,14 +169,14 @@ class TestCountCheck:
         self._make_files(out, [f"file{i}.nii.gz" for i in range(5)])
 
         checker = make_checker(tmp_path, {
-            "recon_bids": {
+            "recon": {
                 "output_path": str(out),
                 "count_check": {
                     "anat": {"pattern": "*.nii.gz", "expected_count": 2, "tolerance": 0}
                 },
             }
         })
-        rows = checker.check_subject("recon_bids", "001")
+        rows = checker.check_subject("recon", "001")
         assert "too many" in rows[0]["status"]
 
 
@@ -231,14 +231,14 @@ class TestPendingCompleted:
 class TestWarnMissingConfigs:
 
     def test_warns_for_unconfigured_tasks(self, tmp_path):
-        checker = make_checker(tmp_path, {"recon_bids": {
+        checker = make_checker(tmp_path, {"recon": {
             "output_path": str(tmp_path),
             "required_files": [],
         }})
         import warnings
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            missing = checker.warn_missing_configs(["recon_bids", "ghost_task"])
+            missing = checker.warn_missing_configs(["recon", "ghost_task"])
         assert "ghost_task" in missing
         assert any("ghost_task" in str(warning.message) for warning in w)
 
@@ -263,7 +263,7 @@ class TestCheckAll:
 
     def test_empty_dataframe_when_no_matching_tasks(self, tmp_path):
         checker = make_checker(tmp_path, {})
-        df = checker.check_all(["recon_bids", "rest_preprocess"], ["001", "002"])
+        df = checker.check_all(["recon", "rest_preprocess"], ["001", "002"])
         assert df.empty
 
     def test_dataframe_has_expected_columns(self, tmp_path):

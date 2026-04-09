@@ -9,14 +9,14 @@ from typing import Dict, Any, List, Optional, Tuple
 import typer
 import yaml
 
+from .config_utils import _CONFIG_DIR
+
 # Load global configuration
-config_path = Path(__file__).parent.parent / "config" / "config.yaml"
-with open(config_path, "r", encoding="utf-8") as f:
+with open(_CONFIG_DIR / "config.yaml", "r", encoding="utf-8") as f:
     config = yaml.safe_load(f)
 
 # Load HPC scheduler configuration
-hpc_config_path = Path(__file__).parent.parent / "config" / "hpc_config.yaml"
-with open(hpc_config_path, "r", encoding="utf-8") as f:
+with open(_CONFIG_DIR / "hpc_config.yaml", "r", encoding="utf-8") as f:
     hpc_config = yaml.safe_load(f)
 
 
@@ -362,18 +362,19 @@ def get_environment_commands(task_config: Dict[str, Any], project_config: Dict[s
 
 def get_script_with_validation(script_name: str, scripts_dir: str) -> Optional[Path]:
     """Validate and return script path, with helpful error messages"""
-    script_path = Path(__file__).parent.parent / scripts_dir / script_name
-    
+    sd = Path(scripts_dir)
+    scripts_dir_path = sd if sd.is_absolute() else Path(__file__).parent.parent / sd
+    script_path = scripts_dir_path / script_name
+
     if script_path.exists():
         return script_path
-    
-    scripts_dir_path = Path(__file__).parent.parent / scripts_dir
+
     if scripts_dir_path.exists():
         available = [f.name for f in scripts_dir_path.iterdir() if f.is_file()]
-        typer.echo(f"[ERROR] Script '{script_name}' not found in {scripts_dir}. Available: {', '.join(sorted(available))}", err=True)
+        typer.echo(f"[ERROR] Script '{script_name}' not found in {scripts_dir_path}. Available: {', '.join(sorted(available))}", err=True)
     else:
         typer.echo(f"[ERROR] Script '{script_name}' not found. Scripts directory {scripts_dir_path} does not exist.", err=True)
-    
+
     return None
 
 
