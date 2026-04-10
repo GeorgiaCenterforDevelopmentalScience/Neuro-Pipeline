@@ -14,7 +14,7 @@ test_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(test_root / "src"))
 
 from neuro_pipeline.pipeline.dag import DAGExecutor
-from neuro_pipeline.pipeline.utils.merge_logs_create_db import merge_json_to_db
+from neuro_pipeline.pipeline.utils.merge_logs_create_db import merge_json_to_db, rebuild_db
 
 
 @pytest.fixture
@@ -367,6 +367,95 @@ class TestEndToEndMergeLogsWorkflow:
         assert unrelated_file.exists()
         
         conn.close()
+
+
+class TestRebuildDb:
+    """Tests for force-rebuild: rebuild a fresh db including archived JSONL files."""
+
+    def test_rebuild_includes_archived_files(self, temp_workspace, mock_db):
+        """Archived files are included in the rebuilt database."""
+        json_dir = temp_workspace['json_dir']
+
+        # Create a log, merge it (moves to archived/), then verify rebuild picks it up
+        create_mock_json_log(json_dir, "sub001", "task1", "11111")
+        merge_json_to_db(json_dir, mock_db)
+
+        archived = Path(json_dir) / "task1" / "archived" / "sub001_task1_11111.jsonl"
+        assert archived.exists()
+
+        new_db_path, count = rebuild_db(temp_workspace['work_dir'], mock_db)
+        assert count == 1
+
+        conn = sqlite3.connect(new_db_path)
+        row = conn.execute("SELECT job_id FROM job_status WHERE job_id='11111'").fetchone()
+        conn.close()
+        assert row is not None
+
+    def test_rebuild_includes_active_and_archived(self, temp_workspace, mock_db):
+        """Rebuild picks up both active (not yet merged) and archived JSONL files."""
+        json_dir = temp_workspace['json_dir']
+
+        # One archived
+        create_mock_json_log(json_dir, "sub001", "task1", "11111")
+        merge_json_to_db(json_dir, mock_db)
+
+        # One still active
+        create_mock_json_log(json_dir, "sub002", "task1", "22222")
+
+        new_db_path, count = rebuild_db(temp_workspace['work_dir'], mock_db)
+        assert count == 2
+
+        conn = sqlite3.connect(new_db_path)
+        jobs = {r[0] for r in conn.execute("SELECT job_id FROM job_status").fetchall()}
+        conn.close()
+        assert jobs == {"11111", "22222"}
+
+    def test_rebuild_does_not_modify_original_db(self, temp_workspace, mock_db):
+        """The original database is untouched after a rebuild."""
+        json_dir = temp_workspace['json_dir']
+
+        create_mock_json_log(json_dir, "sub001", "task1", "11111")
+        merge_json_to_db(json_dir, mock_db)
+
+        original_mtime = os.path.getmtime(mock_db)
+        rebuild_db(temp_workspace['work_dir'], mock_db)
+
+        assert os.path.getmtime(mock_db) == original_mtime
+
+    def test_rebuild_creates_new_db_with_timestamp(self, temp_workspace, mock_db):
+        """Rebuilt database has a timestamped name and is distinct from the original."""
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "11111")
+        merge_json_to_db(json_dir, mock_db)
+
+        new_db_path, _ = rebuild_db(temp_workspace['work_dir'], mock_db)
+
+        assert os.path.exists(new_db_path)
+        assert new_db_path != mock_db
+        assert "pipeline_jobs_rebuild_" in os.path.basename(new_db_path)
+
+    def test_rebuild_does_not_move_archived_files(self, temp_workspace, mock_db):
+        """Files already in archived/ remain there after a rebuild."""
+        json_dir = temp_workspace['json_dir']
+
+        create_mock_json_log(json_dir, "sub001", "task1", "11111")
+        merge_json_to_db(json_dir, mock_db)
+
+        archived = Path(json_dir) / "task1" / "archived" / "sub001_task1_11111.jsonl"
+        assert archived.exists()
+
+        rebuild_db(temp_workspace['work_dir'], mock_db)
+
+        assert archived.exists()
+
+    def test_rebuild_raises_if_no_json_dir(self, temp_workspace, mock_db):
+        """Raises FileNotFoundError when log/json/ does not exist."""
+        import shutil as _shutil
+        json_dir = temp_workspace['json_dir']
+        _shutil.rmtree(json_dir)
+
+        with pytest.raises(FileNotFoundError):
+            rebuild_db(temp_workspace['work_dir'], mock_db)
 
 
 if __name__ == '__main__':

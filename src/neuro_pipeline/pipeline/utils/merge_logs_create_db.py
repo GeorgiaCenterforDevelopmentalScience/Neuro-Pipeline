@@ -1,6 +1,7 @@
 import json
 import shutil
 import os
+from datetime import datetime
 from pathlib import Path
 import typer
 
@@ -25,25 +26,25 @@ def merge_json_to_db(json_base_dir: str, db_path: str, job_ids: list = None):
     for task_dir in Path(json_base_dir).glob("*"):
         if not task_dir.is_dir():
             continue
-        
-        # Handle pipeline executions and wrapper scripts
+
         if task_dir.name == "_pipeline":
-            merged_count += _merge_pipeline(task_dir, conn, job_ids)
-            merged_count += _merge_wrappers(task_dir, conn)
+            merged_count += _merge_pipeline(task_dir, conn, job_ids, archive=True)
+            merged_count += _merge_wrappers(task_dir, conn, archive=True)
         else:
-            merged_count += _merge_jobs(task_dir, conn, job_ids)
+            merged_count += _merge_jobs(task_dir, conn, job_ids, archive=True)
     
     conn.close()
     return merged_count
 
-def _merge_pipeline(task_dir, conn, job_ids=None):
-    """Merge pipeline executions
-    
+def _merge_pipeline(task_dir, conn, job_ids=None, archive=True):
+    """Merge pipeline executions.
+
     Args:
-        task_dir: Pipeline task directory
+        task_dir: Pipeline task directory (_pipeline/ or _pipeline/archived/)
         conn: Database connection
         job_ids: Optional job IDs filter (not used for pipeline logs)
-    
+        archive: Move processed files to archived/ when True (default)
+
     Returns:
         int: Number of pipeline logs merged
     """
@@ -56,15 +57,15 @@ def _merge_pipeline(task_dir, conn, job_ids=None):
                     if line.strip():
                         r = json.loads(line)
                         records[r.get("event")] = r
-            
+
             if "pipeline_start" in records:
                 r = records["pipeline_start"]
                 u = records.get("pipeline_update", {})
-                
+
                 conn.execute('''
                     INSERT INTO pipeline_executions
-                    (execution_time, command_line, project_name, session, input_dir, 
-                     output_dir, work_dir, subjects, requested_tasks, dry_run, 
+                    (execution_time, command_line, project_name, session, input_dir,
+                     output_dir, work_dir, subjects, requested_tasks, dry_run,
                      total_jobs, status, error_msg)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (r.get("timestamp"), r.get("command_line"), r.get("project_name"),
@@ -73,24 +74,26 @@ def _merge_pipeline(task_dir, conn, job_ids=None):
                       r.get("dry_run"), u.get("total_jobs", r.get("total_jobs")),
                       u.get("status", r.get("status")), u.get("error_msg")))
                 conn.commit()
-                
-                # Archive the file
-                archived = task_dir / "archived"
-                archived.mkdir(exist_ok=True)
-                shutil.move(str(json_file), str(archived / json_file.name))
+
+                if archive:
+                    archived = task_dir / "archived"
+                    archived.mkdir(exist_ok=True)
+                    shutil.move(str(json_file), str(archived / json_file.name))
                 count += 1
         except Exception as e:
             print(f"Error: {json_file}: {e}")
     return count
 
-def _merge_jobs(task_dir, conn, job_ids=None):
-    """Merge job status logs
-    
+
+def _merge_jobs(task_dir, conn, job_ids=None, archive=True):
+    """Merge job status logs.
+
     Args:
-        task_dir: Task directory containing JSON files
+        task_dir: Task directory containing JSONL files
         conn: Database connection
         job_ids: Optional list of job IDs to filter (supports base job_id for array jobs)
-    
+        archive: Move processed files to archived/ when True (default)
+
     Returns:
         int: Number of job logs merged
     """
@@ -103,39 +106,34 @@ def _merge_jobs(task_dir, conn, job_ids=None):
                     if line.strip():
                         r = json.loads(line)
                         records[r.get("event")] = r
-            
+
             # Only merge complete logs
-            if "start" not in records:
+            if "start" not in records or "end" not in records:
                 continue
-            
-            if "end" not in records:
-                continue
-            
+
             job_id = records["start"].get("job_id")
-            
+
             # Filter by job_ids if provided
             if job_ids is not None:
                 # Support both exact match and prefix match (for array jobs)
                 # e.g., job_id='41693293_1' matches filter='41693293'
-                matched = False
-                for filter_id in job_ids:
-                    if job_id == filter_id or job_id.startswith(filter_id + '_'):
-                        matched = True
-                        break
-                
+                matched = any(
+                    job_id == fid or job_id.startswith(fid + '_')
+                    for fid in job_ids
+                )
                 if not matched:
                     continue
-            
+
             # Insert job start
             r = records["start"]
             conn.execute('''
-                INSERT INTO job_status 
+                INSERT INTO job_status
                 (subject, task_name, session, start_time, status, log_path, job_id, node_name)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (r.get("subject"), r.get("task_name"), r.get("session"),
                   r.get("timestamp"), "RUNNING", r.get("log_path"),
                   r.get("job_id"), r.get("node_name")))
-            
+
             # Update job end
             r = records["end"]
             conn.execute('''
@@ -145,36 +143,42 @@ def _merge_jobs(task_dir, conn, job_ids=None):
             ''', (r.get("timestamp"), r.get("status"), r.get("error_msg"),
                   r.get("duration_hours"), r.get("exit_code"),
                   r.get("subject"), r.get("task_name"), r.get("session")))
-            
+
             # Insert command output if available
             if "command_output" in records:
                 r = records["command_output"]
                 conn.execute('''
                     INSERT INTO command_outputs
-                    (subject, task_name, session, script_name, command, stdout, stderr, 
+                    (subject, task_name, session, script_name, command, stdout, stderr,
                      exit_code, log_file_path, job_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (r.get("subject"), r.get("task_name"), r.get("session"),
                       r.get("script_name"), r.get("command"), r.get("stdout"),
                       r.get("stderr"), r.get("exit_code"), r.get("log_file_path"),
                       r.get("job_id")))
-            
+
             conn.commit()
-            
-            # Archive the file
-            archived = task_dir / "archived"
-            archived.mkdir(exist_ok=True)
-            shutil.move(str(json_file), str(archived / json_file.name))
+
+            if archive:
+                archived = task_dir / "archived"
+                archived.mkdir(exist_ok=True)
+                shutil.move(str(json_file), str(archived / json_file.name))
             count += 1
         except Exception as e:
             print(f"Error: {json_file}: {e}")
     return count
 
-def _merge_wrappers(task_dir, conn):
+
+def _merge_wrappers(task_dir, conn, archive=True):
     """Merge wrapper_script events from _pipeline/ into the wrapper_scripts table.
 
     Wrapper JSONL files are named wrapper_<task>_<timestamp>.jsonl and contain
     a single 'wrapper_script' event written by job_db.log_wrapper_script().
+
+    Args:
+        task_dir: Directory to scan for wrapper_*.jsonl files
+        conn: Database connection
+        archive: Move processed files to archived/ when True (default)
     """
     count = 0
     for json_file in task_dir.glob("wrapper_*.jsonl"):
@@ -206,13 +210,67 @@ def _merge_wrappers(task_dir, conn):
             )
             conn.commit()
 
-            archived = task_dir / "archived"
-            archived.mkdir(exist_ok=True)
-            shutil.move(str(json_file), str(archived / json_file.name))
+            if archive:
+                archived = task_dir / "archived"
+                archived.mkdir(exist_ok=True)
+                shutil.move(str(json_file), str(archived / json_file.name))
             count += 1
         except Exception as e:
             print(f"Error merging wrapper log {json_file}: {e}")
     return count
+
+
+def rebuild_db(work_dir: str, db_path: str = None) -> tuple:
+    """Rebuild a fresh database from all JSONL logs, including archived files.
+
+    Scans both log/json/*/*.jsonl and log/json/*/archived/*.jsonl.
+    Creates a new database file next to the original with a timestamp suffix;
+    the original database is never modified. Files are not moved or re-archived.
+
+    Args:
+        work_dir: Pipeline work directory
+        db_path: Path to the original database (auto-detected if not provided)
+
+    Returns:
+        Tuple of (new_db_path, record_count)
+    """
+    from .job_db import get_db_connection
+
+    if not db_path:
+        db_path = os.path.join(work_dir, "database", "pipeline_jobs.db")
+
+    db_dir = os.path.dirname(os.path.abspath(db_path))
+    json_dir = os.path.join(db_dir, "json")
+
+    if not os.path.exists(json_dir):
+        raise FileNotFoundError(f"No JSON log directory found: {json_dir}")
+
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    new_db_path = os.path.join(db_dir, f"pipeline_jobs_rebuild_{ts}.db")
+
+    conn = get_db_connection(new_db_path)
+    count = 0
+
+    for task_dir in Path(json_dir).glob("*"):
+        if not task_dir.is_dir():
+            continue
+
+        # Scan active dir and archived/ subdir
+        dirs_to_scan = [task_dir]
+        archived_dir = task_dir / "archived"
+        if archived_dir.is_dir():
+            dirs_to_scan.append(archived_dir)
+
+        if task_dir.name == "_pipeline":
+            for scan_dir in dirs_to_scan:
+                count += _merge_pipeline(scan_dir, conn, archive=False)
+                count += _merge_wrappers(scan_dir, conn, archive=False)
+        else:
+            for scan_dir in dirs_to_scan:
+                count += _merge_jobs(scan_dir, conn, archive=False)
+
+    conn.close()
+    return new_db_path, count
 
 
 @app.command("merge")
@@ -220,14 +278,15 @@ def merge_once(work_dir: str, db_path: str = None):
     """Merge JSON logs to database"""
     if not db_path:
         db_path = os.path.join(work_dir, "database", "pipeline_jobs.db")
-    
+
     json_dir = os.path.join(os.path.dirname(db_path), "json")
     if not os.path.exists(json_dir):
         typer.echo(f"No JSON logs: {json_dir}")
         return
-    
+
     count = merge_json_to_db(json_dir, db_path)
     typer.echo(f"Merged {count} files")
+
 
 if __name__ == "__main__":
     app()

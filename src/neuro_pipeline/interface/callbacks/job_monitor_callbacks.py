@@ -251,6 +251,49 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Export failed: {str(e)}", color="danger")
 
     @app.callback(
+        Output("force-rebuild-result", "children"),
+        Input("force-rebuild-btn", "n_clicks"),
+        State("work-dir-input", "value"),
+        State("db-path", "value"),
+        prevent_initial_call=True
+    )
+    def force_rebuild_callback(n_clicks, work_dir, db_path):
+        if not work_dir:
+            return dbc.Alert("Please enter the work directory.", color="warning")
+
+        if not os.path.isdir(work_dir):
+            return dbc.Alert(f"Directory not found: {work_dir}", color="danger")
+
+        try:
+            cmd = ["neuropipe", "force-rebuild", work_dir]
+            if db_path and db_path.strip():
+                cmd += ["--db-path", db_path.strip()]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            if result.returncode == 0:
+                msg = result.stdout.strip() or "Rebuild complete."
+                return dbc.Alert(
+                    [html.Strong("Rebuild complete. "), msg],
+                    color="success"
+                )
+            else:
+                err = result.stderr.strip() or result.stdout.strip() or "Unknown error."
+                return dbc.Alert(f"force-rebuild failed: {err}", color="danger")
+        except subprocess.TimeoutExpired:
+            return dbc.Alert("force-rebuild timed out after 300 seconds.", color="danger")
+        except FileNotFoundError:
+            return dbc.Alert(
+                "neuropipe command not found. Make sure the package is installed in the active environment.",
+                color="danger"
+            )
+        except Exception as e:
+            return dbc.Alert(f"Error: {str(e)}", color="danger")
+
+    @app.callback(
         Output("merge-logs-result", "children"),
         Input("merge-logs-btn", "n_clicks"),
         State("work-dir-input", "value"),

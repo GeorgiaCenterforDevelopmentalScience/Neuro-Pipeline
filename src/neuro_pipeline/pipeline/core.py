@@ -403,6 +403,29 @@ def merge_logs_cmd(
     merge_once(work_dir, db_path)
 
 
+@app.command("force-rebuild")
+def force_rebuild_cmd(
+    work_dir: str = typer.Argument(..., help="Work directory"),
+    db_path: Optional[str] = typer.Option(None, help="Original database path (auto-detect if not provided)"),
+):
+    """Rebuild a fresh database from all JSONL logs, including archived files.
+
+    Creates pipeline_jobs_rebuild_{timestamp}.db next to the original database.
+    The original database is never modified.
+
+    Example:
+      neuropipe force-rebuild /data/work/my_study
+    """
+    from .utils.merge_logs_create_db import rebuild_db
+    try:
+        new_db_path, count = rebuild_db(work_dir, db_path)
+        typer.echo(f"Rebuilt {count} record(s) from all JSONL logs (including archived).")
+        typer.echo(f"New database: {new_db_path}")
+    except FileNotFoundError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1)
+
+
 @app.command("generate-report")
 def generate_report_cmd(
     db_path: str = typer.Option(..., "--db-path", help="Path to pipeline_jobs.db"),

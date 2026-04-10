@@ -54,7 +54,22 @@ def create_job_monitor_layout():
                                     "Use this after a cluster crash or if the database looks incomplete.",
                                     className="text-muted ms-2"
                                 ),
-                                html.Div(id="merge-logs-result", className="mt-3")
+                            ], width=12)
+                        ]),
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Button(
+                                    "Force Rebuild Database",
+                                    id="force-rebuild-btn",
+                                    color="outline-danger",
+                                    className="me-2 mt-2"
+                                ),
+                                html.Small(
+                                    "Creates a new database from all JSONL logs, including already-archived files. "
+                                    "The original database is preserved; a new pipeline_jobs_rebuild_*.db is written next to it.",
+                                    className="text-muted ms-2"
+                                ),
+                                html.Div(id="force-rebuild-result", className="mt-3")
                             ], width=12)
                         ])
                     ])
