@@ -187,6 +187,13 @@ html,
     background-color: transparent !important;
 }
 
+/* ── Alert color overrides (replace Bootstrap info blue) ───────────── */
+#app-container.theme-dark .alert-info {
+    background-color: rgba(76, 105, 121, 0.25) !important;
+    border-color: var(--secondary-color) !important;
+    color: var(--text-color) !important;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     #app-container.theme-dark .sidebar {

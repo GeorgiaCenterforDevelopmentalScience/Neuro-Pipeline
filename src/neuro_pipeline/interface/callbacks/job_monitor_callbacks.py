@@ -152,7 +152,7 @@ def register_job_monitor_callbacks(app):
             conn.close()
             
             if df.empty:
-                return dbc.Alert("No data found matching the criteria", color="info"), ""
+                return dbc.Alert("No data found matching the criteria", color="secondary"), ""
             
             table = dbc.Table.from_dataframe(
                 df.head(50), 
@@ -386,7 +386,7 @@ def register_job_monitor_callbacks(app):
         if df.empty:
             return dbc.Alert(
                 "No checks were run. Verify that task names in the checks file match those in config.yaml.",
-                color="info"
+                color="secondary"
             )
 
         n_pass = (df["status"] == "PASS").sum()
@@ -481,7 +481,7 @@ def register_job_monitor_callbacks(app):
             conn.close()
 
             if df.empty:
-                return dbc.Alert("No wrapper script found matching the filters.", color="info")
+                return dbc.Alert("No wrapper script found matching the filters.", color="secondary")
 
             row = df.iloc[0]
 

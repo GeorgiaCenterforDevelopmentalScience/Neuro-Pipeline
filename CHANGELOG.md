@@ -1,6 +1,25 @@
 # Dev Log - [GCDS-Neuro-Pipeline]
 
 ---
+## [0.13.1-alpha] – 2026-04-10
+
+### Added
+- **Force rebuild:** Database and UI now support a force-rebuild option to regenerate outputs regardless of existing state.
+
+### Changed
+- Renamed task `recon_bids` → `recon` across pipeline for consistency.
+- Replaced `structural` terminology with `intermed` throughout pipeline configuration and code.
+- Centralized config directory references in `output_checker.py` and `preflight.py`.
+
+### Fixed
+- Downloaded DAG visualization image was too small; corrected sizing.
+
+### Other
+- Added clientside callback for DAG visualization download.
+- Added skip BIDS validation toggle and download DAG visualization button to interface.
+
+---
+
 ## [0.13.0-alpha] – 2026-04-04
 
 ### Changed
