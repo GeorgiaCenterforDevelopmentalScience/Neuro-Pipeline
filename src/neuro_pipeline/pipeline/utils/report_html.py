@@ -3,6 +3,7 @@
 
 import html as html_module
 from datetime import datetime
+from itertools import groupby
 from typing import Optional
 
 import pandas as pd
@@ -48,21 +49,33 @@ tr:last-child td { border-bottom: none; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .fail { color: #c0392b; font-weight: 500; }
 .empty { color: #999; font-style: italic; font-size: 13px; padding: 6px 0; }
-/* Status matrix cells */
-.cell-ok      { background: #C5E0B3; text-align: center; font-size: 11px; color: #2d6a2d; }
-.cell-fail    { background: #F8786E; text-align: center; font-size: 11px; color: #7a1a14; font-weight: 600; }
-.cell-notrun  { background: #ebebeb; text-align: center; font-size: 11px; color: #aaa; }
-.matrix-wrap  { overflow-x: auto; }
+/* Status matrix (Subject × Task, text labels) */
+.cell-ok     { background: #C5E0B3; text-align: center; font-size: 11px; color: #2d6a2d; }
+.cell-fail   { background: #F8786E; text-align: center; font-size: 11px; color: #7a1a14; font-weight: 600; }
+.cell-notrun { background: #ebebeb; text-align: center; font-size: 11px; color: #aaa; }
+.matrix-wrap { overflow-x: auto; }
 .matrix-wrap table { width: auto; }
-.matrix-wrap th, .matrix-wrap td {
-    padding: 4px 8px; white-space: nowrap; border: 1px solid #e8e8e8;
-}
+.matrix-wrap th, .matrix-wrap td { padding: 4px 8px; white-space: nowrap; border: 1px solid #e8e8e8; }
 .matrix-wrap th { background: #f6f6f6; font-size: 11px; }
-.run-header td {
-    background: #eef2f7; font-size: 11px; color: #555;
-    font-style: italic; padding: 3px 8px;
-    border-top: 2px solid #bbb;
+/* Compact colour-block matrix (Output Validation) */
+.dot-wrap { overflow-x: auto; margin-bottom: 6px; }
+.dot-wrap table { width: auto; border-spacing: 2px; border-collapse: separate; }
+.dot-wrap th {
+    background: none; border: none; font-size: 10px; color: #888;
+    font-weight: normal; padding: 0 3px; white-space: nowrap;
 }
+.dot-wrap td { border: none; padding: 0; }
+.dot-row-label {
+    font-size: 10px; color: #555; font-family: monospace;
+    padding-right: 6px !important; white-space: nowrap; vertical-align: middle;
+}
+.dot { width: 10px; height: 10px; border-radius: 2px; display: block; }
+.dot-ok     { background: #C5E0B3; }
+.dot-fail   { background: #F8786E; }
+.dot-notrun { background: #e8e8e8; }
+.legend { display: flex; gap: 16px; font-size: 12px; color: #555; margin-bottom: 8px; }
+.legend-dot { display: inline-block; width: 10px; height: 10px;
+              border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 details { margin-bottom: 6px; }
 details > summary {
     cursor: pointer; padding: 7px 12px;
@@ -83,22 +96,22 @@ pre {
     padding: 10px 14px; overflow-x: auto; white-space: pre-wrap;
     word-break: break-all; line-height: 1.45; margin-top: 6px;
 }
-.legend { display: flex; gap: 16px; font-size: 12px; color: #555; margin-bottom: 10px; }
-.legend-dot { display: inline-block; width: 12px; height: 12px;
-              border-radius: 2px; margin-right: 4px; vertical-align: middle; }
 .appendix { margin-top: 40px; }
-.appendix > summary {
-    background: #f0f0f0; font-size: 12px; color: #666; font-style: italic;
-}
+.appendix > summary { background: #f0f0f0; font-size: 12px; color: #666; font-style: italic; }
 """
 
 _LEGEND = (
     '<div class="legend">'
     '<span><span class="legend-dot" style="background:#C5E0B3"></span>OK</span>'
     '<span><span class="legend-dot" style="background:#F8786E"></span>FAIL</span>'
-    '<span><span class="legend-dot" style="background:#ebebeb"></span>Not run</span>'
+    '<span><span class="legend-dot" style="background:#e8e8e8"></span>Not run</span>'
     '</div>'
 )
+
+
+def _subj_key(s: str) -> int:
+    d = ''.join(filter(str.isdigit, s))
+    return int(d) if d else 0
 
 
 def _cell(status: str) -> str:
@@ -108,6 +121,15 @@ def _cell(status: str) -> str:
     if s == 'FAILED':
         return '<td class="cell-fail">FAIL</td>'
     return '<td class="cell-notrun">—</td>'
+
+
+def _dot(status: str) -> str:
+    s = (status or '').upper()
+    if s == 'SUCCESS':
+        return '<td><span class="dot dot-ok"></span></td>'
+    if s == 'FAILED':
+        return '<td><span class="dot dot-fail"></span></td>'
+    return '<td><span class="dot dot-notrun"></span></td>'
 
 
 def _section_task_summary(summary: list) -> str:
@@ -132,32 +154,21 @@ def _section_task_summary(summary: list) -> str:
             f'</tr>'
         )
     return (
-        '<table>'
-        '<thead><tr>'
+        '<table><thead><tr>'
         '<th>Task</th><th class="num">Completed</th><th class="num">%</th>'
         '<th class="num">Failed</th><th class="num">Not Run</th>'
         '<th>Avg Duration</th><th>Last Run</th>'
         '</tr></thead>'
-        '<tbody>' + ''.join(rows) + '</tbody>'
-        '</table>'
+        '<tbody>' + ''.join(rows) + '</tbody></table>'
     )
 
 
 def _section_status_matrix(job_status: list, all_subjects: list, all_tasks: list) -> str:
-    """Subject × Task status as a colour-coded HTML table."""
     if not all_subjects or not all_tasks:
         return '<p class="empty">No data.</p>'
 
-    def _subj_key(s):
-        d = ''.join(filter(str.isdigit, s))
-        return int(d) if d else 0
-
     sorted_subjects = sorted(all_subjects, key=_subj_key)
-
-    # Index: (subject, task_name) -> status
-    status_map: dict = {}
-    for j in job_status:
-        status_map[(j['subject'], j['task_name'])] = j.get('status', '')
+    status_map = {(j['subject'], j['task_name']): j.get('status', '') for j in job_status}
 
     header = '<tr><th>Task</th>' + ''.join(f'<th>{_e(s)}</th>' for s in sorted_subjects) + '</tr>'
     rows = []
@@ -173,40 +184,155 @@ def _section_status_matrix(job_status: list, all_subjects: list, all_tasks: list
     )
 
 
-def _section_history_matrix(all_runs: list, all_subjects: list, all_tasks: list) -> str:
-    """Run history as grouped Subject × Task tables, one block per run."""
-    if not all_runs or not all_subjects or not all_tasks:
-        return '<p class="empty">Only one run recorded — no history to compare.</p>'
+def _section_history_table(all_runs: list, all_tasks: list) -> str:
+    """Task × Run colour-block matrix, collapsed by default."""
+    if not all_runs:
+        return '<p class="empty">Only one run recorded.</p>'
 
-    def _subj_key(s):
-        d = ''.join(filter(str.isdigit, s))
-        return int(d) if d else 0
+    # Aggregate per (task, run): worst-case status
+    # FAILED > NOT_RUN > SUCCESS
+    run_labels = [r['label'] for r in all_runs]
 
-    sorted_subjects = sorted(all_subjects, key=_subj_key)
-
-    header_row = '<tr><th>Task</th>' + ''.join(f'<th>{_e(s)}</th>' for s in sorted_subjects) + '</tr>'
-    n_cols = len(sorted_subjects) + 1
-
-    parts = [_LEGEND, '<div class="matrix-wrap"><table>']
+    status_map: dict = {}
     for run in all_runs:
-        rdf = {(j['subject'], j['task_name']): j.get('status', '') for j in run['jobs']}
-        tasks_in_run = run.get('tasks', '') or ''
-        parts.append(
-            f'<thead>'
-            f'<tr class="run-header"><td colspan="{n_cols}">'
-            f'Run: {_e(run["label"])}'
-            + (f' &nbsp;·&nbsp; tasks: {_e(tasks_in_run)}' if tasks_in_run else '')
-            + f'</td></tr>'
-            f'{header_row}'
-            f'</thead><tbody>'
-        )
-        for task in all_tasks:
-            cells = ''.join(_cell(rdf.get((subj, task), '')) for subj in sorted_subjects)
-            parts.append(f'<tr><td>{_e(task)}</td>{cells}</tr>')
-        parts.append('</tbody>')
+        label = run['label']
+        tasks_seen: dict = {}
+        for j in run['jobs']:
+            task = j['task_name']
+            st   = j.get('status', '')
+            prev = tasks_seen.get(task, '')
+            # worst-first: FAILED beats everything
+            if prev == 'FAILED':
+                pass
+            elif st == 'FAILED':
+                tasks_seen[task] = 'FAILED'
+            elif st == 'SUCCESS' and prev != 'FAILED':
+                tasks_seen[task] = 'SUCCESS'
+        for task, st in tasks_seen.items():
+            status_map[(task, label)] = st
 
-    parts.append('</table></div>')
-    return ''.join(parts)
+    # Collect tasks present across all runs, preserve TASK_ORDER
+    tasks_in_history = [t for t in all_tasks if any((t, lbl) in status_map for lbl in run_labels)]
+
+    header = (
+        '<tr><th>Task</th>' +
+        ''.join(
+            f'<th title="{_e(r.get("tasks",""))}">{_e(lbl)}</th>'
+            for r, lbl in zip(all_runs, run_labels)
+        ) +
+        '</tr>'
+    )
+
+    rows = []
+    for task in tasks_in_history:
+        dots = ''.join(_dot(status_map.get((task, lbl), '')) for lbl in run_labels)
+        rows.append(f'<tr><td class="dot-row-label">{_e(task)}</td>{dots}</tr>')
+
+    matrix = (
+        _LEGEND +
+        '<div class="dot-wrap">'
+        f'<table><thead>{header}</thead><tbody>{"".join(rows)}</tbody></table>'
+        '</div>'
+    )
+    return (
+        f'<details>'
+        f'<summary>Run history ({len(all_runs)} runs)</summary>'
+        f'<div class="details-body">{matrix}</div>'
+        f'</details>'
+    )
+
+
+def _section_check_results(check_df: Optional[pd.DataFrame]) -> str:
+    if check_df is None or check_df.empty:
+        return '<p class="empty">No check-results data provided (use --check-results).</p>'
+
+    df = check_df.copy()
+    df['subject'] = df['subject'].astype(str)
+    df['row_key'] = df['task'] + '/' + df['check_type'].str.split(':').str[-1]
+    row_keys = list(dict.fromkeys(df['row_key'].tolist()))
+    subjects = sorted(
+        df['subject'].unique().tolist(),
+        key=lambda s: int(''.join(filter(str.isdigit, s)) or '0'),
+    )
+
+    status_map = {}
+    for _, row in df.iterrows():
+        is_fail = str(row.get('status', '')).upper().startswith('FAIL')
+        status_map[(row['row_key'], row['subject'])] = 'FAILED' if is_fail else 'SUCCESS'
+
+    n_fail = sum(1 for _, r in df.iterrows()
+                 if str(r.get('status', '')).upper().startswith('FAIL'))
+    n_total = len(df)
+
+    header = '<tr><th>Task</th><th>Check</th>' + ''.join(f'<th>{_e(s)}</th>' for s in subjects) + '</tr>'
+
+    # Group row_keys by task, use rowspan to merge the task cell
+    grouped = [(task, list(rks)) for task, rks in
+               groupby(row_keys, key=lambda rk: rk.split('/')[0])]
+
+    rows = []
+    for task, task_rks in grouped:
+        n = len(task_rks)
+        for i, rk in enumerate(task_rks):
+            check = rk.split('/', 1)[1] if '/' in rk else rk
+            dots = ''.join(_dot(status_map.get((rk, subj), '')) for subj in subjects)
+            if i == 0:
+                task_cell = (
+                    f'<td class="dot-row-label" rowspan="{n}" '
+                    f'style="vertical-align:middle;border-right:1px solid #e8e8e8">'
+                    f'{_e(task)}</td>'
+                )
+            else:
+                task_cell = ''
+            rows.append(f'<tr><td class="dot-row-label">{_e(check)}</td>{dots}</tr>'
+                        if task_cell == '' else
+                        f'<tr>{task_cell}<td class="dot-row-label">{_e(check)}</td>{dots}</tr>')
+
+    summary_line = f'{n_total} checks &nbsp;·&nbsp; '
+    if n_fail == 0:
+        summary_line += '<span style="color:#2d6a2d">All passed</span>'
+    else:
+        summary_line += f'<span class="fail">{n_fail} failed</span>'
+
+    dot_matrix = (
+        f'<p style="font-size:12px;color:#555;margin-bottom:8px">{summary_line}</p>'
+        + _LEGEND +
+        '<div class="dot-wrap">'
+        f'<table><thead>{header}</thead><tbody>{"".join(rows)}</tbody></table>'
+        '</div>'
+    )
+
+    # Collapsed detail table — only failed rows
+    failed_df = df[df['status'].str.upper().str.startswith('FAIL')]
+    if not failed_df.empty:
+        detail_rows = []
+        for _, r in failed_df.iterrows():
+            detail_rows.append(
+                f'<tr>'
+                f'<td>{_e(r.get("task",""))}</td>'
+                f'<td>{_e(r.get("subject",""))}</td>'
+                f'<td>{_e(r.get("session",""))}</td>'
+                f'<td>{_e(r.get("check_type",""))}</td>'
+                f'<td style="font-size:12px;font-family:monospace">{_e(r.get("pattern",""))}</td>'
+                f'<td class="num">{_e(r.get("actual",""))}</td>'
+                f'</tr>'
+            )
+        detail_table = (
+            '<table><thead><tr>'
+            '<th>Task</th><th>Subject</th><th>Session</th>'
+            '<th>Check Type</th><th>Pattern</th><th class="num">Actual</th>'
+            '</tr></thead><tbody>' + ''.join(detail_rows) + '</tbody></table>'
+        )
+        detail_section = (
+            f'<details style="margin-top:10px">'
+            f'<summary>Failed checks ({n_fail})</summary>'
+            f'<div class="details-body">{detail_table}</div>'
+            f'</details>'
+        )
+    else:
+        detail_section = ''
+
+    return dot_matrix + detail_section
 
 
 def _section_failed_jobs(failed_jobs: list) -> str:
@@ -238,11 +364,12 @@ def _section_failed_jobs(failed_jobs: list) -> str:
                 f'</tr>'
             )
         table = (
-            '<table>'
-            '<thead><tr><th>Subject</th><th class="num">Exit</th>'
-            '<th>Started</th><th>Stdout</th></tr></thead>'
-            '<tbody>' + ''.join(rows) + '</tbody>'
-            '</table>'
+            '<table style="table-layout:fixed;width:100%"><thead><tr>'
+            '<th style="width:80px">Subject</th>'
+            '<th style="width:48px" class="num">Exit</th>'
+            '<th style="width:120px">Started</th>'
+            '<th>Stdout</th>'
+            '</tr></thead><tbody>' + ''.join(rows) + '</tbody></table>'
         )
         parts.append(
             f'<details>'
@@ -251,85 +378,6 @@ def _section_failed_jobs(failed_jobs: list) -> str:
             f'</details>'
         )
     return '\n'.join(parts)
-
-
-def _section_check_results(check_df: Optional[pd.DataFrame]) -> str:
-    if check_df is None or check_df.empty:
-        return '<p class="empty">No check-results data provided (use --check-results).</p>'
-
-    # Summary pivot: task/check_type rows × subject columns
-    df = check_df.copy()
-    df['subject'] = df['subject'].astype(str)
-    df['row_key'] = df['task'] + '/' + df['check_type'].str.split(':').str[-1]
-    row_keys = list(dict.fromkeys(df['row_key'].tolist()))
-    subjects = sorted(
-        df['subject'].unique().tolist(),
-        key=lambda s: int(''.join(filter(str.isdigit, s)) or '0'),
-    )
-
-    status_map = {}
-    for _, row in df.iterrows():
-        is_fail = str(row.get('status', '')).upper().startswith('FAIL')
-        status_map[(row['row_key'], row['subject'])] = 'FAILED' if is_fail else 'SUCCESS'
-
-    header_row = '<tr><th>Check</th>' + ''.join(f'<th>{_e(s)}</th>' for s in subjects) + '</tr>'
-
-    prev_task = None
-    rows = []
-    for rk in row_keys:
-        task = rk.split('/')[0]
-        if prev_task is not None and task != prev_task:
-            # visual separator between task groups
-            rows.append(f'<tr style="height:4px;background:#e0e0e0"><td colspan="{len(subjects)+1}"></td></tr>')
-        prev_task = task
-        cells = ''.join(_cell(status_map.get((rk, subj), '')) for subj in subjects)
-        rows.append(f'<tr><td style="font-size:12px;font-family:monospace">{_e(rk)}</td>{cells}</tr>')
-
-    n_fail = sum(1 for _, r in df.iterrows() if str(r.get('status', '')).upper().startswith('FAIL'))
-    summary = f'{len(df)} checks — {n_fail} failed'
-
-    matrix_html = (
-        _LEGEND +
-        '<div class="matrix-wrap">'
-        f'<table><thead>{header_row}</thead><tbody>{"".join(rows)}</tbody></table>'
-        '</div>'
-    )
-
-    # Detailed flat table collapsed by default
-    detail_rows = []
-    for _, r in df.iterrows():
-        status = str(r.get('status', ''))
-        is_fail = status.upper().startswith('FAIL')
-        status_cell = (f'<td class="fail">{_e(status)}</td>'
-                       if is_fail else f'<td>{_e(status)}</td>')
-        detail_rows.append(
-            f'<tr>'
-            f'<td>{_e(r.get("task", ""))}</td>'
-            f'<td>{_e(r.get("subject", ""))}</td>'
-            f'<td>{_e(r.get("session", ""))}</td>'
-            f'<td>{_e(r.get("check_type", ""))}</td>'
-            f'<td style="font-size:12px;font-family:monospace">{_e(r.get("pattern", ""))}</td>'
-            f'<td class="num">{_e(r.get("actual", ""))}</td>'
-            f'{status_cell}'
-            f'</tr>'
-        )
-    detail_table = (
-        '<table>'
-        '<thead><tr>'
-        '<th>Task</th><th>Subject</th><th>Session</th>'
-        '<th>Check Type</th><th>Pattern</th><th class="num">Actual</th><th>Status</th>'
-        '</tr></thead>'
-        '<tbody>' + ''.join(detail_rows) + '</tbody>'
-        '</table>'
-    )
-
-    return (
-        matrix_html +
-        f'<details style="margin-top:12px">'
-        f'<summary>Detail table &nbsp;<span style="color:#888;font-size:12px">({summary})</span></summary>'
-        f'<div class="details-body">{detail_table}</div>'
-        f'</details>'
-    )
 
 
 def _section_environment(wrapper_scripts: list) -> str:
@@ -370,6 +418,7 @@ def _section_environment(wrapper_scripts: list) -> str:
 def render_html(
     metadata: dict,
     task_summary: list,
+    job_status: list,
     all_subjects: list,
     all_tasks: list,
     all_runs: list,
@@ -419,7 +468,7 @@ def render_html(
         history_section = f'''
   <section>
     <h2>Run History</h2>
-    {_section_history_matrix(all_runs, all_subjects, all_tasks)}
+    {_section_history_table(all_runs, all_tasks)}
   </section>'''
 
     return f"""<!DOCTYPE html>
@@ -448,10 +497,7 @@ def render_html(
 
   <section>
     <h2>Subject × Task Status</h2>
-    {_section_status_matrix([], all_subjects, all_tasks) if not task_summary
-      else _section_status_matrix(
-          [j for r in [{'jobs': []}] for j in r['jobs']], all_subjects, all_tasks
-      )}
+    {_section_status_matrix(job_status, all_subjects, all_tasks)}
   </section>
 {history_section}
   <section>
