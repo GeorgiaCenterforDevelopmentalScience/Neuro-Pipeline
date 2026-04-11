@@ -187,8 +187,8 @@ html,
     background-color: transparent !important;
 }
 
-/* ── Alert color overrides (replace Bootstrap info blue) ───────────── */
-#app-container.theme-dark .alert-info {
+/* ── Alert color overrides (replace Bootstrap info blue, job monitor only) ── */
+#app-container.theme-dark #page-job-monitor .alert-info {
     background-color: rgba(76, 105, 121, 0.25) !important;
     border-color: var(--secondary-color) !important;
     color: var(--text-color) !important;

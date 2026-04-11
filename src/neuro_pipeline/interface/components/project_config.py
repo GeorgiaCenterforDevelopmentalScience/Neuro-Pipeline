@@ -270,7 +270,7 @@ def create_project_config_page():
                                                     "config/hpc_config.yaml",
                                                     className="text-muted", style=_MONO
                                                 )
-                                            ], width=9, className="d-flex align-items-center"),
+                                            ], className="d-flex align-items-center"),
                                             dbc.Col([
                                                 dbc.Button("Load", id="load-hpc-config-btn",
                                                            color="primary", size="sm")

@@ -249,7 +249,7 @@ def create_pipeline_modules_section():
                         options=[
                             {"label": "None", "value": "none"},
                             {"label": "Unzip", "value": "unzip"},
-                            {"label": "Recon (BIDS conversion)", "value": "recon"},
+                            {"label": "Recon", "value": "recon"},
                             {"label": "Unzip + Recon", "value": "unzip_recon"}
                         ],
                         value="none",

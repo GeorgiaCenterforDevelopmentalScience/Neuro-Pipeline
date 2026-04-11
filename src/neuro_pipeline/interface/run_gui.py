@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """GCDS Neuro Pipeline GUI Launcher"""
 
+import logging
 import os
 import argparse
 from pathlib import Path
+
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 def main():
     parser = argparse.ArgumentParser(description="Launch GCDS Neuro Pipeline GUI")
