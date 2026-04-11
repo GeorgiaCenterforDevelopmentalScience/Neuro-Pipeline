@@ -3,6 +3,7 @@ from pathlib import Path
 
 import yaml as _yaml
 from neuro_pipeline.pipeline.utils.config_utils import _CONFIG_DIR
+from neuro_pipeline.pipeline.utils.generate_results_check import RESULTS_CHECK_TEMPLATE
 from dash import html, Input, Output, State, callback_context
 import dash_bootstrap_components as dbc
 
@@ -158,25 +159,7 @@ def load_checks_callback(load_clicks, new_clicks, checks_path):
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
     if trigger_id == "new-checks-btn":
-        template = (
-            "# Results check configuration\n"
-            "# Keys must match task names defined in config.yaml\n\n"
-            "# Example — required_files check:\n"
-            "# rest_preprocess:\n"
-            "#   output_path: \"{work_dir}/BIDS_derivatives/fmriprep/\"\n"
-            "#   required_files:\n"
-            "#     - pattern: \"sub-{subject}*.html\"\n"
-            "#       min_size_kb: 500\n\n"
-            "# Example — count_check:\n"
-            "# recon:\n"
-            "#   output_path: \"{work_dir}/BIDS/sub-{subject}/ses-{session}/\"\n"
-            "#   count_check:\n"
-            "#     anat:\n"
-            "#       pattern: \"anat/*.nii.gz\"\n"
-            "#       expected_count: 1\n"
-            "#       tolerance: 0\n"
-        )
-        return template, dbc.Alert(
+        return RESULTS_CHECK_TEMPLATE, dbc.Alert(
             "New template loaded. Fill in your task checks and save.",
             color="info", className="mt-2"
         )

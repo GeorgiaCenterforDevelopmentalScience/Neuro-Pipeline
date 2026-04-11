@@ -464,9 +464,6 @@ def generate_report_cmd(
         raise typer.Exit(1)
 
 
-if __name__ == "__main__":
-    app()
-
 @app.command("check-outputs")
 def check_outputs_cmd(
     project: str = typer.Option(..., help="Project name"),
@@ -533,3 +530,35 @@ def check_outputs_cmd(
 
     csv_path = checker.save_csv(df, work_dir)
     typer.echo(f"Full report saved to: {csv_path}")
+
+
+@app.command("generate-config")
+def generate_config_cmd(
+    project_name: str = typer.Argument(..., help="Project name (e.g., branch, study1)"),
+    output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o",
+        help="Output directory (default: config/project_config/)"),
+):
+    """Generate a blank project config template.
+
+    Example:
+      neuropipe generate-config branch
+      neuropipe generate-config branch --output-dir /scratch/my_project/config/project_config
+    """
+    from .utils.generate_project_config import generate_project_config
+    generate_project_config(project_name, output_dir)
+
+
+@app.command("generate-checks")
+def generate_checks_cmd(
+    project_name: str = typer.Argument(..., help="Project name (e.g., branch, study1)"),
+    output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o",
+        help="Output directory (default: config/results_check/)"),
+):
+    """Generate a blank results-check config template.
+
+    Example:
+      neuropipe generate-checks branch
+      neuropipe generate-checks branch --output-dir /scratch/my_project/config/results_check
+    """
+    from .utils.generate_results_check import generate_results_check
+    generate_results_check(project_name, output_dir)
