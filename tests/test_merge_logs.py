@@ -49,7 +49,7 @@ def mock_db(temp_workspace):
     db_path = temp_workspace['db_path']
     conn = sqlite3.connect(db_path)
     
-    # Create schema
+    # Create schema — must match job_db.py exactly
     conn.execute('''
         CREATE TABLE IF NOT EXISTS job_status (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,15 +60,15 @@ def mock_db(temp_workspace):
             start_time TEXT,
             end_time TEXT,
             status TEXT,
+            exit_code INTEGER,
             error_msg TEXT,
             duration_hours REAL,
-            exit_code INTEGER,
             log_path TEXT,
             job_id TEXT,
             node_name TEXT
         )
     ''')
-    
+
     conn.execute('''
         CREATE TABLE IF NOT EXISTS command_outputs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,6 +81,7 @@ def mock_db(temp_workspace):
             stdout TEXT,
             stderr TEXT,
             exit_code INTEGER,
+            execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             log_file_path TEXT,
             job_id TEXT
         )

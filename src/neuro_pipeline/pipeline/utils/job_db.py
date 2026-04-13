@@ -430,16 +430,19 @@ def query_pipeline_executions(
         return rows
     
     for row in rows:
-        typer.echo(f"ID: {row[0]}")
-        typer.echo(f"Project: {row[3]}")
-        typer.echo(f"Session: {row[4] or 'N/A'}")
-        typer.echo(f"Status: {row[12]}")
-        typer.echo(f"Execution time: {row[1]}")
-        typer.echo(f"Subjects: {row[8] or 'N/A'}")
-        typer.echo(f"Tasks: {row[9] or 'N/A'}")
-        typer.echo(f"Total jobs: {row[11]}")
-        if row[13]:
-            typer.echo(f"Error: {row[13]}")
+        # col order: id, execution_id, execution_time, command_line, project_name,
+        #            session, input_dir, output_dir, work_dir, subjects,
+        #            requested_tasks, dry_run, total_jobs, status, error_msg
+        typer.echo(f"Execution ID: {row[1]}")
+        typer.echo(f"Project: {row[4]}")
+        typer.echo(f"Session: {row[5] or 'N/A'}")
+        typer.echo(f"Status: {row[13]}")
+        typer.echo(f"Execution time: {row[2]}")
+        typer.echo(f"Subjects: {row[9] or 'N/A'}")
+        typer.echo(f"Tasks: {row[10] or 'N/A'}")
+        typer.echo(f"Total jobs: {row[12]}")
+        if row[14]:
+            typer.echo(f"Error: {row[14]}")
         typer.echo("-" * 40)
     
     return rows
@@ -564,16 +567,19 @@ def query_jobs(
         return rows
     
     for row in rows:
-        typer.echo(f"Subject: {row[1]} | Task: {row[2]} | Session: {row[3] or 'N/A'}")
-        typer.echo(f"Status: {row[6]} | Exit code: {row[7]}")
-        typer.echo(f"Start: {row[4]}")
-        typer.echo(f"End: {row[5] or 'Running'}")
+        # col order: id, execution_id, subject, task_name, session, start_time,
+        #            end_time, status, exit_code, error_msg, duration_hours,
+        #            log_path, job_id, node_name
+        typer.echo(f"Subject: {row[2]} | Task: {row[3]} | Session: {row[4] or 'N/A'}")
+        typer.echo(f"Status: {row[7]} | Exit code: {row[8]}")
+        typer.echo(f"Start: {row[5]}")
+        typer.echo(f"End: {row[6] or 'Running'}")
+        if row[10]:
+            typer.echo(f"Duration: {row[10]:.3f}h")
         if row[9]:
-            typer.echo(f"Duration: {row[9]:.3f}h")
-        if row[8]:
-            typer.echo(f"Error: {row[8]}")
-        typer.echo(f"Log: {row[10]}")
-        typer.echo(f"Job ID: {row[11]} | Node: {row[12]}")
+            typer.echo(f"Error: {row[9]}")
+        typer.echo(f"Log: {row[11]}")
+        typer.echo(f"Job ID: {row[12]} | Node: {row[13]}")
         typer.echo("-" * 60)
     
     return rows
