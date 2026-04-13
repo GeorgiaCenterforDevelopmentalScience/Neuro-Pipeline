@@ -5,14 +5,19 @@
 
 ### Added
 - **Force rebuild:** Database and UI now support a force-rebuild option to regenerate outputs regardless of existing state.
+- **Results-check template generator:** New `neuropipe generate-checks` CLI command scaffolds a blank results-check config template.
 
 ### Changed
 - Renamed task `recon_bids` → `recon` across pipeline for consistency.
 - Replaced `structural` terminology with `intermed` throughout pipeline configuration and code.
 - Centralized config directory references in `output_checker.py` and `preflight.py`.
+- Refactored job monitor layout for improved usability.
+- Refactored HTML summary report generation.
+- Refactored config callbacks.
 
 ### Fixed
 - Downloaded DAG visualization image was too small; corrected sizing.
+- Config file could not be saved from the interface due to a callback bug.
 
 ### Other
 - Added clientside callback for DAG visualization download.

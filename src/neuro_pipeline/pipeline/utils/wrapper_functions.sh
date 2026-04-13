@@ -111,12 +111,13 @@ execute_wrapper() {
     fi
     
     export SUB_LOG_DIR LOG_PATH
-    
+
     # Setup database path
     if [ -z "$DB_PATH" ]; then
         DB_PATH="$LOG_DIR/pipeline_jobs.db"
     fi
     export DB_PATH
+    export EXECUTION_ID="${EXECUTION_ID:-}"
     
     # Create and source environment file
     create_env_file
@@ -174,6 +175,7 @@ export SUB_LOG_DIR="$SUB_LOG_DIR"
 export LOG_PATH="$LOG_PATH"
 export SESSION="${SESSION:-}"
 export SCRIPT_DIR="$SCRIPT_DIR"
+export EXECUTION_ID="${EXECUTION_ID:-}"
 ENV_EOF
     
     # Export global environment variables
@@ -242,6 +244,7 @@ execute_script_with_logging() {
         --job-id "$full_job_id" \
         --node-list "$SLURM_JOB_NODELIST" \
         --session "${SESSION:-}" \
+        --execution-id "${EXECUTION_ID:-}" \
         --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
     echo "WARNING: Failed to log job start" | tee -a "$LOG_PATH"
     
@@ -293,6 +296,7 @@ execute_script_with_logging() {
             --log-file-path "$LOG_PATH" \
             --job-id "$full_job_id" \
             --session "${SESSION:-}" \
+            --execution-id "${EXECUTION_ID:-}" \
             --db-path "$DB_PATH" 2>&1 | tee -a "$LOG_PATH" || \
         echo "WARNING: Failed to log command output" | tee -a "$LOG_PATH"
     fi

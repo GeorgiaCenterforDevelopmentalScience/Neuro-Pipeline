@@ -139,7 +139,8 @@ class DAGExecutor:
     def execute(self, requested_tasks, input_dir, output_dir, work_dir, container_dir,
                 dry_run, context=None, option_env=None, project_config=None,
                 original_work_dir=None, db_path: Optional[str] = None,
-                resume: bool = False, checks_config_path: Optional[str] = None):
+                resume: bool = False, checks_config_path: Optional[str] = None,
+                execution_id: Optional[int] = None):
         """Execute tasks in DAG order"""
         if context is None:
             context = {}
@@ -209,7 +210,8 @@ class DAGExecutor:
                 container_dir=container_dir, dry_run=(False if is_merge_task else dry_run),
                 wait_jobs=wait_jobs, option_env=task_env,
                 project_config=project_config, requested_tasks=requested_tasks,
-                original_work_dir=original_work_dir, db_path=db_path
+                original_work_dir=original_work_dir, db_path=db_path,
+                execution_id=execution_id,
             )
             
             # Record results
@@ -241,11 +243,12 @@ class DAGExecutor:
 
     def _execute_single_task(self, node: 'TaskNode', subjects: str, input_dir: str,
                         output_dir: str, work_dir: str, container_dir: str,
-                        dry_run: bool, wait_jobs: Optional[list] = None, 
-                        option_env=None, project_config=None, 
-                        requested_tasks: List[str] = None, 
+                        dry_run: bool, wait_jobs: Optional[list] = None,
+                        option_env=None, project_config=None,
+                        requested_tasks: List[str] = None,
                         original_work_dir: Optional[str] = None,
-                        db_path: Optional[str] = None) -> list:
+                        db_path: Optional[str] = None,
+                        execution_id: Optional[int] = None) -> list:
         """Execute single task"""
         task_config = node.task_config
         scripts = task_config.get('scripts', [])
@@ -272,7 +275,8 @@ class DAGExecutor:
                 project_config=project_config,
                 requested_tasks=requested_tasks,
                 original_work_dir=original_work_dir,
-                db_path=db_path
+                db_path=db_path,
+                execution_id=execution_id,
             )
             if job_id:
                 job_ids.append(job_id)

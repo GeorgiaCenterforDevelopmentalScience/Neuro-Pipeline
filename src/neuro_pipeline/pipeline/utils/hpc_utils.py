@@ -393,7 +393,8 @@ def submit_slurm_job(
     project_config: Optional[Dict[str, Any]] = None,
     requested_tasks: Optional[List[str]] = None,
     original_work_dir: Optional[str] = None,
-    db_path: Optional[str] = None
+    db_path: Optional[str] = None,
+    execution_id: Optional[int] = None,
 ) -> Optional[str]:
     """Submit a SLURM job for the given script and subjects"""
 
@@ -508,7 +509,8 @@ def submit_slurm_job(
         task_config=task_config,
         db_path=str(db_path),
         option_env=option_env,
-        slurm_args=slurm_args
+        slurm_args=slurm_args,
+        execution_id=execution_id,
     )
 
     # Dry run mode
@@ -520,7 +522,8 @@ def submit_slurm_job(
     if job_id:
         try:
             from .job_db import log_wrapper_script
-            log_wrapper_script(task_name, job_id, str(wrapper_script), wrapper_sections, db_path=str(db_path))
+            log_wrapper_script(task_name, job_id, str(wrapper_script), wrapper_sections,
+                               execution_id=execution_id, db_path=str(db_path))
         except Exception:
             pass  # never block submission over a logging failure
     return job_id
@@ -540,7 +543,8 @@ def create_wrapper_script(
     task_config: Optional[Dict[str, Any]] = None,
     db_path: Optional[str] = None,
     option_env: Optional[Dict[str, str]] = None,
-    slurm_args: Optional[List[str]] = None
+    slurm_args: Optional[List[str]] = None,
+    execution_id: Optional[int] = None,
 ) -> Tuple[Path, Dict[str, str]]:
     """Generate minimal wrapper script that calls bash template"""
 
@@ -634,6 +638,7 @@ def create_wrapper_script(
         f.write(f'export DB_PATH="{db_path}"\n')
         f.write(f'export TASK_NAME="{task_name}"\n')
         f.write(f'export SCRIPT_DIR="{pipeline_root}"\n')
+        f.write(f'export EXECUTION_ID="{execution_id or ""}"\n')
         f.write("\n")
         
         # Export command strings if present

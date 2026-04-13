@@ -128,7 +128,7 @@ def register_job_monitor_callbacks(app):
                 query += " ORDER BY execution_time DESC LIMIT 50"
             
             elif query_type == "wrapper_scripts":
-                query = "SELECT id, task_name, job_id, submission_time, wrapper_path FROM wrapper_scripts WHERE 1=1"
+                query = "SELECT id, execution_id, task_name, job_id, submission_time, wrapper_path FROM wrapper_scripts WHERE 1=1"
                 params = []
 
                 if task:

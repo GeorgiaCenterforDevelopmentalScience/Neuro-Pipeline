@@ -25,6 +25,7 @@ def ensure_table_exists(conn, table_name: str):
         c.execute('''
             CREATE TABLE IF NOT EXISTS job_status (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execution_id INTEGER,
                 subject TEXT,
                 task_name TEXT,
                 session TEXT,
@@ -43,6 +44,7 @@ def ensure_table_exists(conn, table_name: str):
         c.execute('''
             CREATE TABLE IF NOT EXISTS pipeline_executions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execution_id INTEGER,
                 execution_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 command_line TEXT,
                 project_name TEXT,
@@ -62,6 +64,7 @@ def ensure_table_exists(conn, table_name: str):
         c.execute('''
             CREATE TABLE IF NOT EXISTS command_outputs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execution_id INTEGER,
                 subject TEXT,
                 task_name TEXT,
                 session TEXT,
@@ -79,6 +82,7 @@ def ensure_table_exists(conn, table_name: str):
         c.execute('''
             CREATE TABLE IF NOT EXISTS wrapper_scripts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                execution_id INTEGER,
                 task_name TEXT,
                 job_id TEXT,
                 submission_time TEXT,
@@ -96,14 +100,23 @@ def ensure_table_exists(conn, table_name: str):
 
     conn.commit()
 
+def ensure_indexes(conn):
+    c = conn.cursor()
+    c.execute("CREATE INDEX IF NOT EXISTS idx_job_status_lookup ON job_status (subject, task_name, session)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_job_status_execution ON job_status (execution_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_wrapper_execution ON wrapper_scripts (execution_id)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_command_outputs_lookup ON command_outputs (subject, task_name, session)")
+    conn.commit()
+
 def get_db_connection(db_path: str):
     """Get database connection and ensure tables exist"""
     ensure_db_dir(db_path)
     conn = sqlite3.connect(db_path)
-    
+
     for table in ["job_status", "pipeline_executions", "command_outputs", "wrapper_scripts"]:
         ensure_table_exists(conn, table)
-    
+    ensure_indexes(conn)
+
     return conn
 
 def calculate_duration_hours(start_time_str: str, end_time_str: str) -> Optional[float]:
@@ -129,6 +142,7 @@ def log_wrapper_script(
     job_id: str,
     wrapper_path: str,
     sections: dict,
+    execution_id: Optional[int] = None,
     db_path: str = "pipeline_jobs.db",
 ):
     """
@@ -144,6 +158,7 @@ def log_wrapper_script(
         record = {
             "event": "wrapper_script",
             "timestamp": datetime.now().isoformat(),
+            "execution_id": execution_id,
             "task_name": task_name,
             "job_id": job_id,
             "wrapper_path": wrapper_path,
@@ -157,7 +172,7 @@ def log_wrapper_script(
         typer.echo(f"Warning: could not write wrapper JSONL: {e}", err=True)
 
 @app.command("log_start")
-@app.command("log_job_start") 
+@app.command("log_job_start")
 def log_job_start(
     subject: str,
     task_name: str,
@@ -165,6 +180,7 @@ def log_job_start(
     log_file_path: Optional[str] = None,
     job_id: Optional[str] = None,
     node_list: Optional[str] = None,
+    execution_id: Optional[int] = None,
     db_path: str = "pipeline_jobs.db"
 ):
     """Log job start to JSON file"""
@@ -173,12 +189,13 @@ def log_job_start(
         db_dir = os.path.dirname(db_path)
         json_dir = os.path.join(db_dir, "json", task_name)
         os.makedirs(json_dir, exist_ok=True)
-        
+
         json_file = os.path.join(json_dir, f"{job_id or 'unknown'}_{int(time.time())}.jsonl")
-        
+
         record = {
             "event": "start",
             "timestamp": datetime.now().isoformat(),
+            "execution_id": execution_id,
             "subject": subject,
             "task_name": task_name,
             "session": session,
@@ -439,6 +456,7 @@ def log_command_output(
     exit_code: Optional[int] = None,
     log_file_path: Optional[str] = None,
     job_id: Optional[str] = None,
+    execution_id: Optional[int] = None,
     db_path: str = "pipeline_jobs.db"
 ):
     """Log command output to JSON file"""
@@ -478,6 +496,7 @@ def log_command_output(
         record = {
             "event": "command_output",
             "timestamp": datetime.now().isoformat(),
+            "execution_id": execution_id,
             "subject": subject,
             "task_name": task_name,
             "session": session,

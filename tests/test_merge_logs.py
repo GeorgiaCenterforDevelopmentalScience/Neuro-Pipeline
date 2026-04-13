@@ -53,6 +53,7 @@ def mock_db(temp_workspace):
     conn.execute('''
         CREATE TABLE IF NOT EXISTS job_status (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            execution_id INTEGER,
             subject TEXT,
             task_name TEXT,
             session TEXT,
@@ -71,6 +72,7 @@ def mock_db(temp_workspace):
     conn.execute('''
         CREATE TABLE IF NOT EXISTS command_outputs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            execution_id INTEGER,
             subject TEXT,
             task_name TEXT,
             session TEXT,

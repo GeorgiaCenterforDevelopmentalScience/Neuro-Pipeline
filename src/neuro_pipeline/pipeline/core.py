@@ -274,6 +274,7 @@ def run(
             db_path=db_path,
             resume=resume,
             checks_config_path=checks_config_path,
+            execution_id=execution_id,
         )
         # Display summary
         typer.echo(f"\n=== Summary ===")

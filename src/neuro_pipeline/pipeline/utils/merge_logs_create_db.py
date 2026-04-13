@@ -64,14 +64,15 @@ def _merge_pipeline(task_dir, conn, job_ids=None, archive=True):
 
                 conn.execute('''
                     INSERT INTO pipeline_executions
-                    (execution_time, command_line, project_name, session, input_dir,
-                     output_dir, work_dir, subjects, requested_tasks, dry_run,
+                    (execution_id, execution_time, command_line, project_name, session,
+                     input_dir, output_dir, work_dir, subjects, requested_tasks, dry_run,
                      total_jobs, status, error_msg)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (r.get("timestamp"), r.get("command_line"), r.get("project_name"),
-                      r.get("session"), r.get("input_dir"), r.get("output_dir"),
-                      r.get("work_dir"), r.get("subjects"), r.get("requested_tasks"),
-                      r.get("dry_run"), u.get("total_jobs", r.get("total_jobs")),
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (r.get("execution_id"), r.get("timestamp"), r.get("command_line"),
+                      r.get("project_name"), r.get("session"), r.get("input_dir"),
+                      r.get("output_dir"), r.get("work_dir"), r.get("subjects"),
+                      r.get("requested_tasks"), r.get("dry_run"),
+                      u.get("total_jobs", r.get("total_jobs")),
                       u.get("status", r.get("status")), u.get("error_msg")))
                 conn.commit()
 
@@ -128,9 +129,9 @@ def _merge_jobs(task_dir, conn, job_ids=None, archive=True):
             r = records["start"]
             conn.execute('''
                 INSERT INTO job_status
-                (subject, task_name, session, start_time, status, log_path, job_id, node_name)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (r.get("subject"), r.get("task_name"), r.get("session"),
+                (execution_id, subject, task_name, session, start_time, status, log_path, job_id, node_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (r.get("execution_id"), r.get("subject"), r.get("task_name"), r.get("session"),
                   r.get("timestamp"), "RUNNING", r.get("log_path"),
                   r.get("job_id"), r.get("node_name")))
 
@@ -149,10 +150,11 @@ def _merge_jobs(task_dir, conn, job_ids=None, archive=True):
                 r = records["command_output"]
                 conn.execute('''
                     INSERT INTO command_outputs
-                    (subject, task_name, session, script_name, command, stdout, stderr,
+                    (execution_id, subject, task_name, session, script_name, command, stdout, stderr,
                      exit_code, log_file_path, job_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (r.get("subject"), r.get("task_name"), r.get("session"),
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (records["start"].get("execution_id"),
+                      r.get("subject"), r.get("task_name"), r.get("session"),
                       r.get("script_name"), r.get("command"), r.get("stdout"),
                       r.get("stderr"), r.get("exit_code"), r.get("log_file_path"),
                       r.get("job_id")))
@@ -194,14 +196,14 @@ def _merge_wrappers(task_dir, conn, archive=True):
             conn.execute(
                 """
                 INSERT INTO wrapper_scripts
-                    (task_name, job_id, submission_time, wrapper_path, full_content,
+                    (execution_id, task_name, job_id, submission_time, wrapper_path, full_content,
                      slurm_cmd, basic_paths, global_python, env_modules,
                      global_env_vars, task_params, execute_cmd)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    r.get("task_name"), r.get("job_id"), r.get("timestamp"),
-                    r.get("wrapper_path"), r.get("full_content"),
+                    r.get("execution_id"), r.get("task_name"), r.get("job_id"),
+                    r.get("timestamp"), r.get("wrapper_path"), r.get("full_content"),
                     r.get("slurm_cmd"), r.get("basic_paths"),
                     r.get("global_python"), r.get("env_modules"),
                     r.get("global_env_vars"), r.get("task_params"),
