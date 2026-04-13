@@ -19,12 +19,7 @@ import shutil
 app = typer.Typer()
 
 
-def _parse_subjects(subjects: str) -> list:
-    subjects_path = Path(subjects)
-    if subjects_path.is_file():
-        with open(subjects_path) as f:
-            subjects = f.read().strip()
-    return [s.strip() for s in subjects.split(",") if s.strip()]
+from .utils.detect_subjects import parse_subjects_input as _parse_subjects
 
 # Load global config
 with open(_CONFIG_DIR / "config.yaml", "r", encoding="utf-8") as f:
@@ -366,27 +361,20 @@ def detect_subjects(
       neuro-pipeline detect-subjects /data/BIDS --output subjects.txt
       neuro-pipeline detect-subjects /data/BIDS --prefix "sub-" --output subjects.txt
     """
-    from .utils.detect_subjects import detect_subjects as sd
-    
+    from .utils.detect_subjects import detect_subjects as sd, save_subjects_to_file
+
     if not Path(input_dir).exists():
         typer.echo(f"Error: Directory not found: {input_dir}", err=True)
         raise typer.Exit(1)
-    
-    # Detect subjects
+
     subjects = sd(input_dir, prefix)
-    
+
     if not subjects:
         typer.echo(f"No subjects found with prefix: {prefix}")
         raise typer.Exit(0)
-    
-    # Save or print
+
     if output_file:
-        output_path = Path(output_file)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_file, "w") as f:
-            f.write(",".join(subjects))
-        
+        save_subjects_to_file(subjects, output_file)
         typer.echo(f"Detected {len(subjects)} subjects")
         typer.echo(f"Saved to: {output_file}")
         typer.echo(f"Subjects: {', '.join(subjects[:5])}{'...' if len(subjects) > 5 else ''}")

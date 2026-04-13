@@ -37,12 +37,26 @@ def detect_subjects(input_dir: str, prefix: str = "sub-") -> List[str]:
     return subjects
 
 
+def parse_subjects_input(subjects: str) -> List[str]:
+    """Parse a subject list from a string or file path.
+
+    Accepts a comma-separated string, a newline-separated file, or a
+    comma-separated file. Returns a list of stripped, non-empty subject IDs.
+    """
+    subjects_path = os.path.join(subjects)
+    if os.path.isfile(subjects_path):
+        with open(subjects_path) as f:
+            subjects = f.read().strip()
+    subjects = subjects.replace("\n", ",").replace("\r", "")
+    return [s.strip() for s in subjects.split(",") if s.strip()]
+
+
 def save_subjects_to_file(subjects: List[str], output_file: str) -> None:
     """Save subjects to file (comma-separated)"""
     output_dir = os.path.dirname(output_file)
     if output_dir and output_dir != ".":
         os.makedirs(output_dir, exist_ok=True)
-    
+
     with open(output_file, "w") as f:
         f.write(",".join(subjects) if subjects else "")
 
