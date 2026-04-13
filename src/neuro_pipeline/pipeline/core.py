@@ -306,7 +306,7 @@ def run(
         if not dry_run and all_job_ids:
             typer.echo("\n" + "="*60)
             typer.echo(f"\nJSON logs location:")
-            typer.echo(f"  {work_dir}/log/database/json/")
+            typer.echo(f"  {os.path.dirname(db_path)}/json/")
             typer.echo(f"\nTo check job status, run:")
             typer.echo(f"  python -m neuro_pipeline.pipeline.utils.job_db query_jobs --db-path {db_path}")
             typer.echo(f"\nOr check recent jobs:")
@@ -457,8 +457,8 @@ def generate_report_cmd(
 def check_outputs_cmd(
     project: str = typer.Option(..., help="Project name"),
     work_dir: str = typer.Option(..., "--work", help="Work/output directory"),
-    subjects: str = typer.Option(..., help="Subject list or txt file path"),
-    session: Optional[str] = typer.Option("01", help="Session ID"),
+    subjects: Optional[str] = typer.Option(None, help="Subject list or file path (auto-detected from work_dir if omitted)"),
+    session: Optional[str] = typer.Option(None, help="Session ID (checks all sessions if omitted)"),
     tasks: Optional[List[str]] = typer.Option(None, "--task",
         help="Task(s) to check (repeatable). Defaults to all configured tasks."),
     checks_dir: Optional[str] = typer.Option(None,
@@ -470,11 +470,16 @@ def check_outputs_cmd(
     Prints a summary of problematic subjects to the terminal and saves
     a full CSV report to <work_dir>/check_results_<timestamp>.csv.
 
-    Example:
+    Without --subjects or --session, scans all subjects in work_dir across
+    all sessions and saves a single CSV.
+
+    Examples:
+      neuropipe check-outputs --project test --work /data/processed
       neuropipe check-outputs --project test --work /data/processed \\
-          --subjects sub-001,sub-002 --session 01
+          --subjects 001,002 --session 01
     """
     from .utils.output_checker import OutputChecker, load_checks_config
+    from .utils.detect_subjects import detect_subjects
 
     try:
         checks_config_path = load_checks_config(project, checks_dir)
@@ -489,17 +494,27 @@ def check_outputs_cmd(
     except FileNotFoundError:
         prefix = 'sub-'
 
-    subject_list = _parse_subjects(subjects)
+    if subjects:
+        subject_list = _parse_subjects(subjects)
+        if not subject_list:
+            typer.echo("Error: no subjects provided", err=True)
+            raise typer.Exit(1)
+    else:
+        subject_list = detect_subjects(work_dir, prefix)
+        if not subject_list:
+            typer.echo(f"Error: no subjects found in {work_dir}", err=True)
+            raise typer.Exit(1)
+        typer.echo(f"Auto-detected {len(subject_list)} subjects from {work_dir}")
 
-    if not subject_list:
-        typer.echo("Error: no subjects provided", err=True)
-        raise typer.Exit(1)
+    effective_session = session if session else "*"
+    if not session:
+        typer.echo("No --session specified: checking all sessions")
 
     checker = OutputChecker(
         config_path=checks_config_path,
         work_dir=work_dir,
         prefix=prefix,
-        session=session,
+        session=effective_session,
     )
 
     all_configured_tasks = list(checker._config.keys())

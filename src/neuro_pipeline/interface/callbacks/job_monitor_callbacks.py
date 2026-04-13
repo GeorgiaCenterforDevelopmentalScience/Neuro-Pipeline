@@ -352,12 +352,18 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert("Please enter a project name.", color="warning")
         if not work_dir:
             return dbc.Alert("Please enter the work directory.", color="warning")
-        if not subjects_raw:
-            return dbc.Alert("Please enter at least one subject.", color="warning")
 
-        subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
-        if not subjects:
-            return dbc.Alert("No valid subjects found in the subject list.", color="warning")
+        if subjects_raw and subjects_raw.strip():
+            subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
+            if not subjects:
+                return dbc.Alert("No valid subjects found in the subject list.", color="warning")
+        else:
+            from ...pipeline.utils.detect_subjects import detect_subjects
+            subjects = detect_subjects(work_dir, prefix or "sub-")
+            if not subjects:
+                return dbc.Alert(f"No subjects auto-detected in {work_dir}.", color="warning")
+
+        effective_session = session.strip() if session and session.strip() else "*"
 
         try:
             checks_path = load_checks_config(project)
@@ -371,7 +377,7 @@ def register_job_monitor_callbacks(app):
                 config_path=checks_path,
                 work_dir=work_dir,
                 prefix=prefix or "sub-",
-                session=session or "01"
+                session=effective_session,
             )
 
             if task_filter and task_filter.strip():
@@ -425,10 +431,16 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert("Please enter a project name.", color="warning")
         if not work_dir:
             return dbc.Alert("Please enter the work directory.", color="warning")
-        if not subjects_raw:
-            return dbc.Alert("Please enter at least one subject.", color="warning")
 
-        subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
+        if subjects_raw and subjects_raw.strip():
+            subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
+        else:
+            from ...pipeline.utils.detect_subjects import detect_subjects
+            subjects = detect_subjects(work_dir, prefix or "sub-")
+            if not subjects:
+                return dbc.Alert(f"No subjects auto-detected in {work_dir}.", color="warning")
+
+        effective_session = session.strip() if session and session.strip() else "*"
 
         try:
             checks_path = load_checks_config(project)
@@ -442,7 +454,7 @@ def register_job_monitor_callbacks(app):
                 config_path=checks_path,
                 work_dir=work_dir,
                 prefix=prefix or "sub-",
-                session=session or "01"
+                session=effective_session,
             )
             task_names = [task_filter.strip()] if task_filter and task_filter.strip() else list(checker._config.keys())
             df = checker.check_all(task_names, subjects)

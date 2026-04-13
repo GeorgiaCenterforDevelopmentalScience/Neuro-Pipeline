@@ -256,6 +256,64 @@ class TestWarnMissingConfigs:
 
 
 # ---------------------------------------------------------------------------
+# session="*" wildcard (used by check-outputs when --session is omitted)
+# ---------------------------------------------------------------------------
+
+class TestSessionWildcard:
+
+    def test_wildcard_matches_any_session(self, tmp_path):
+        """session='*' glob should find files across ses-01 and ses-02."""
+        from neuro_pipeline.pipeline.utils.output_checker import OutputChecker
+
+        for ses in ("01", "02"):
+            d = tmp_path / f"ses-{ses}"
+            d.mkdir()
+            (d / "sub-001_bold.nii.gz").write_text("x")
+
+        cfg_path = tmp_path / "checks.yaml"
+        import yaml
+        cfg_path.write_text(yaml.dump({
+            "mytask": {
+                "output_path": str(tmp_path / "ses-{session}"),
+                "required_files": ["sub-{subject}_bold.nii.gz"],
+            }
+        }))
+
+        checker = OutputChecker(
+            config_path=str(cfg_path),
+            work_dir=str(tmp_path),
+            prefix="sub-",
+            session="*",
+        )
+        rows = checker.check_subject("mytask", "001")
+        assert len(rows) == 1
+        assert rows[0]["status"] == "PASS"
+        assert rows[0]["session"] == "*"
+
+    def test_wildcard_fails_when_no_files(self, tmp_path):
+        """session='*' still reports FAIL when no files match any session."""
+        from neuro_pipeline.pipeline.utils.output_checker import OutputChecker
+        import yaml
+
+        cfg_path = tmp_path / "checks.yaml"
+        cfg_path.write_text(yaml.dump({
+            "mytask": {
+                "output_path": str(tmp_path / "ses-{session}"),
+                "required_files": ["sub-{subject}_bold.nii.gz"],
+            }
+        }))
+
+        checker = OutputChecker(
+            config_path=str(cfg_path),
+            work_dir=str(tmp_path),
+            prefix="sub-",
+            session="*",
+        )
+        rows = checker.check_subject("mytask", "001")
+        assert rows[0]["status"].startswith("FAIL")
+
+
+# ---------------------------------------------------------------------------
 # 6. check_all — empty DataFrame when nothing configured
 # ---------------------------------------------------------------------------
 
