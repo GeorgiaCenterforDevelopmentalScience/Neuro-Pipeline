@@ -14,7 +14,7 @@ test_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(test_root / "src"))
 
 from neuro_pipeline.pipeline.dag import DAGExecutor
-from neuro_pipeline.pipeline.utils.merge_logs_create_db import merge_json_to_db, rebuild_db
+from neuro_pipeline.pipeline.utils.merge_logs_create_db import merge_json_to_db, rebuild_db, merge_once
 
 
 @pytest.fixture
@@ -370,6 +370,53 @@ class TestEndToEndMergeLogsWorkflow:
         assert unrelated_file.exists()
         
         conn.close()
+
+
+class TestMergeOnce:
+    """Test that merge_once backs up the DB before merging"""
+
+    def test_backup_called_when_db_exists(self, temp_workspace, mock_db):
+        """merge_once calls backup_database before merging when DB already exists"""
+        work_dir = temp_workspace['work_dir']
+        db_path = temp_workspace['db_path']
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+
+        with patch("neuro_pipeline.pipeline.utils.db_backup.backup_database") as mock_backup:
+            mock_backup.return_value = db_path + ".backup_test"
+            merge_once(work_dir, db_path)
+
+        mock_backup.assert_called_once_with(db_path, backup_dir=None)
+
+    def test_no_backup_when_db_missing(self, temp_workspace):
+        """merge_once skips backup when DB does not yet exist"""
+        work_dir = temp_workspace['work_dir']
+        db_path = temp_workspace['db_path']
+        json_dir = temp_workspace['json_dir']
+        assert not Path(db_path).exists()
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+
+        with patch("neuro_pipeline.pipeline.utils.db_backup.backup_database") as mock_backup:
+            merge_once(work_dir, db_path)
+
+        mock_backup.assert_not_called()
+
+    def test_backup_called_before_merge(self, temp_workspace, mock_db):
+        """backup_database is called before merge_json_to_db"""
+        work_dir = temp_workspace['work_dir']
+        db_path = temp_workspace['db_path']
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+
+        call_order = []
+
+        with patch("neuro_pipeline.pipeline.utils.db_backup.backup_database",
+                   side_effect=lambda *a, **kw: call_order.append("backup") or db_path):
+            with patch("neuro_pipeline.pipeline.utils.merge_logs_create_db.merge_json_to_db",
+                       side_effect=lambda *a, **kw: call_order.append("merge") or 1):
+                merge_once(work_dir, db_path)
+
+        assert call_order == ["backup", "merge"]
 
 
 class TestRebuildDb:

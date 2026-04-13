@@ -286,6 +286,14 @@ def merge_once(work_dir: str, db_path: str = None):
         typer.echo(f"No JSON logs: {json_dir}")
         return
 
+    if Path(db_path).exists():
+        from .db_backup import backup_database
+        try:
+            backup_path = backup_database(db_path, backup_dir=None)
+            typer.echo(f"Database backed up to: {backup_path}")
+        except Exception as e:
+            typer.echo(f"Warning: Backup failed: {e}", err=True)
+
     count = merge_json_to_db(json_dir, db_path)
     typer.echo(f"Merged {count} files")
 

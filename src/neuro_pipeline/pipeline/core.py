@@ -218,15 +218,6 @@ def run(
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
-        # Auto-backup database before execution
-        if Path(db_path).exists():
-            from .utils.db_backup import backup_database
-            try:
-                backup_path = backup_database(db_path, backup_dir=None)
-                typer.echo(f"Database backed up to: {backup_path}")
-            except Exception as e:
-                typer.echo(f"Warning: Backup failed: {e}", err=True)
-
         # Log execution start
         execution_id = log_pipeline_execution(
             command_line=command_line,
