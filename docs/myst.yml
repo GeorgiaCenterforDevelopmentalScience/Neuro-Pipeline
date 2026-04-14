@@ -5,7 +5,7 @@ project:
   title: Neuroimaging Pipeline
   description: A comprehensive neuroimaging data processing pipeline for fMRI, structural MRI, DWI, and quality control on HPC clusters.
   keywords: [neuroimaging, fMRI, AFNI, fMRIPrep, SLURM, HPC, pipeline]
-  github: https://github.com/GeorgiaCenterforDevelopmentalScience/GCDS-Neuro-Pipeline
+  github: https://github.com/GeorgiaCenterforDevelopmentalScience/Neuro-Pipeline
   authors:
     - name: Qiuyu Yu
   # exports:
