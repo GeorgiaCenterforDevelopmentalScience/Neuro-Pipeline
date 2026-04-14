@@ -3,6 +3,8 @@
 # Edit at https://www.toptal.com/developers/gitignore?templates=windows,visualstudiocode,java,python,r
 
 .github/*
+!.github/workflows/
+!.github/workflows/*.yml
 
 ### Java ###
 # Compiled class file
@@ -245,6 +247,7 @@ vignettes/*.pdf
 
 # pkgdown site
 # docs/
+!.github/workflows/deploy.yml
 
 # translation temp files
 po/*~
