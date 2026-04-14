@@ -1,6 +1,19 @@
 # Dev Log - [GCDS-Neuro-Pipeline]
 
 ---
+## [0.13.2-alpha] – 2026-04-13
+
+### Changed
+- Database backup now runs on `neuropipe merge-logs` instead of `neuropipe run`. Each merge creates a snapshot of the database before new records are written; the last 10 backups are kept.
+- `execution_id` added to database and logging: `job_status`, `command_outputs`, and `wrapper_scripts` tables now link back to the originating `pipeline_executions` row via `execution_id`.
+- Refactored subject parsing and detection; job monitor callbacks now support auto-detection of subjects and wildcard session matching in `check-outputs`.
+- Updated query output format for execution details in `job_db.py`.
+
+### Tests
+- Added tests for backup behavior in `merge_once`.
+- Aligned `mock_db` schema with production schema; added wildcard session matching tests for `check-outputs`.
+
+---
 ## [0.13.1-alpha] – 2026-04-10
 
 ### Added
