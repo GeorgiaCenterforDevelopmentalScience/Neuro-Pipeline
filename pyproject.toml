@@ -1,12 +1,11 @@
 [project]
-name = "GCDS_Neuro_Pipeline"
-version = "0.12.1_alpha"
-description = "GCDS neuro pipeline project"
+name = "neuroimage-pipe"
+version = "0.14.0-alpha"
+description = "Neuroimage pipeline"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
   { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" },
-  { name = "Charles Geier"}
 ]
 maintainers = [
   { name = "Qiuyu Yu", email = "qiuyuyu.psych@gmail.com" }

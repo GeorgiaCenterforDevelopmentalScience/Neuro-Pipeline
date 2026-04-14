@@ -1,4 +1,4 @@
-# Dev Log - [GCDS-Neuro-Pipeline]
+# Dev Log - [Neuroimage-Pipeline]
 
 ---
 ## [0.14.0-alpha] – 2026-04-13
