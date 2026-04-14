@@ -8,12 +8,6 @@ project:
   github: https://github.com/GeorgiaCenterforDevelopmentalScience/Neuro-Pipeline
   authors:
     - name: Qiuyu Yu
-  # exports:
-  #   - format: pdf
-  exports:
-    - format: html
-      output: exports/my-doc.html
-      template: single-page
   toc:
     - file: index.md
     - title: Getting Started

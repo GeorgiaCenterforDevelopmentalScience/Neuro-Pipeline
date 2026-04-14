@@ -24,17 +24,14 @@ title: CLI Reference
 ::::{grid} 2
 :::{card} neuropipe run
 :link: run
-:link-type: doc
 All flags for submitting pipeline jobs — subjects, stages, dry-run, resume, wait.
 :::
 :::{card} Database Commands
 :link: database-commands
-:link-type: doc
 `check-outputs`, `merge-logs`, `force-rebuild`, `generate-report`, and the database schema.
 :::
 :::{card} Utility Commands
 :link: utility-commands
-:link-type: doc
 `detect-subjects`, `list-tasks`, `neuropipe-gui`, `generate-config`, `generate-checks`.
 :::
 ::::

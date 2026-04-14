@@ -82,42 +82,34 @@ The config requires some upfront work, but that is intentional: it is the tradeo
 ::::{grid} 2
 :::{card} Getting Started
 :link: getting-started/index
-:link-type: doc
 Install the pipeline and run your first job in 5 minutes.
 :::
 :::{card} Complete Pipeline Walkthrough
 :link: getting-started/full-pipeline
-:link-type: doc
 End-to-end example: config → submit → verify → re-run.
 :::
 :::{card} Configuration Guide
 :link: configuration/project-config
-:link-type: doc
 Project config, HPC profiles, and output checks.
 :::
 :::{card} Pipeline Tasks Reference
 :link: pipeline-reference/index
-:link-type: doc
 What each task does, its inputs, outputs, and dependencies.
 :::
 :::{card} GUI Reference
 :link: gui/index
-:link-type: doc
 Web dashboard walkthrough — Analysis Control, Project Config, Job Monitor.
 :::
 :::{card} CLI Reference
 :link: cli-reference/index
-:link-type: doc
 All command-line options explained.
 :::
 :::{card} How-To Guides
 :link: how-to/rerun-subjects
-:link-type: doc
 Step-by-step recipes for common scenarios.
 :::
 :::{card} Debug & Troubleshoot
 :link: how-to/debug-failures
-:link-type: doc
 Common errors and how to fix them.
 :::
 ::::
