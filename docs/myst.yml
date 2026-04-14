@@ -1,0 +1,61 @@
+# See docs at: https://mystmd.org/guide/frontmatter
+version: 1
+project:
+  id: 67753c61-a96e-410d-8b00-da07295c9d65
+  title: Neuroimaging Pipeline
+  description: A comprehensive neuroimaging data processing pipeline for fMRI, structural MRI, DWI, and quality control on HPC clusters.
+  keywords: [neuroimaging, fMRI, AFNI, fMRIPrep, SLURM, HPC, pipeline]
+  github: https://github.com/GeorgiaCenterforDevelopmentalScience/GCDS-Neuro-Pipeline
+  authors:
+    - name: Qiuyu Yu
+  # exports:
+  #   - format: pdf
+  exports:
+    - format: html
+      output: exports/my-doc.html
+      template: single-page
+  toc:
+    - file: index.md
+    - title: Getting Started
+      children:
+        - file: getting-started/index.md
+        - file: getting-started/full-pipeline.md
+    - title: Configuration Guide
+      children:
+        - file: configuration/pipeline-config.md
+        - file: configuration/hpc-config.md
+        - file: configuration/project-config.md
+        - file: configuration/output-checks.md
+    - title: Pipeline Tasks Reference
+      children:
+        - file: pipeline-reference/index.md
+        - file: pipeline-reference/prep.md
+        - file: pipeline-reference/intermed.md
+        - file: pipeline-reference/bids-pipeline.md
+        - file: pipeline-reference/staged-pipeline.md
+        - file: pipeline-reference/qc.md
+        - file: pipeline-reference/common-scenarios.md
+    - title: GUI Reference
+      children:
+        - file: gui/index.md
+    - title: CLI Reference
+      children:
+        - file: cli-reference/index.md
+        - file: cli-reference/run.md
+        - file: cli-reference/database-commands.md
+        - file: cli-reference/utility-commands.md
+    - title: How-To Guides
+      children:
+        - file: how-to/rerun-subjects.md
+        - file: how-to/add-custom-task.md
+        - file: how-to/post-run-verification.md
+        - file: how-to/debug-failures.md
+    - title: Internals
+      children:
+        - file: internals/dag-execution.md
+        - file: internals/wrapper-slurm.md
+        - file: internals/logging-resume.md
+site:
+  template: book-theme
+  options:
+    favicon: favicon.ico

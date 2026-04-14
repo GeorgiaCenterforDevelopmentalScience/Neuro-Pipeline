@@ -14,6 +14,9 @@ A robust, modular, reproducible pipeline for neuroimaging preprocessing and anal
 
 # Completed Features
 
+## v0.14.x
+- **Handbook (initial release):** First complete documentation site covering CLI reference, configuration guides, pipeline task reference, how-to guides, and internals.
+
 ## v0.13.x
 - **CLI redesign:** Replaced hard-coded modality flags with abstract `--bids-prep` / `--staged-prep` flags driven by `config.yaml`. Adding a new modality no longer requires backend changes.
 - **Dynamic DAG visualization:** Pipeline graph is generated dynamically from the DAG definition.
@@ -32,13 +35,13 @@ A robust, modular, reproducible pipeline for neuroimaging preprocessing and anal
 
 ---
 
-## v0.14.x – Stability & Documentation
+## v0.15.x – Stability & Expansion
 ### Testing
 - Expand test coverage.
 - Add integration-level tests for DAG execution and HPC job submission.
 
 ### Documentation
-- Begin handbook / manual (CLI usage, config reference, workflow examples).
+- Iterate on handbook based on user feedback; fill gaps identified during first real-world runs.
 
 ### Frontend
 - Minor interface improvements as needed.

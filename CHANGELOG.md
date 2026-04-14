@@ -1,6 +1,12 @@
 # Dev Log - [GCDS-Neuro-Pipeline]
 
 ---
+## [0.14.0-alpha] – 2026-04-13
+
+### Added
+- **Handbook (initial release):** First complete version of the project documentation site, covering CLI reference, configuration guides, pipeline task reference, how-to guides, and internals.
+
+---
 ## [0.13.2-alpha] – 2026-04-13
 
 ### Changed
