@@ -31,18 +31,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - uses: actions/setup-python@v5
+        uses: actions/configure-pages@v3
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.11'
-      - name: Install Jupyter Book
-        run: pip install jupyter-book
+          node-version: 18.x
+      - name: Install Jupyter Book (via myst)
+        run: npm install -g jupyter-book
       - name: Build HTML Assets
-        run: jupyter-book build docs/
+        run: jupyter-book build --html
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './docs/_build/html'
+          path: './_build/html'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

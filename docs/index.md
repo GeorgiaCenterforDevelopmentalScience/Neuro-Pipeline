@@ -1,5 +1,5 @@
 ---
-title: Neuroimaging Pipeline
+title: Neuroimage Pipeline
 ---
 
 # Neuroimaging Pipeline
