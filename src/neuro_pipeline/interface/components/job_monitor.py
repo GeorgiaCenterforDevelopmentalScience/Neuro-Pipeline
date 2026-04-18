@@ -157,23 +157,32 @@ def create_job_monitor_layout():
                                     dbc.Label("Session:", html_for="session-filter"),
                                     dbc.Input(id="session-filter", type="text",
                                               placeholder="e.g., 01", className="mb-3")
-                                ], width=3),
+                                ], width=2),
                                 dbc.Col([
                                     dbc.Label("Task:", html_for="task-filter"),
                                     dbc.Input(id="task-filter", type="text",
                                               placeholder="e.g., unzip", className="mb-3")
-                                ], width=3),
+                                ], width=2),
+                                dbc.Col([
+                                    dbc.Label(
+                                        "Execution ID:",
+                                        html_for="execution-id-filter",
+                                        title="Pipeline run ID (see Pipeline Executions table). "
+                                              "Use this to filter results from a specific run "
+                                              "when the same task was submitted multiple times.",
+                                    ),
+                                    dbc.Input(id="execution-id-filter", type="text",
+                                              placeholder="e.g., 3", className="mb-3")
+                                ], width=2),
                                 dbc.Col([
                                     dbc.Label("Status:", html_for="status-filter"),
                                     dcc.Dropdown(
                                         id="status-filter",
                                         options=[
                                             {"label": "All",       "value": "all"},
-                                            {"label": "Running",   "value": "RUNNING"},
                                             {"label": "Success",   "value": "SUCCESS"},
                                             {"label": "Failed",    "value": "FAILED"},
-                                            {"label": "Pending",   "value": "PENDING"},
-                                            {"label": "Completed", "value": "COMPLETED"},
+                                            {"label": "Cancelled", "value": "CANCELLED"},
                                         ],
                                         value="all",
                                         className="mb-3"

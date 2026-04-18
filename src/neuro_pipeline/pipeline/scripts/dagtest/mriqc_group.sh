@@ -1,12 +1,8 @@
 #!/bin/bash
-
+ 
 # ---------------------------------- Setup ---------------------------------------------
 
 subject="$1"
-
-echo "Processing subject: $subject for BIDS reconstruction"
-echo "${SESSION}"
-
 
 input_dir="$INPUT_DIR"
 output_dir="$OUTPUT_DIR"
@@ -14,6 +10,9 @@ work_dir="$WORK_DIR"/mriqc/sub-${subject}
 
 mkdir -p ${work_dir}
 mkdir -p ${output_dir}
+
+echo "$INPUT_DIR"
+echo "$OUTPUT_DIR"
 
 # ---------------------------------- Run Processing -------------------------------------
 
@@ -23,13 +22,13 @@ singularity run \
                 -B ${work_dir}:/work \
                 -B ${output_dir}:/output \
         ${CONTAINER_DIR}/${CONTAINER} /data /output \
-        participant --participant_label $subject \
+        group \
         -w /work \
         --no-sub \
         --nprocs 16 \
-        --verbose-reports \
         --notrack \
-        --session-id ${SESSION} \
         --omp-nthreads 4 \
+        --verbose-reports \
         --write-graph \
-        -m T1w
+        -vv \
+        --dry-run

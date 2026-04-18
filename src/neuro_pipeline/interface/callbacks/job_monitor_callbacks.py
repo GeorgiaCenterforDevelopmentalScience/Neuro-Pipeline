@@ -13,6 +13,31 @@ from ..utils.plot_utils import (
     create_exit_code_bar
 )
 
+def _auto_detect_subjects(work_dir: str, prefix: str):
+    """Return (subjects, None) on success or (None, Alert) on failure."""
+    from ...pipeline.utils.detect_subjects import detect_subjects
+    scan_dir = os.path.join(work_dir, "BIDS") if os.path.isdir(os.path.join(work_dir, "BIDS")) else work_dir
+    subjects = detect_subjects(scan_dir, prefix)
+    if not subjects:
+        return None, dbc.Alert(f"No subjects auto-detected in {scan_dir}.", color="warning")
+    return subjects, None
+
+
+def _run_checks(checks_path: str, work_dir: str, prefix: str,
+                session_input, task_filter, subjects: list):
+    """Run OutputChecker for one or more sessions; return (sessions, combined_df)."""
+    sessions = [s.strip() for s in session_input.split(',') if s.strip()] if session_input and session_input.strip() else ["*"]
+    all_dfs = []
+    for sess in sessions:
+        checker = OutputChecker(config_path=checks_path, work_dir=work_dir, prefix=prefix, session=sess)
+        task_names = [task_filter.strip()] if task_filter and task_filter.strip() else list(checker._config.keys())
+        all_dfs.append(checker.check_all(task_names, subjects))
+    df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame(
+        columns=["task", "subject", "session", "check_type", "pattern", "expected", "actual", "status"]
+    )
+    return sessions, df
+
+
 def _render_check_table(df: pd.DataFrame):
     """Render the output check results DataFrame as an HTML table with PASS/FAIL row colouring."""
     header = html.Thead(html.Tr([html.Th(col) for col in df.columns]))
@@ -41,9 +66,10 @@ def register_job_monitor_callbacks(app):
          State("task-filter", "value"),
          State("status-filter", "value"),
          State("date-range", "start_date"),
-         State("date-range", "end_date")]
+         State("date-range", "end_date"),
+         State("execution-id-filter", "value")]
     )
-    def execute_sql_query_callback(n_clicks, db_path, query_type, subject, session, task, status, start_date, end_date):
+    def execute_sql_query_callback(n_clicks, db_path, query_type, subject, session, task, status, start_date, end_date, execution_id):
         if n_clicks is None:
             return "Click 'Execute Query' to see results", ""
         
@@ -72,15 +98,19 @@ def register_job_monitor_callbacks(app):
                 if status and status != "all":
                     query += " AND status = ?"
                     params.append(status)
-                
+
+                if execution_id and execution_id.strip():
+                    query += " AND execution_id = ?"
+                    params.append(execution_id.strip())
+
                 if start_date:
                     query += " AND start_time >= ?"
                     params.append(start_date)
-                
+
                 if end_date:
                     query += " AND start_time <= ?"
                     params.append(end_date)
-                
+
                 query += " ORDER BY start_time DESC LIMIT 100"
                 
             elif query_type == "command_outputs":
@@ -185,9 +215,10 @@ def register_job_monitor_callbacks(app):
          State("subject-filter", "value"),
          State("session-filter", "value"),
          State("task-filter", "value"),
-         State("status-filter", "value")]
+         State("status-filter", "value"),
+         State("execution-id-filter", "value")]
     )
-    def export_csv_callback(n_clicks, db_path, query_type, subject, session, task, status):
+    def export_csv_callback(n_clicks, db_path, query_type, subject, session, task, status, execution_id):
         if n_clicks is None:
             return ""
         
@@ -216,7 +247,11 @@ def register_job_monitor_callbacks(app):
                 if status and status != "all":
                     query += " AND status = ?"
                     params.append(status)
-                
+
+                if execution_id and execution_id.strip():
+                    query += " AND execution_id = ?"
+                    params.append(execution_id.strip())
+
             elif query_type == "command_outputs":
                 query = "SELECT * FROM command_outputs WHERE 1=1"
                 params = []
@@ -358,12 +393,9 @@ def register_job_monitor_callbacks(app):
             if not subjects:
                 return dbc.Alert("No valid subjects found in the subject list.", color="warning")
         else:
-            from ...pipeline.utils.detect_subjects import detect_subjects
-            subjects = detect_subjects(work_dir, prefix or "sub-")
-            if not subjects:
-                return dbc.Alert(f"No subjects auto-detected in {work_dir}.", color="warning")
-
-        effective_session = session.strip() if session and session.strip() else "*"
+            subjects, err = _auto_detect_subjects(work_dir, prefix or "sub-")
+            if err:
+                return err
 
         try:
             checks_path = load_checks_config(project)
@@ -373,19 +405,7 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Error loading checks config: {str(e)}", color="danger")
 
         try:
-            checker = OutputChecker(
-                config_path=checks_path,
-                work_dir=work_dir,
-                prefix=prefix or "sub-",
-                session=effective_session,
-            )
-
-            if task_filter and task_filter.strip():
-                task_names = [task_filter.strip()]
-            else:
-                task_names = list(checker._config.keys())
-
-            df = checker.check_all(task_names, subjects)
+            sessions, df = _run_checks(checks_path, work_dir, prefix or "sub-", session, task_filter, subjects)
         except Exception as e:
             return dbc.Alert(f"Error running checks: {str(e)}", color="danger")
 
@@ -435,12 +455,9 @@ def register_job_monitor_callbacks(app):
         if subjects_raw and subjects_raw.strip():
             subjects = [s.strip() for s in subjects_raw.split(",") if s.strip()]
         else:
-            from ...pipeline.utils.detect_subjects import detect_subjects
-            subjects = detect_subjects(work_dir, prefix or "sub-")
-            if not subjects:
-                return dbc.Alert(f"No subjects auto-detected in {work_dir}.", color="warning")
-
-        effective_session = session.strip() if session and session.strip() else "*"
+            subjects, err = _auto_detect_subjects(work_dir, prefix or "sub-")
+            if err:
+                return err
 
         try:
             checks_path = load_checks_config(project)
@@ -450,15 +467,11 @@ def register_job_monitor_callbacks(app):
             return dbc.Alert(f"Error loading checks config: {str(e)}", color="danger")
 
         try:
-            checker = OutputChecker(
-                config_path=checks_path,
-                work_dir=work_dir,
-                prefix=prefix or "sub-",
-                session=effective_session,
-            )
-            task_names = [task_filter.strip()] if task_filter and task_filter.strip() else list(checker._config.keys())
-            df = checker.check_all(task_names, subjects)
-            csv_path = checker.save_csv(df, work_dir)
+            sessions, df = _run_checks(checks_path, work_dir, prefix or "sub-", session, task_filter, subjects)
+            csv_path = OutputChecker(
+                config_path=checks_path, work_dir=work_dir,
+                prefix=prefix or "sub-", session=sessions[0],
+            ).save_csv(df, work_dir)
         except Exception as e:
             return dbc.Alert(f"Error exporting CSV: {str(e)}", color="danger")
 
@@ -484,8 +497,8 @@ def register_job_monitor_callbacks(app):
                 query += " AND task_name LIKE ?"
                 params.append(f"%{task_filter.strip()}%")
             if job_id and job_id.strip():
-                query += " AND job_id = ?"
-                params.append(job_id.strip())
+                query += " AND job_id LIKE ?"
+                params.append(f"{job_id.strip()}%")
             query += " ORDER BY submission_time DESC LIMIT 1"
 
             import pandas as pd

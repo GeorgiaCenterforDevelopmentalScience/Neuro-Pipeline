@@ -70,6 +70,14 @@ cards:
     scripts: [afni_cards_preprocessing.sh]
     output_pattern: "{base_output}/AFNI_derivatives"
 
+  - name: cards_postprocess
+    stage: post
+    profile: standard
+    input_from: cards_preprocess
+    multi_stage: true
+    scripts: [afni_cards_postprocessing.sh]
+    output_pattern: "{base_output}/postprocessing/group/cards"
+
 kidvid:
   - name: kidvid_preprocess
     stage: prep
@@ -79,6 +87,15 @@ kidvid:
     multi_stage: true
     scripts: [afni_kidvid_preprocess.sh]
     output_pattern: "{base_output}/AFNI_derivatives"
+
+  - name: kidvid_postprocess
+    stage: post
+    profile: standard
+    input_from: kidvid_preprocess
+    multi_stage: true
+    scripts: [afni_kidvid_postprocessing.sh]
+    output_pattern: "{base_output}/postprocessing/group/kidvid"
+
 
 # Quality control
 qc:

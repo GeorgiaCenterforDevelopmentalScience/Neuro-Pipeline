@@ -449,7 +449,7 @@ def check_outputs_cmd(
     project: str = typer.Option(..., help="Project name"),
     work_dir: str = typer.Option(..., "--work", help="Work/output directory"),
     subjects: Optional[str] = typer.Option(None, help="Subject list or file path (auto-detected from work_dir if omitted)"),
-    session: Optional[str] = typer.Option(None, help="Session ID (checks all sessions if omitted)"),
+    session: Optional[str] = typer.Option(None, help="Session ID(s), comma-separated (e.g. 01,02). Checks all sessions if omitted."),
     tasks: Optional[List[str]] = typer.Option(None, "--task",
         help="Task(s) to check (repeatable). Defaults to all configured tasks."),
     checks_dir: Optional[str] = typer.Option(None,
@@ -491,37 +491,55 @@ def check_outputs_cmd(
             typer.echo("Error: no subjects provided", err=True)
             raise typer.Exit(1)
     else:
-        subject_list = detect_subjects(work_dir, prefix)
+        scan_dir = os.path.join(work_dir, "BIDS") if os.path.isdir(os.path.join(work_dir, "BIDS")) else work_dir
+        subject_list = detect_subjects(scan_dir, prefix)
         if not subject_list:
-            typer.echo(f"Error: no subjects found in {work_dir}", err=True)
+            typer.echo(f"Error: no subjects found in {scan_dir}", err=True)
             raise typer.Exit(1)
-        typer.echo(f"Auto-detected {len(subject_list)} subjects from {work_dir}")
+        typer.echo(f"Auto-detected {len(subject_list)} subjects from {scan_dir}")
 
-    effective_session = session if session else "*"
-    if not session:
+    if session:
+        sessions = [s.strip() for s in session.split(',') if s.strip()]
+        typer.echo(f"Sessions: {', '.join(sessions)}")
+    else:
+        sessions = ["*"]
         typer.echo("No --session specified: checking all sessions")
 
-    checker = OutputChecker(
+    # Load config and resolve task list using the first session
+    ref_checker = OutputChecker(
         config_path=checks_config_path,
         work_dir=work_dir,
         prefix=prefix,
-        session=effective_session,
+        session=sessions[0],
     )
 
-    all_configured_tasks = list(checker._config.keys())
+    all_configured_tasks = list(ref_checker._config.keys())
     task_names = tasks if tasks else all_configured_tasks
 
-    checker.warn_missing_configs(task_names)
-    task_names = [t for t in task_names if t in checker._config]
+    ref_checker.warn_missing_configs(task_names)
+    task_names = [t for t in task_names if t in ref_checker._config]
 
     if not task_names:
         typer.echo("No tasks to check (none have output check configs).")
         raise typer.Exit(0)
 
-    typer.echo(f"Checking {len(task_names)} task(s) × {len(subject_list)} subject(s)...")
+    typer.echo(f"Checking {len(task_names)} task(s) × {len(subject_list)} subject(s) × {len(sessions)} session(s)...")
 
-    df = checker.check_all(task_names, subject_list)
-    checker.print_terminal_summary(df)
+    import pandas as pd
+    all_dfs = []
+    for sess in sessions:
+        checker = OutputChecker(
+            config_path=checks_config_path,
+            work_dir=work_dir,
+            prefix=prefix,
+            session=sess,
+        )
+        all_dfs.append(checker.check_all(task_names, subject_list))
+
+    df = pd.concat(all_dfs, ignore_index=True) if all_dfs else pd.DataFrame(
+        columns=["task", "subject", "session", "check_type", "pattern", "expected", "actual", "status"]
+    )
+    ref_checker.print_terminal_summary(df)
 
     csv_path = checker.save_csv(df, work_dir)
     typer.echo(f"Full report saved to: {csv_path}")

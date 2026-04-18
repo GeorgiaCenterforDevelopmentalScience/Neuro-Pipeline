@@ -403,7 +403,7 @@ def submit_slurm_job(
     script_path = get_script_with_validation(script_name, scripts_dir)
     
     if not script_path:
-        return None
+        raise FileNotFoundError(f"Script '{script_name}' not found in scripts_dir='{scripts_dir}'")
 
     if task_config:
         resources = get_hpc_resources(task_config)

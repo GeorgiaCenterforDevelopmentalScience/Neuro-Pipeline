@@ -32,4 +32,5 @@ singularity run \
         --session-id ${SESSION} \
         --omp-nthreads 4 \
         --write-graph \
-        -m T1w
+        -m T1w \
+        --dry-run

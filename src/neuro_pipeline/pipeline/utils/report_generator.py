@@ -230,15 +230,21 @@ def generate_report(
             check_df = pd.read_csv(check_results_path)
             print(f"  Loaded check-results: {len(check_df)} rows")
     else:
-        work_dir = data['metadata'].get('work_dir', '')
-        if work_dir:
+        search_dirs = [
+            data['metadata'].get('output_dir', ''),
+            data['metadata'].get('work_dir', ''),
+        ]
+        for search_dir in search_dirs:
+            if not search_dir:
+                continue
             candidates = sorted(
-                glob.glob(os.path.join(work_dir, 'check_results_*.csv')),
+                glob.glob(os.path.join(search_dir, 'check_results_*.csv')),
                 reverse=True,
             )
             if candidates:
                 check_df = pd.read_csv(candidates[0])
                 print(f"  Auto-detected check-results: {candidates[0]}")
+                break
 
     html_content = render_html(
         metadata=data['metadata'],
