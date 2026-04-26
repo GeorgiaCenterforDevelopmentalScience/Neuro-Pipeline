@@ -4,7 +4,7 @@
 
 subject="$1"
 
-work_dir="$WORK_DIR"/qsiprep/sub-${subject}
+work_dir="$WORK_DIR"/xcpd/sub-${subject}
 
 mkdir -p ${work_dir}
 mkdir -p ${OUTPUT_DIR}
@@ -36,8 +36,7 @@ singularity run \
         --omp-nthreads 8 \
         --fs-license-file /freesurfer/${LICENSE} \
         --skip_bids_validation \
-        --sloppy \
-        --boilerplate \
+        --session-id ${SESSION} \
         --anatomical-template ${TEMPLATE} \
         --fs-license-file \
         --use-syn-sdc \

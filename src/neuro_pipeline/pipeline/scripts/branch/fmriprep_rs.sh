@@ -35,6 +35,7 @@ singularity run \
         --nthreads 16 \
         --fs-license-file /freesurfer/${LICENSE} \
         --skip_bids_validation \
+        --session-id ${SESSION} \
         --dummy-scans ${REMOVE_TRS} \
         --use-syn-sdc warn \
         --force syn-sdc \

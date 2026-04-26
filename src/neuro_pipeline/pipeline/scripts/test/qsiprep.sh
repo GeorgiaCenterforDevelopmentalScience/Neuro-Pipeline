@@ -36,9 +36,8 @@ singularity run \
         --omp-nthreads 8 \
         --fs-license-file /freesurfer/${LICENSE} \
         --skip_bids_validation \
+        --session-id ${SESSION} \
         --sloppy \
-        --boilerplate \
         --anatomical-template ${TEMPLATE} \
         --fs-license-file \
-        --use-syn-sdc \
         --notrack

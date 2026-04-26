@@ -4,7 +4,7 @@
 
 subject="$1"
 
-work_dir="$WORK_DIR"/qsiprep/sub-${subject}
+work_dir="$WORK_DIR"/qsirecon/sub-${subject}
 
 mkdir -p ${work_dir}
 mkdir -p ${OUTPUT_DIR}
@@ -15,13 +15,10 @@ echo "input dir: ${INPUT_DIR}"
 echo "output dir: ${OUTPUT_DIR}"
 echo "work dir: ${work_dir}"
 echo "freesurfer: ${freesurfer_license}"
-echo "template: ${TEMPLATE}"
+echo "mode: ${MODE}"
 echo "container: ${CONTAINER_DIR}/${CONTAINER}"
 
-# ---------------------------------- Run Processing -------------------------------------
-# https://qsiprep.readthedocs.io/en/latest/quickstart.html
-
-# --output-resolution 1.2
+# https://qsirecon.readthedocs.io/en/latest/quickstart.html
 
 singularity run \
                 -B ${CONTAINER_DIR}:/resources \
@@ -35,10 +32,11 @@ singularity run \
         --nthreads 16 \
         --omp-nthreads 8 \
         --fs-license-file /freesurfer/${LICENSE} \
-        --skip_bids_validation \
+        --session-id ${SESSION} \
         --sloppy \
-        --boilerplate \
-        --anatomical-template ${TEMPLATE} \
-        --fs-license-file \
-        --use-syn-sdc \
-        --notrack
+        --containall \
+        --writable-tmpfs \
+        --recon-spec ${MODE} \
+        --notrack \
+        -v
+
