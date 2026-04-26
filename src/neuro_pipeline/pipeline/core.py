@@ -418,25 +418,24 @@ def generate_report_cmd(
         None, "--session",
         help="Filter by session ID (recommended when multiple projects share a database)."
     ),
-    check_results: Optional[str] = typer.Option(
-        None, "--check-results",
-        help="Path to a check_results_*.csv from check-outputs. Auto-detected from work_dir if omitted."
+    check_results: str = typer.Option(..., "--check-results",
+        help="Path to a check_results_*.csv produced by check-outputs."
     ),
 ):
     """
     Generate a standalone HTML pipeline report for a project.
     Example:
       neuropipe generate-report --db-path /scratch/log/database/pipeline_jobs.db \\
-          --project GCDS --session 01
+          --project GCDS --session 01 --check-results /data/work/check_results_20260421.csv
     """
     from .utils.report_generator import generate_report
     try:
         out = generate_report(
             db_path=db_path,
             project_name=project,
+            check_results_path=check_results,
             output_path=output,
             session=session,
-            check_results_path=check_results,
         )
         typer.echo(f"Report: {out}")
     except (FileNotFoundError, ValueError) as e:

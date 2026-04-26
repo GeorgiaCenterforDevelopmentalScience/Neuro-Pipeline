@@ -164,15 +164,11 @@ def create_job_monitor_layout():
                                               placeholder="e.g., unzip", className="mb-3")
                                 ], width=2),
                                 dbc.Col([
-                                    dbc.Label(
-                                        "Execution ID:",
-                                        html_for="execution-id-filter",
-                                        title="Pipeline run ID (see Pipeline Executions table). "
-                                              "Use this to filter results from a specific run "
-                                              "when the same task was submitted multiple times.",
-                                    ),
+                                    dbc.Label("Execution ID:", html_for="execution-id-filter"),
                                     dbc.Input(id="execution-id-filter", type="text",
-                                              placeholder="e.g., 3", className="mb-3")
+                                              placeholder="e.g., 3", className="mb-3"),
+                                    html.Small("Pipeline run ID — filter by this to isolate one run when a task was submitted multiple times.",
+                                               className="text-muted")
                                 ], width=2),
                                 dbc.Col([
                                     dbc.Label("Status:", html_for="status-filter"),
@@ -278,9 +274,9 @@ def create_job_monitor_layout():
                                               placeholder="e.g., 01", className="mb-3")
                                 ], width=2),
                                 dbc.Col([
-                                    dbc.Label("Check Results CSV (optional):", html_for="report-check-results"),
+                                    dbc.Label("Check Results CSV:", html_for="report-check-results"),
                                     dbc.Input(id="report-check-results", type="text",
-                                              placeholder="Auto-detected if blank", className="mb-3")
+                                              placeholder="e.g., /data/work/check_results_20260421.csv", className="mb-3")
                                 ], width=4),
                                 dbc.Col([
                                     dbc.Label("Output Path (optional):", html_for="report-output-path"),

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Generate a standalone HTML pipeline report from the job database."""
 
-import glob
 import os
 import sqlite3
 from datetime import datetime
@@ -198,9 +197,9 @@ def ordered_tasks_from_summary(summary: list) -> list:
 def generate_report(
     db_path: str,
     project_name: str,
+    check_results_path: str,
     output_path: Optional[str] = None,
     session: Optional[str] = None,
-    check_results_path: Optional[str] = None,
 ) -> str:
     """Generate the HTML report and write it to disk. Returns the output path."""
 
@@ -222,29 +221,10 @@ def generate_report(
     task_summary = compute_task_summary(data['job_status'], data['all_subjects'])
     all_tasks    = ordered_tasks_from_summary(task_summary)
 
-    check_df: Optional[pd.DataFrame] = None
-    if check_results_path:
-        if not os.path.isfile(check_results_path):
-            print(f"  Warning: check-results file not found: {check_results_path}")
-        else:
-            check_df = pd.read_csv(check_results_path)
-            print(f"  Loaded check-results: {len(check_df)} rows")
-    else:
-        search_dirs = [
-            data['metadata'].get('output_dir', ''),
-            data['metadata'].get('work_dir', ''),
-        ]
-        for search_dir in search_dirs:
-            if not search_dir:
-                continue
-            candidates = sorted(
-                glob.glob(os.path.join(search_dir, 'check_results_*.csv')),
-                reverse=True,
-            )
-            if candidates:
-                check_df = pd.read_csv(candidates[0])
-                print(f"  Auto-detected check-results: {candidates[0]}")
-                break
+    if not os.path.isfile(check_results_path):
+        raise FileNotFoundError(f"check-results file not found: {check_results_path}")
+    check_df: Optional[pd.DataFrame] = pd.read_csv(check_results_path)
+    print(f"  Loaded check-results: {len(check_df)} rows")
 
     html_content = render_html(
         metadata=data['metadata'],

@@ -594,6 +594,8 @@ def register_job_monitor_callbacks(app):
     def generate_report_callback(n_clicks, db_path, project, session, check_results, output_path):
         if not db_path or not project:
             return dbc.Alert("Database path and project name are required.", color="warning")
+        if not check_results or not check_results.strip():
+            return dbc.Alert("Check Results CSV is required.", color="warning")
         if not os.path.exists(db_path):
             return dbc.Alert(f"Database not found: {db_path}", color="danger")
         try:
@@ -601,9 +603,9 @@ def register_job_monitor_callbacks(app):
             out = generate_report(
                 db_path=db_path,
                 project_name=project.strip(),
+                check_results_path=check_results.strip(),
                 output_path=output_path.strip() if output_path and output_path.strip() else None,
                 session=session.strip() if session and session.strip() else None,
-                check_results_path=check_results.strip() if check_results and check_results.strip() else None,
             )
             return dbc.Alert([
                 "Report saved: ",
