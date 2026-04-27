@@ -27,7 +27,7 @@ singularity run \
                 -B ${OUTPUT_DIR}:/output \
                 -B ${FREESURFER_DIR}:/freesurfer \
         ${CONTAINER_DIR}/${CONTAINER} /data /output \
-        participant --participant_label ${subject} \
+        participant --participant-label ${subject} \
         -w /work \
         --nthreads 16 \
         --omp-nthreads 8 \
