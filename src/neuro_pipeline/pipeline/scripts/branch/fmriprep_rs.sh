@@ -23,6 +23,8 @@ echo "container: ${CONTAINER_DIR}/${CONTAINER}"
 # If you want to use HaskinsPeds template you need to make and upload it to the template folder.
 # See https://fmriprep.org/en/stable/spaces.html
 
+# fmriprep 25.1.3 does not support --session-label ${SESSION}, add this in the future
+
 singularity run \
                 -B ${CONTAINER_DIR}:/resources \
                 -B ${input_dir}:/data \
@@ -35,7 +37,6 @@ singularity run \
         --nthreads 16 \
         --fs-license-file /freesurfer/${LICENSE} \
         --skip_bids_validation \
-        --session-label ${SESSION} \
         --dummy-scans ${REMOVE_TRS} \
         --use-syn-sdc warn \
         --force syn-sdc \

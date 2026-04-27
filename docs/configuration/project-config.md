@@ -104,7 +104,7 @@ tasks:
 
   dwi_preprocess:
     environ: ["fsl_6.0.7.14"]
-    container: "qsiprep_0.15.0.sif"
+    container: "qsiprep-1.0.0.sif"
     license: "license.txt"
 
   dwi_post:

@@ -30,13 +30,14 @@ singularity run \
                 -B ${OUTPUT_DIR}:/output \
                 -B ${FREESURFER_DIR}:/freesurfer \
         ${CONTAINER_DIR}/${CONTAINER} /data /output \
-        participant --participant_label ${subject} \
+        participant --participant-label ${subject} \
         -w /work \
         --nthreads 16 \
         --omp-nthreads 8 \
         --fs-license-file /freesurfer/${LICENSE} \
-        --skip_bids_validation \
+        --skip-bids-validation \
         --session-id ${SESSION} \
         --anatomical-template ${TEMPLATE} \
+        --output-resolution 2.0 \
         --use-syn-sdc \
         --notrack
