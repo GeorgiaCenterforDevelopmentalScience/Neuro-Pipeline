@@ -35,7 +35,7 @@ singularity run \
         --nthreads 16 \
         --fs-license-file /freesurfer/${LICENSE} \
         --skip_bids_validation \
-        --session-id ${SESSION} \
+        --session-label ${SESSION} \
         --dummy-scans ${REMOVE_TRS} \
         --write-graph \
         --debug all \

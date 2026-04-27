@@ -38,6 +38,5 @@ singularity run \
         --skip_bids_validation \
         --session-id ${SESSION} \
         --anatomical-template ${TEMPLATE} \
-        --fs-license-file \
         --use-syn-sdc \
         --notrack

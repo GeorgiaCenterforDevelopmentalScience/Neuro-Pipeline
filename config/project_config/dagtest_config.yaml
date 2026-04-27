@@ -70,6 +70,16 @@ tasks:
     nuisance_regressors: "36P"
     license: "license.txt"
 
+  dwi_preprocess:
+    template: "MNI152NLin2009cAsym"
+    container: "qsiprep-1.0.0.sif"
+    license: "license.txt"
+
+  dwi_post:
+    container: "qsirecon_build-26.1.16.sif"
+    mode: "dsi_studio_gqi"
+    license: "license.txt"
+
   cards_preprocess:
     remove_TRs: 2
     template: "HaskinsPeds_NL_template1.0_SSW.nii"

@@ -87,12 +87,12 @@ tasks:
     censor_outliers: "0.05"
 
   dwi_preprocess:
-    container: "qsiprep_0.15.0.sif"
+    container: "qsiprep-1.0.0.sif"
     license: "license.txt"
     template: "MNI152NLin2009cAsym"
 
   dwi_post:
-    container: "qsiprep_0.15.0.sif"
+    container: "qsiprep-1.0.0.sif"
     license: "license.txt"
     mode: "dsi_studio_autotrack"
 

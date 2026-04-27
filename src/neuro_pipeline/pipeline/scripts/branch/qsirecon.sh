@@ -34,8 +34,6 @@ singularity run \
         --fs-license-file /freesurfer/${LICENSE} \
         --session-id ${SESSION} \
         --input-type qsiprep \
-        --boilerplate\
-        --sloppy \
         --containall \
         --writable-tmpfs \
         --recon-spec ${MODE} \

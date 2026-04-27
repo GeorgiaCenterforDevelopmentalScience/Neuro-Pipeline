@@ -4,21 +4,21 @@ echo "Input directory: $INPUT_DIR"
 echo "Output directory: $OUTPUT_DIR"
 
 # GroupA_IDS=(
-#     001 002 003
+#     027 028
 # )
 
 # GroupB_IDS=(
-#     004 005 006
+#     070 071
 # )
 
 # CONTRASTS=("Pos-Neut" "Neg-Neut" "Pos-Neg" "PosNeg-Neut")
 
 
-# MASTER_FILE="${INPUT_DIR}/sub-1128/ses-${SESSION}/kidvid/sub-1128.results/stats.sub-1128_REML+tlrc"
+# MASTER_FILE="${INPUT_DIR}/sub-027/ses-${SESSION}/kidvid_output/sub-027.results/stats.sub-027_REML+tlrc"
 # ALL_IDS=("${GroupA_IDS[@]}" "${GroupB_IDS[@]}")
 
 # for sub in "${ALL_IDS[@]}"; do
-#     orig_file="${INPUT_DIR}/sub-${sub}/ses-${SESSION}/kidvid/sub-${sub}.results/stats.sub-${sub}_REML+tlrc"
+#     orig_file="${INPUT_DIR}/sub-${sub}/ses-${SESSION}/kidvid_output/sub-${sub}.results/stats.sub-${sub}_REML+tlrc"
 #     resamp_file="${RESAMPLE_DIR}/stats.sub-${sub}_REML+tlrc"
 
 #     if [ ! -f "${orig_file}.HEAD" ]; then 

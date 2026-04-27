@@ -39,6 +39,5 @@ singularity run \
         --sloppy \
         --boilerplate \
         --anatomical-template ${TEMPLATE} \
-        --fs-license-file \
         --use-syn-sdc \
         --notrack

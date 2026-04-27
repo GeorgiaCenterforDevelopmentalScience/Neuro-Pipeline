@@ -33,6 +33,7 @@ singularity run \
         --omp-nthreads 8 \
         --fs-license-file /freesurfer/${LICENSE} \
         --session-id ${SESSION} \
+        --input-type qsiprep \
         --sloppy \
         --containall \
         --writable-tmpfs \

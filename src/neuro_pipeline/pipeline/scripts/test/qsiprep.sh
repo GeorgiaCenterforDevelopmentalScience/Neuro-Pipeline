@@ -39,5 +39,4 @@ singularity run \
         --session-id ${SESSION} \
         --sloppy \
         --anatomical-template ${TEMPLATE} \
-        --fs-license-file \
         --notrack
