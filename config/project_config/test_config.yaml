@@ -76,7 +76,7 @@ tasks:
     license: "license.txt"
 
   dwi_post:
-    container: "qsirecon_build-26.1.16.sif"
+    container: "qsirecon-1.2.0.sif"
     mode: "dsi_studio_gqi"
     license: "license.txt"
 

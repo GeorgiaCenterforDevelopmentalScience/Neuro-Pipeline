@@ -51,7 +51,7 @@ afni_proc.py \
 -copy_anat "${t1_dir}"/T1_results/anatSS."${subj}".nii \
 -anat_has_skull no \
 -dsets "${nifti_dir}"/sub-"${subject}"_ses-"${session}"_task-cards*.nii* \
--blocks tshift align volreg blur mask scale regress \
+-blocks tshift align tlrc volreg blur mask scale regress \
 -volreg_tlrc_warp \
 -tcat_remove_first_trs "${REMOVE_TRS}" \
 -align_opts_aea -cost lpc+ZZ -giant_move \

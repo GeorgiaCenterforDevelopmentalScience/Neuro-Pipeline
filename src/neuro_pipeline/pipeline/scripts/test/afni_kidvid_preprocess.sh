@@ -74,7 +74,7 @@ afni_proc.py \
 -blocks tshift align tlrc volreg mask blur scale regress \
 -radial_correlate_blocks  tcat volreg regress \
 -tcat_remove_first_trs "${REMOVE_TRS}" \
-- -align_unifize_epi local \
+-align_unifize_epi local \
 -align_opts_aea -cost lpc+ZZ -giant_move \
 -tlrc_base "${template}" \
 -volreg_align_to MIN_OUTLIER \
