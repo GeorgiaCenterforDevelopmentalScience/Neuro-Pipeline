@@ -4,11 +4,11 @@ echo "Input directory: $INPUT_DIR"
 echo "Output directory: $OUTPUT_DIR"
 
 GroupA_IDS=(
-    027 028
+    027 027
 )
 
 GroupB_IDS=(
-    070 071
+    070 070
 )
 
 CONTRASTS=("neg" "neut")

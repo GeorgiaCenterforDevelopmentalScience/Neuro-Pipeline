@@ -77,6 +77,10 @@ afni_proc.py \
 -align_unifize_epi local \
 -align_opts_aea -cost lpc+ZZ -giant_move \
 -tlrc_base "${template}" \
+-tlrc_NL_warped_dsets \
+    "${t1_dir}"/T1_results/anatQQ."${subj}".nii \
+    "${t1_dir}"/T1_results/anatQQ."${subj}".aff12.1D \
+    "${t1_dir}"/T1_results/anatQQ."${subj}"_WARP.nii \
 -volreg_align_to MIN_OUTLIER \
 -volreg_align_e2a \
 -volreg_tlrc_warp \
