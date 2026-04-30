@@ -508,5 +508,240 @@ class TestRebuildDb:
             rebuild_db(temp_workspace['work_dir'], mock_db)
 
 
+@pytest.fixture
+def full_db(temp_workspace):
+    from neuro_pipeline.pipeline.utils.job_db import get_db_connection
+    db_path = temp_workspace['db_path']
+    conn = get_db_connection(db_path)
+    conn.close()
+    return db_path
+
+
+def create_pipeline_log(json_dir, execution_id=1001):
+    pipeline_dir = Path(json_dir) / "_pipeline"
+    pipeline_dir.mkdir(exist_ok=True)
+    log_file = pipeline_dir / f"execution_{execution_id}.jsonl"
+    with open(log_file, 'w') as f:
+        f.write(json.dumps({
+            "event": "pipeline_start",
+            "timestamp": "2024-01-01T09:00:00",
+            "execution_id": execution_id,
+            "project_name": "test_proj",
+            "session": "01",
+            "command_line": "neuropipe run ...",
+            "input_dir": "/data/input",
+            "output_dir": "/data/output",
+            "work_dir": "/data/work",
+            "subjects": "001,002",
+            "requested_tasks": "task1",
+            "dry_run": False,
+            "total_jobs": 2,
+            "status": "RUNNING",
+        }) + '\n')
+        f.write(json.dumps({
+            "event": "pipeline_update",
+            "total_jobs": 2,
+            "status": "COMPLETED",
+            "error_msg": None,
+        }) + '\n')
+    return str(log_file)
+
+
+def create_wrapper_log(json_dir, task_name="task1", job_id="12345", execution_id=1001):
+    pipeline_dir = Path(json_dir) / "_pipeline"
+    pipeline_dir.mkdir(exist_ok=True)
+    log_file = pipeline_dir / f"wrapper_{task_name}_99999.jsonl"
+    with open(log_file, 'w') as f:
+        f.write(json.dumps({
+            "event": "wrapper_script",
+            "timestamp": "2024-01-01T09:00:00",
+            "execution_id": execution_id,
+            "task_name": task_name,
+            "job_id": job_id,
+            "wrapper_path": f"/path/to/{task_name}_wrapper.sh",
+            "full_content": "#!/bin/bash\necho test",
+            "slurm_cmd": f"sbatch --partition=batch {task_name}_wrapper.sh",
+            "basic_paths": "export INPUT_DIR=/data/input",
+            "global_python": "",
+            "env_modules": "",
+            "global_env_vars": "",
+            "task_params": "",
+            "execute_cmd": "execute_wrapper script.sh",
+        }) + '\n')
+    return str(log_file)
+
+
+def create_job_log_with_command_output(json_dir, subject, task_name, job_id):
+    task_dir = Path(json_dir) / task_name
+    task_dir.mkdir(exist_ok=True)
+    log_file = task_dir / f"{subject}_{task_name}_{job_id}.jsonl"
+    with open(log_file, 'w') as f:
+        for record in [
+            {"event": "start", "timestamp": datetime.now().isoformat(),
+             "subject": subject, "task_name": task_name, "session": "01",
+             "job_id": job_id, "log_path": f"/path/{subject}.log", "node_name": "node001"},
+            {"event": "command_output", "subject": subject, "task_name": task_name,
+             "session": "01", "script_name": f"{task_name}.sh", "command": "bash script.sh",
+             "stdout": "output here", "stderr": "", "exit_code": 0,
+             "log_file_path": f"/path/{subject}.log", "job_id": job_id},
+            {"event": "end", "timestamp": datetime.now().isoformat(),
+             "subject": subject, "task_name": task_name, "session": "01",
+             "status": "SUCCESS", "exit_code": 0, "duration_hours": 0.5},
+        ]:
+            f.write(json.dumps(record) + '\n')
+    return str(log_file)
+
+
+class TestMergePipelineLogs:
+
+    def test_pipeline_log_inserted_into_db(self, temp_workspace, full_db):
+        json_dir = temp_workspace['json_dir']
+        create_pipeline_log(json_dir, execution_id=1001)
+        merge_json_to_db(json_dir, full_db)
+        conn = sqlite3.connect(full_db)
+        row = conn.execute(
+            "SELECT execution_id FROM pipeline_executions WHERE execution_id=1001"
+        ).fetchone()
+        conn.close()
+        assert row is not None
+
+    def test_pipeline_log_archived_after_merge(self, temp_workspace, full_db):
+        json_dir = temp_workspace['json_dir']
+        log_file = create_pipeline_log(json_dir, execution_id=1002)
+        merge_json_to_db(json_dir, full_db)
+        assert not Path(log_file).exists()
+        archived = Path(json_dir) / "_pipeline" / "archived" / Path(log_file).name
+        assert archived.exists()
+
+    def test_pipeline_log_not_inserted_without_pipeline_start(self, temp_workspace, full_db):
+        json_dir = temp_workspace['json_dir']
+        pipeline_dir = Path(json_dir) / "_pipeline"
+        pipeline_dir.mkdir(exist_ok=True)
+        bad_file = pipeline_dir / "execution_9999.jsonl"
+        bad_file.write_text(json.dumps({"event": "other_event"}) + '\n')
+        merge_json_to_db(json_dir, full_db)
+        conn = sqlite3.connect(full_db)
+        row = conn.execute(
+            "SELECT execution_id FROM pipeline_executions WHERE execution_id=9999"
+        ).fetchone()
+        conn.close()
+        assert row is None
+
+    def test_pipeline_update_sets_status(self, temp_workspace, full_db):
+        json_dir = temp_workspace['json_dir']
+        create_pipeline_log(json_dir, execution_id=1003)
+        merge_json_to_db(json_dir, full_db)
+        conn = sqlite3.connect(full_db)
+        row = conn.execute(
+            "SELECT status FROM pipeline_executions WHERE execution_id=1003"
+        ).fetchone()
+        conn.close()
+        assert row[0] == "COMPLETED"
+
+
+class TestMergeWrapperLogs:
+
+    def test_wrapper_log_inserted_into_db(self, temp_workspace, full_db):
+        json_dir = temp_workspace['json_dir']
+        create_wrapper_log(json_dir, task_name="task1", job_id="55555")
+        merge_json_to_db(json_dir, full_db)
+        conn = sqlite3.connect(full_db)
+        row = conn.execute(
+            "SELECT task_name FROM wrapper_scripts WHERE job_id='55555'"
+        ).fetchone()
+        conn.close()
+        assert row is not None
+        assert row[0] == "task1"
+
+    def test_wrapper_log_archived_after_merge(self, temp_workspace, full_db):
+        json_dir = temp_workspace['json_dir']
+        log_file = create_wrapper_log(json_dir, task_name="task1", job_id="55556")
+        merge_json_to_db(json_dir, full_db)
+        assert not Path(log_file).exists()
+        archived = Path(json_dir) / "_pipeline" / "archived" / Path(log_file).name
+        assert archived.exists()
+
+    def test_non_wrapper_event_jsonl_skipped(self, temp_workspace, full_db):
+        json_dir = temp_workspace['json_dir']
+        pipeline_dir = Path(json_dir) / "_pipeline"
+        pipeline_dir.mkdir(exist_ok=True)
+        bad_file = pipeline_dir / "wrapper_bad_99.jsonl"
+        bad_file.write_text(json.dumps({"event": "something_else"}) + '\n')
+        merge_json_to_db(json_dir, full_db)
+        conn = sqlite3.connect(full_db)
+        count = conn.execute("SELECT COUNT(*) FROM wrapper_scripts").fetchone()[0]
+        conn.close()
+        assert count == 0
+
+
+class TestCommandOutputMerge:
+
+    def test_command_output_inserted_when_event_present(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_job_log_with_command_output(json_dir, "sub001", "task1", "77777")
+        merge_json_to_db(json_dir, mock_db)
+        conn = sqlite3.connect(mock_db)
+        row = conn.execute(
+            "SELECT stdout FROM command_outputs WHERE job_id='77777'"
+        ).fetchone()
+        conn.close()
+        assert row is not None
+        assert row[0] == "output here"
+
+    def test_no_command_output_row_when_event_absent(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "88888")
+        merge_json_to_db(json_dir, mock_db)
+        conn = sqlite3.connect(mock_db)
+        count = conn.execute(
+            "SELECT COUNT(*) FROM command_outputs WHERE job_id='88888'"
+        ).fetchone()[0]
+        conn.close()
+        assert count == 0
+
+
+class TestMergeBadJson:
+
+    def test_bad_jsonl_does_not_crash_merge(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        bad_dir = Path(json_dir) / "task_bad"
+        bad_dir.mkdir()
+        (bad_dir / "bad_file.jsonl").write_text("this is not valid json\n")
+        count = merge_json_to_db(json_dir, mock_db)
+        assert count == 0
+
+    def test_valid_files_still_merged_after_bad_file(self, temp_workspace, mock_db):
+        json_dir = temp_workspace['json_dir']
+        bad_dir = Path(json_dir) / "task_x"
+        bad_dir.mkdir()
+        (bad_dir / "bad_file.jsonl").write_text("not json\n")
+        create_mock_json_log(json_dir, "sub001", "task_y", "66666")
+        count = merge_json_to_db(json_dir, mock_db)
+        assert count == 1
+
+
+class TestMergeOnceEdgeCases:
+
+    def test_no_json_dir_returns_without_error(self, temp_workspace, mock_db):
+        work_dir = temp_workspace['work_dir']
+        db_path = temp_workspace['db_path']
+        merge_once(work_dir, db_path)
+
+    def test_backup_failure_does_not_abort_merge(self, temp_workspace, mock_db):
+        work_dir = temp_workspace['work_dir']
+        db_path = temp_workspace['db_path']
+        json_dir = temp_workspace['json_dir']
+        create_mock_json_log(json_dir, "sub001", "task1", "12345")
+
+        with patch("neuro_pipeline.pipeline.utils.db_backup.backup_database",
+                   side_effect=RuntimeError("disk full")):
+            merge_once(work_dir, db_path)
+
+        conn = sqlite3.connect(db_path)
+        count = conn.execute("SELECT COUNT(*) FROM job_status").fetchone()[0]
+        conn.close()
+        assert count == 1
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v', '-s'])

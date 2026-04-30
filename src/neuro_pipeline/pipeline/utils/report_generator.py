@@ -30,10 +30,10 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
     meta_row = conn.execute(meta_sql, meta_params).fetchone()
     metadata = dict(meta_row) if meta_row else {}
 
-    subj_rows = conn.execute(
-        "SELECT subjects FROM pipeline_executions WHERE project_name = ?",
-        [project_name]
-    ).fetchall()
+    subj_sql = ("SELECT subjects FROM pipeline_executions WHERE project_name = ?"
+                + (" AND session = ?" if session else ""))
+    subj_rows = conn.execute(subj_sql,
+                             [project_name] + ([session] if session else [])).fetchall()
     all_subjects: set = set()
     for row in subj_rows:
         if row[0]:
@@ -65,7 +65,7 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
         job_status = _rows(conn, latest_sql, latest_params)
 
         failed_sql = f"""
-            SELECT js.subject, js.task_name, js.session,
+            SELECT js.subject, js.task_name, js.session, js.status,
                    js.start_time, js.exit_code, js.error_msg,
                    co.stderr, co.stdout
             FROM job_status js

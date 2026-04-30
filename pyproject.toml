@@ -14,6 +14,7 @@ dependencies = [
   "typer",
   "PyYAML",
   "dash",
+  "dash-cytoscape",
   "dash-bootstrap-components",
   "plotly",
   "pandas",

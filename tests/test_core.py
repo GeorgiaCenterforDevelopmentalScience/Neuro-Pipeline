@@ -117,7 +117,7 @@ class TestCliRunErrors:
         from typer.testing import CliRunner
         with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.core import app
-        runner = CliRunner(mix_stderr=True)
+        runner = CliRunner()
         result = runner.invoke(app, [
             "run",
             "--subjects", "001",
@@ -129,3 +129,163 @@ class TestCliRunErrors:
         ])
         assert result.exit_code == 1
         assert "not found" in result.output.lower() or "not found" in (result.output or "").lower()
+
+
+def _runner():
+    from typer.testing import CliRunner
+    with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
+        from neuro_pipeline.pipeline.core import app
+    return CliRunner(), app
+
+
+# ---------------------------------------------------------------------------
+# CLI — merge-logs
+# ---------------------------------------------------------------------------
+
+class TestMergeLogsCmd:
+
+    def test_no_json_dir_completes_successfully(self, tmp_path):
+        runner, app = _runner()
+        result = runner.invoke(app, ["merge-logs", str(tmp_path)])
+        assert result.exit_code == 0
+
+    def test_explicit_db_path_passed_through(self, tmp_path):
+        runner, app = _runner()
+        db_path = str(tmp_path / "custom.db")
+        with patch("neuro_pipeline.pipeline.utils.merge_logs_create_db.merge_once") as mock_merge:
+            runner.invoke(app, ["merge-logs", str(tmp_path), "--db-path", db_path])
+        mock_merge.assert_called_once_with(str(tmp_path), db_path)
+
+
+# ---------------------------------------------------------------------------
+# CLI — force-rebuild
+# ---------------------------------------------------------------------------
+
+class TestForceRebuildCmd:
+
+    def test_missing_json_dir_exits_1(self, tmp_path):
+        runner, app = _runner()
+        result = runner.invoke(app, ["force-rebuild", str(tmp_path)])
+        assert result.exit_code == 1
+
+    def test_success_reports_count_and_path(self, tmp_path):
+        runner, app = _runner()
+        new_db = str(tmp_path / "pipeline_jobs_rebuild_20260101.db")
+        with patch("neuro_pipeline.pipeline.utils.merge_logs_create_db.rebuild_db",
+                   return_value=(new_db, 7)):
+            result = runner.invoke(app, ["force-rebuild", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "7" in result.output
+        assert new_db in result.output
+
+
+# ---------------------------------------------------------------------------
+# CLI — generate-report
+# ---------------------------------------------------------------------------
+
+class TestGenerateReportCmd:
+
+    def test_missing_db_exits_1(self, tmp_path):
+        runner, app = _runner()
+        csv_path = tmp_path / "check_results.csv"
+        csv_path.write_text("task,subject,status\n")
+        result = runner.invoke(app, [
+            "generate-report",
+            "--db-path", str(tmp_path / "nonexistent.db"),
+            "--project", "proj",
+            "--check-results", str(csv_path),
+        ])
+        assert result.exit_code == 1
+
+    def test_success_prints_report_path(self, tmp_path):
+        runner, app = _runner()
+        out_html = str(tmp_path / "report.html")
+        with patch("neuro_pipeline.pipeline.utils.report_generator.generate_report",
+                   return_value=out_html):
+            result = runner.invoke(app, [
+                "generate-report",
+                "--db-path", str(tmp_path / "db.db"),
+                "--project", "proj",
+                "--check-results", str(tmp_path / "results.csv"),
+            ])
+        assert out_html in result.output
+
+
+# ---------------------------------------------------------------------------
+# CLI — check-outputs
+# ---------------------------------------------------------------------------
+
+class TestCheckOutputsCmd:
+
+    def test_missing_checks_config_exits_1(self, tmp_path):
+        runner, app = _runner()
+        result = runner.invoke(app, [
+            "check-outputs",
+            "--project", "no_such_project_xyz",
+            "--work", str(tmp_path),
+        ])
+        assert result.exit_code == 1
+
+    def test_no_subjects_found_exits_1(self, tmp_path):
+        runner, app = _runner()
+        yaml_path = tmp_path / "proj_checks.yaml"
+        yaml_path.write_text(
+            "task1:\n  output_path: '{work_dir}'\n"
+            "  required_files:\n    - 'file.txt'\n"
+        )
+        with patch("neuro_pipeline.pipeline.utils.output_checker.load_checks_config",
+                   return_value=str(yaml_path)):
+            result = runner.invoke(app, [
+                "check-outputs",
+                "--project", "proj",
+                "--work", str(tmp_path),
+            ])
+        assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# CLI — detect-subjects
+# ---------------------------------------------------------------------------
+
+class TestDetectSubjectsCmd:
+
+    def test_missing_input_dir_exits_1(self, tmp_path):
+        runner, app = _runner()
+        result = runner.invoke(app, ["detect-subjects", str(tmp_path / "nonexistent")])
+        assert result.exit_code == 1
+
+    def test_prints_subjects_to_stdout(self, tmp_path):
+        runner, app = _runner()
+        (tmp_path / "sub-001").mkdir()
+        (tmp_path / "sub-002").mkdir()
+        result = runner.invoke(app, ["detect-subjects", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "001" in result.output
+
+    def test_saves_subjects_to_file(self, tmp_path):
+        runner, app = _runner()
+        (tmp_path / "sub-001").mkdir()
+        out_file = str(tmp_path / "subjects.txt")
+        result = runner.invoke(app, ["detect-subjects", str(tmp_path), "--output", out_file])
+        assert result.exit_code == 0
+        from pathlib import Path
+        assert Path(out_file).exists()
+
+
+# ---------------------------------------------------------------------------
+# CLI — generate-config / generate-checks
+# ---------------------------------------------------------------------------
+
+class TestGenerateConfigCmd:
+
+    def test_generate_config_delegates_to_utility(self, tmp_path):
+        runner, app = _runner()
+        with patch("neuro_pipeline.pipeline.utils.generate_project_config.generate_project_config") as mock_fn:
+            runner.invoke(app, ["generate-config", "my_study", "--output-dir", str(tmp_path)])
+        mock_fn.assert_called_once()
+
+    def test_generate_checks_delegates_to_utility(self, tmp_path):
+        runner, app = _runner()
+        with patch("neuro_pipeline.pipeline.utils.generate_results_check.generate_results_check") as mock_fn:
+            runner.invoke(app, ["generate-checks", "my_study", "--output-dir", str(tmp_path)])
+        mock_fn.assert_called_once()

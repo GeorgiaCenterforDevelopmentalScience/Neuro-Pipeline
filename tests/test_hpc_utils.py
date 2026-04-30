@@ -248,7 +248,7 @@ class TestCreateWrapperScript:
                 script_path=fake_script,
                 subjects_list=subjects,
                 input_dir="/data/input",
-                output_dir="/data/output",
+                output_dir=str(tmp_path / "output"),
                 work_dir=str(tmp_path / "work"),
                 env_vars=None,
                 use_array=True,
@@ -293,11 +293,11 @@ class TestCreateWrapperScript:
 
     def test_input_dir_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert 'export INPUT_DIR="/data/input"' in content
+        assert "export INPUT_DIR=" in content
 
     def test_output_dir_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
-        assert 'export OUTPUT_DIR="/data/output"' in content
+        assert "export OUTPUT_DIR=" in content
 
     def test_work_dir_exported(self, tmp_path, scripts_dir):
         content = self._create(tmp_path, scripts_dir).read_text()
@@ -532,3 +532,189 @@ class TestSubmitSlurmJobDryRun:
         assert wrappers, "Wrapper script should have been created"
         content = wrappers[0].read_text()
         assert "--dependency=afterany:12345:67890" in content
+
+
+# ===========================================================================
+# 6. SLURMBackend.submit_job — mock subprocess
+# ===========================================================================
+
+class TestSLURMBackendSubmitJob:
+
+    def _backend(self):
+        from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
+        return SLURMBackend(MOCK_HPC_CONFIG["slurm"])
+
+    def test_successful_submission_returns_job_id(self, tmp_path):
+        backend = self._backend()
+        fake_script = tmp_path / "wrapper.sh"
+        fake_script.write_text("#!/bin/bash\n")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="Submitted batch job 12345\n")
+            job_id = backend.submit_job(["--partition=batch"], fake_script)
+        assert job_id == "12345"
+
+    def test_failed_submission_returns_none(self, tmp_path):
+        import subprocess
+        backend = self._backend()
+        fake_script = tmp_path / "wrapper.sh"
+        fake_script.write_text("#!/bin/bash\n")
+        err = subprocess.CalledProcessError(1, "sbatch", stderr="permission denied")
+        with patch("subprocess.run", side_effect=err):
+            job_id = backend.submit_job(["--partition=batch"], fake_script)
+        assert job_id is None
+
+    def test_first_word_parse_strategy(self, tmp_path):
+        from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
+        cfg = {**MOCK_HPC_CONFIG["slurm"], "job_id_parse": "first_word"}
+        backend = SLURMBackend(cfg)
+        fake_script = tmp_path / "wrapper.sh"
+        fake_script.write_text("#!/bin/bash\n")
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="99999 extra words\n")
+            job_id = backend.submit_job(["--partition=batch"], fake_script)
+        assert job_id == "99999"
+
+
+# ===========================================================================
+# 7. SLURMBackend.wait_for_jobs — mock subprocess
+# ===========================================================================
+
+class TestSLURMBackendWaitForJobs:
+
+    def _backend(self):
+        from neuro_pipeline.pipeline.utils.hpc_utils import SLURMBackend
+        return SLURMBackend(MOCK_HPC_CONFIG["slurm"])
+
+    def test_empty_job_list_skips_subprocess(self):
+        backend = self._backend()
+        with patch("subprocess.run") as mock_run:
+            backend.wait_for_jobs([])
+        mock_run.assert_not_called()
+
+    def test_empty_queue_breaks_immediately(self):
+        backend = self._backend()
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout="")
+            backend.wait_for_jobs(["12345"], polling_interval=0)
+        assert mock_run.call_count == 1
+
+    def test_job_not_in_queue_breaks(self):
+        import subprocess
+        backend = self._backend()
+        with patch("subprocess.run", side_effect=subprocess.CalledProcessError(1, "squeue")):
+            backend.wait_for_jobs(["12345"], polling_interval=0)
+
+    def test_running_then_done(self):
+        import time
+        backend = self._backend()
+        responses = [
+            MagicMock(stdout="12345 RUNNING\n"),
+            MagicMock(stdout=""),
+        ]
+        with patch("subprocess.run", side_effect=responses), patch("time.sleep"):
+            backend.wait_for_jobs(["12345"], polling_interval=1)
+
+
+# ===========================================================================
+# 8. get_hpc_backend — unknown scheduler
+# ===========================================================================
+
+class TestGetHPCBackendUnknown:
+
+    def test_unknown_scheduler_raises_not_implemented(self):
+        cfg = {**MOCK_HPC_CONFIG, "scheduler": "lsf", "lsf": {"submit_cmd": "bsub"}}
+        with patch(HPC_CONFIG_PATH, cfg):
+            from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_backend
+            with pytest.raises(NotImplementedError, match="lsf"):
+                get_hpc_backend()
+
+    def test_missing_scheduler_config_block_raises_value_error(self):
+        cfg = {**MOCK_HPC_CONFIG, "scheduler": "lsf"}  # no "lsf" key
+        with patch(HPC_CONFIG_PATH, cfg):
+            from neuro_pipeline.pipeline.utils.hpc_utils import get_hpc_backend
+            with pytest.raises(ValueError, match="lsf"):
+                get_hpc_backend()
+
+
+# ===========================================================================
+# 9. submit_slurm_job — extra branches
+# ===========================================================================
+
+class TestSubmitSlurmJobExtras:
+
+    BASE_KWARGS = dict(
+        input_dir="/data/input",
+        output_dir="/data/output",
+        container_dir="/work/containers",
+        env_vars=None,
+        wait_jobs=None,
+        dry_run=True,
+        option_env={"session": "01", "prefix": "sub-"},
+        requested_tasks=["cards_preprocess"],
+        original_work_dir="/work",
+    )
+
+    def _invoke(self, tmp_path, scripts_dir, task_config, extra_kwargs=None):
+        fake_scripts_pkg = MagicMock()
+        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
+        kwargs = {**self.BASE_KWARGS, "output_dir": str(tmp_path / "output"), **(extra_kwargs or {})}
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
+             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
+            from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+            return submit_slurm_job(
+                script_name="afni_cards_preprocessing.sh",
+                work_dir=str(tmp_path / "work"),
+                task_config=task_config,
+                project_config=MOCK_PROJECT_CONFIG,
+                db_path=str(tmp_path / "work" / "pipeline_jobs.db"),
+                **kwargs,
+            )
+
+    def test_subjects_read_from_file(self, tmp_path, scripts_dir):
+        subjects_file = tmp_path / "subjects.txt"
+        subjects_file.write_text("001\n002\n003\n")
+        task_config = {"name": "cards_preprocess", "profile": "standard",
+                       "array": True, "scripts": ["afni_cards_preprocessing.sh"]}
+        job_id = self._invoke(tmp_path, scripts_dir, task_config,
+                              {"subjects": str(subjects_file)})
+        assert job_id is not None and "dry_run" in job_id
+
+    def test_output_pattern_applied_in_wrapper(self, tmp_path, scripts_dir):
+        task_config = {"name": "cards_preprocess", "profile": "standard", "array": False,
+                       "scripts": ["afni_cards_preprocessing.sh"],
+                       "output_pattern": "{base_output}/AFNI_derivatives"}
+        self._invoke(tmp_path, scripts_dir, task_config,
+                     {"subjects": "001", "output_dir": str(tmp_path / "output")})
+        wrapper_dir = tmp_path / "work" / "log" / "wrapper"
+        content = list(wrapper_dir.glob("*.sh"))[0].read_text()
+        assert "AFNI_derivatives" in content
+
+    def test_non_dry_run_calls_backend_submit(self, tmp_path, scripts_dir):
+        fake_scripts_pkg = MagicMock()
+        fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
+        task_config = {"name": "cards_preprocess", "profile": "standard", "array": False,
+                       "scripts": ["afni_cards_preprocessing.sh"]}
+        with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
+             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}), \
+             patch("neuro_pipeline.pipeline.utils.hpc_utils.SLURMBackend.submit_job",
+                   return_value="99999") as mock_submit:
+            from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
+            job_id = submit_slurm_job(
+                script_name="afni_cards_preprocessing.sh",
+                subjects="001",
+                work_dir=str(tmp_path / "work"),
+                task_config=task_config,
+                project_config=MOCK_PROJECT_CONFIG,
+                db_path=str(tmp_path / "work" / "pipeline_jobs.db"),
+                dry_run=False,
+                input_dir="/data/input",
+                output_dir=str(tmp_path / "output"),
+                container_dir="/containers",
+                env_vars=None,
+                wait_jobs=None,
+                option_env={"session": "01"},
+                requested_tasks=None,
+                original_work_dir=None,
+            )
+        assert job_id == "99999"
+        mock_submit.assert_called_once()

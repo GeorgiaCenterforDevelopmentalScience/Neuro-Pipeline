@@ -236,10 +236,10 @@ def create_job_monitor_layout():
                                               placeholder="e.g., rest_preprocess", className="mb-3")
                                 ], width=3),
                                 dbc.Col([
-                                    dbc.Label("Session:", html_for="check-session"),
+                                    dbc.Label("Session(s):", html_for="check-session"),
                                     dbc.Input(id="check-session", type="text",
-                                              placeholder="01", value="01", className="mb-3")
-                                ], width=1),
+                                              placeholder="01 or 01,02", value="01", className="mb-3")
+                                ], width=2),
                                 dbc.Col([
                                     dbc.Label("Prefix:", html_for="check-prefix"),
                                     dbc.Input(id="check-prefix", type="text",

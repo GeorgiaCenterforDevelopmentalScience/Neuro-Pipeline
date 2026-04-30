@@ -37,9 +37,12 @@ class TestSaveAndLoadFile:
         assert dest.exists()
         assert dest.read_text() == "key: value"
 
-    def test_save_returns_error_on_bad_path(self):
+    def test_save_returns_error_on_bad_path(self, tmp_path):
         from neuro_pipeline.interface.callbacks.config_callbacks import _save_file
-        result = _save_file("/nonexistent_root_dir_xyz/a/b/c.yaml", "key: value")
+        # Use an existing file as if it were a directory
+        existing_file = tmp_path / "blockfile.txt"
+        existing_file.write_text("x")
+        result = _save_file(str(existing_file / "sub" / "c.yaml"), "key: value")
         assert _get_alert_color(result) == "danger"
 
     def test_save_warns_on_empty_path(self):
