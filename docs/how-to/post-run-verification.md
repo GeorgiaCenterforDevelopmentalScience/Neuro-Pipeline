@@ -57,6 +57,16 @@ neuropipe check-outputs \
   --session 01
 ```
 
+To check multiple sessions at once, pass them comma-separated:
+
+```bash
+neuropipe check-outputs \
+  --project my_study \
+  --work /data/work \
+  --subjects 001,002,003,004,005 \
+  --session 01,02
+```
+
 If your subject list is in a file:
 
 ```bash
@@ -164,13 +174,14 @@ This creates a new `pipeline_jobs_rebuild_{timestamp}.db` next to the original. 
 
 ## Step 3: Generate the Report
 
-Generate a standalone HTML report from the job database:
+Generate a standalone HTML report from the job database. `--check-results` is required — run `check-outputs` first (Step 1) to produce the CSV:
 
 ```bash
 neuropipe generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
-  --session 01
+  --session 01 \
+  --check-results /data/work/my_study/check_results_20260401_120000.csv
 ```
 
 The report is saved as `pipeline_report_{project}_{timestamp}.html` next to the database. To save it elsewhere:
@@ -180,6 +191,7 @@ neuropipe generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
+  --check-results /data/work/my_study/check_results_20260401_120000.csv \
   -o /data/reports/my_study_wave01.html
 ```
 
@@ -187,25 +199,7 @@ neuropipe generate-report \
 
 ![generate_report](../images/generate_report.png)
 
-If you ran `check-outputs` in Step 1, the report can include the output validation heatmap. The most recent `check_results_*.csv` in `work_dir` is **auto-detected** — you usually do not need to specify it:
-
-```bash
-neuropipe generate-report \
-  --db-path /data/work/my_study/database/pipeline_jobs.db \
-  --project my_study \
-  --session 01
-# → auto-detects /data/work/my_study/check_results_20260401_120000.csv
-```
-
-If you want to use a specific CSV (e.g. from a different run):
-
-```bash
-neuropipe generate-report \
-  --db-path /data/work/my_study/database/pipeline_jobs.db \
-  --project my_study \
-  --session 01 \
-  --check-results /data/work/my_study/check_results_20260401_120000.csv
-```
+The `--check-results` path must point to a `check_results_*.csv` produced by `check-outputs`. Pass the file saved in Step 1 directly:
 
 ### What the report contains
 
@@ -234,7 +228,7 @@ SUBJECTS=subjects.txt
 SESSION=01
 PROJECT=my_study
 
-# 1. Verify outputs
+# 1. Verify outputs — saves check_results_<timestamp>.csv to $WORK
 neuropipe check-outputs \
   --project $PROJECT \
   --work $WORK \
@@ -244,11 +238,13 @@ neuropipe check-outputs \
 # 2. Sync the database (if needed)
 neuropipe merge-logs $WORK
 
-# 3. Generate the report (auto-detects the check_results CSV)
+# 3. Generate the report — pass the CSV from Step 1 explicitly
+CHECK_CSV=$(ls -t $WORK/check_results_*.csv | head -1)
 neuropipe generate-report \
   --db-path $DB \
   --project $PROJECT \
   --session $SESSION \
+  --check-results $CHECK_CSV \
   -o /data/reports/${PROJECT}_ses-${SESSION}_report.html
 ```
 
@@ -365,6 +361,7 @@ neuropipe generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
+  --check-results /data/work/my_study/check_results_20260401_120000.csv \
   -o ~/Desktop/my_study_report.html
 ```
 

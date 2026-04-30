@@ -26,6 +26,12 @@ neuropipe check-outputs \
   --work /data/work \
   --session 01
 
+# Filter to multiple sessions
+neuropipe check-outputs \
+  --project my_study \
+  --work /data/work \
+  --session 01,02
+
 # Filter to specific subjects and tasks
 neuropipe check-outputs \
   --project my_study \
@@ -49,7 +55,7 @@ neuropipe check-outputs \
 | `--project` | Project name (required) |
 | `--work` | Work/output base directory (required) |
 | `--subjects` | Subject list or file path — auto-detected from `--work` if omitted |
-| `--session` | Session label — checks all sessions if omitted (`*` wildcard) |
+| `--session` | Session ID(s), comma-separated (e.g. `01,02`). Checks all sessions if omitted. |
 | `--task` | Specific task(s) to check; repeatable; defaults to all configured |
 | `--checks-dir` | Override the directory searched for `{project}_checks.yaml` |
 
@@ -121,27 +127,23 @@ Generates a standalone HTML report from the job tracking database: summary stati
 # Minimal — report saved next to the database
 neuropipe generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
-  --project my_study
+  --project my_study \
+  --check-results /data/work/my_study/check_results_20260401_120000.csv
 
 # Filter by session
 neuropipe generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
-  --session 01
+  --session 01 \
+  --check-results /data/work/my_study/check_results_20260401_120000.csv
 
 # Save to a specific path
 neuropipe generate-report \
   --db-path /data/work/my_study/database/pipeline_jobs.db \
   --project my_study \
   --session 01 \
+  --check-results /data/work/my_study/check_results_20260401_120000.csv \
   -o /data/reports/my_study_report.html
-
-# Include check-outputs results in the report
-neuropipe generate-report \
-  --db-path /data/work/my_study/database/pipeline_jobs.db \
-  --project my_study \
-  --session 01 \
-  --check-results /data/work/my_study/check_results_20260401_120000.csv
 ```
 
 **Options:**
@@ -152,7 +154,7 @@ neuropipe generate-report \
 | `--project` | Project name (required) |
 | `--session` | Filter by session ID (recommended when multiple projects share a database) |
 | `--output` / `-o` | Output HTML path — defaults to `pipeline_report_{project}_{timestamp}.html` next to the database |
-| `--check-results` | Path to a `check_results_*.csv` from `check-outputs` to overlay output check status on the report. Auto-detected from `work_dir` if omitted. |
+| `--check-results` | Path to a `check_results_*.csv` from `check-outputs` (required). Run `check-outputs` first to generate this file. |
 
 → See [Post-Run Verification](../how-to/post-run-verification.md) for a full workflow and report contents description.
 
