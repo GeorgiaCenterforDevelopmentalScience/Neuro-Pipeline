@@ -273,3 +273,127 @@ class TestFullChain:
         executor, order = build(tasks)
         for t in tasks:
             assert t in order
+
+
+# ===========================================================================
+# TaskRegistry.expand_tasks — CLI choice -> concrete task names
+# ===========================================================================
+
+def make_registry():
+    with patch(CONFIG_PATH, MOCK_CONFIG):
+        from neuro_pipeline.pipeline.dag import TaskRegistry
+        return TaskRegistry()
+
+
+def expand(registry, **kwargs):
+    with patch(CONFIG_PATH, MOCK_CONFIG):
+        return registry.expand_tasks(**kwargs)
+
+
+class TestTaskRegistry:
+
+    def setup_method(self):
+        with patch(CONFIG_PATH, MOCK_CONFIG):
+            from neuro_pipeline.pipeline.utils.config_utils import PrepChoice, MRIQCChoice
+            self.PrepChoice = PrepChoice
+            self.MRIQCChoice = MRIQCChoice
+        self.registry = make_registry()
+
+    # --- prep choices ---
+
+    def test_prep_recon(self):
+        result = expand(self.registry, prep=self.PrepChoice.recon)
+        assert result == ["recon"]
+
+    def test_prep_unzip(self):
+        result = expand(self.registry, prep=self.PrepChoice.unzip)
+        assert result == ["unzip"]
+
+    def test_prep_unzip_recon_expands_to_both(self):
+        result = expand(self.registry, prep=self.PrepChoice.unzip_recon)
+        assert result == ["unzip", "recon"]
+
+    # --- mriqc choices ---
+
+    def test_mriqc_individual(self):
+        result = expand(self.registry, mriqc=self.MRIQCChoice.individual)
+        assert result == ["mriqc_preprocess"]
+
+    def test_mriqc_group(self):
+        result = expand(self.registry, mriqc=self.MRIQCChoice.group)
+        assert result == ["mriqc_post"]
+
+    def test_mriqc_all_expands_to_both(self):
+        result = expand(self.registry, mriqc=self.MRIQCChoice.all)
+        assert "mriqc_preprocess" in result
+        assert "mriqc_post" in result
+
+    # --- bids_prep / bids_post ---
+
+    def test_bids_prep_rest(self):
+        result = expand(self.registry, bids_prep=["rest"])
+        assert result == ["rest_preprocess"]
+
+    def test_bids_prep_dwi(self):
+        result = expand(self.registry, bids_prep=["dwi"])
+        assert result == ["dwi_preprocess"]
+
+    def test_bids_prep_multiple_sections(self):
+        result = expand(self.registry, bids_prep=["rest", "dwi"])
+        assert result == ["rest_preprocess", "dwi_preprocess"]
+
+    def test_bids_post_rest(self):
+        result = expand(self.registry, bids_post=["rest"])
+        assert result == ["rest_post"]
+
+    def test_bids_post_dwi(self):
+        result = expand(self.registry, bids_post=["dwi"])
+        assert result == ["dwi_post"]
+
+    # --- staged_prep / staged_post ---
+
+    def test_staged_prep_cards(self):
+        result = expand(self.registry, staged_prep=["cards"])
+        assert result == ["cards_preprocess"]
+
+    def test_staged_prep_kidvid(self):
+        result = expand(self.registry, staged_prep=["kidvid"])
+        assert result == ["kidvid_preprocess"]
+
+    def test_staged_prep_multiple(self):
+        result = expand(self.registry, staged_prep=["cards", "kidvid"])
+        assert result == ["cards_preprocess", "kidvid_preprocess"]
+
+    # --- intermed ---
+
+    def test_intermed_valid_name(self):
+        result = expand(self.registry, intermed=["volume"])
+        assert result == ["volume"]
+
+    def test_intermed_multiple_valid(self):
+        result = expand(self.registry, intermed=["volume", "bfc"])
+        assert result == ["volume", "bfc"]
+
+    def test_intermed_invalid_name_skipped(self):
+        result = expand(self.registry, intermed=["nonexistent_task"])
+        assert result == []
+
+    def test_intermed_mixed_valid_and_invalid(self):
+        result = expand(self.registry, intermed=["volume", "bad_task"])
+        assert result == ["volume"]
+
+    # --- combinations ---
+
+    def test_bids_prep_and_staged_prep_combined(self):
+        result = expand(self.registry, bids_prep=["rest"], staged_prep=["cards"])
+        assert "rest_preprocess" in result
+        assert "cards_preprocess" in result
+
+    def test_prep_and_bids_prep_combined(self):
+        result = expand(self.registry, prep=self.PrepChoice.recon, bids_prep=["rest"])
+        assert "recon" in result
+        assert "rest_preprocess" in result
+
+    def test_no_args_returns_empty(self):
+        result = expand(self.registry)
+        assert result == []

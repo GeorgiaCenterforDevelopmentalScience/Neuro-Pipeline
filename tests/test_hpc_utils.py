@@ -467,7 +467,7 @@ class TestSubmitSlurmJobDryRun:
 
         mock_run.assert_not_called()
 
-    def test_missing_script_returns_none(self, tmp_path, scripts_dir):
+    def test_missing_script_raises(self, tmp_path, scripts_dir):
         fake_scripts_pkg = MagicMock()
         fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
 
@@ -482,16 +482,15 @@ class TestSubmitSlurmJobDryRun:
              patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
 
-            job_id = submit_slurm_job(
-                script_name="ghost_script.sh",
-                work_dir=str(tmp_path / "work"),
-                task_config=task_config,
-                project_config=MOCK_PROJECT_CONFIG,
-                db_path=str(tmp_path / "work" / "pipeline_jobs.db"),
-                **self.BASE_KWARGS,
-            )
-
-        assert job_id is None
+            with pytest.raises(FileNotFoundError, match="ghost_script.sh"):
+                submit_slurm_job(
+                    script_name="ghost_script.sh",
+                    work_dir=str(tmp_path / "work"),
+                    task_config=task_config,
+                    project_config=MOCK_PROJECT_CONFIG,
+                    db_path=str(tmp_path / "work" / "pipeline_jobs.db"),
+                    **self.BASE_KWARGS,
+                )
 
     def test_wait_jobs_produces_dependency_in_slurm_args(self, tmp_path, scripts_dir):
         """When wait_jobs is set, --dependency=afterany:... should appear in the wrapper."""

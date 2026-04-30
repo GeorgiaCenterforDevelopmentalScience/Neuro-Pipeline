@@ -1,0 +1,409 @@
+"""
+test_job_db.py
+
+Tests for pipeline/utils/job_db.py:
+  - calculate_duration_hours: pure function, normal / edge / invalid inputs
+  - get_db_connection: all tables and indexes created
+  - log_job_start: JSONL file created with correct content
+  - log_job_end: appends to file by job_id; falls back to mtime when id unmatched
+  - log_pipeline_execution: returns execution_id; serialises subjects correctly
+  - update_pipeline_execution: appends update record; silent when file missing
+  - log_command_output: truncates stdout/stderr to last 50 lines
+  - query_pipeline_executions / query_jobs: filter logic on a pre-populated SQLite
+"""
+
+import json
+import sqlite3
+import pytest
+from pathlib import Path
+
+from neuro_pipeline.pipeline.utils.job_db import (
+    calculate_duration_hours,
+    get_db_connection,
+    log_job_start,
+    log_job_end,
+    log_pipeline_execution,
+    update_pipeline_execution,
+    log_command_output,
+    query_pipeline_executions,
+    query_jobs,
+)
+
+
+# ---------------------------------------------------------------------------
+# calculate_duration_hours
+# ---------------------------------------------------------------------------
+
+class TestCalculateDurationHours:
+
+    def test_whole_hours(self):
+        assert calculate_duration_hours("2024-01-01T10:00:00", "2024-01-01T12:00:00") == 2.0
+
+    def test_fractional_hours(self):
+        assert calculate_duration_hours("2024-01-01T10:00:00", "2024-01-01T10:30:00") == 0.5
+
+    def test_same_start_and_end(self):
+        assert calculate_duration_hours("2024-01-01T10:00:00", "2024-01-01T10:00:00") == 0.0
+
+    def test_invalid_start_returns_none(self):
+        assert calculate_duration_hours("not-a-date", "2024-01-01T10:00:00") is None
+
+    def test_none_start_returns_none(self):
+        assert calculate_duration_hours(None, "2024-01-01T10:00:00") is None
+
+    def test_none_end_returns_none(self):
+        assert calculate_duration_hours("2024-01-01T10:00:00", None) is None
+
+
+# ---------------------------------------------------------------------------
+# get_db_connection — schema and indexes
+# ---------------------------------------------------------------------------
+
+class TestGetDbConnection:
+
+    def test_all_tables_created(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        conn = get_db_connection(db_path)
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = {row[0] for row in cursor.fetchall()}
+        conn.close()
+        assert {"job_status", "pipeline_executions", "command_outputs", "wrapper_scripts"} <= tables
+
+    def test_indexes_created(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        conn = get_db_connection(db_path)
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
+        indexes = {row[0] for row in cursor.fetchall()}
+        conn.close()
+        assert "idx_job_status_lookup" in indexes
+        assert "idx_wrapper_execution" in indexes
+        assert "idx_command_outputs_lookup" in indexes
+
+    def test_creates_missing_directory(self, tmp_path):
+        db_path = str(tmp_path / "nested" / "dir" / "test.db")
+        conn = get_db_connection(db_path)
+        conn.close()
+        assert Path(db_path).exists()
+
+    def test_idempotent_second_call(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        conn = get_db_connection(db_path)
+        conn.close()
+        conn2 = get_db_connection(db_path)
+        conn2.close()
+
+
+# ---------------------------------------------------------------------------
+# log_job_start
+# ---------------------------------------------------------------------------
+
+class TestLogJobStart:
+
+    def test_creates_jsonl_with_start_event(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_job_start("001", "recon", session="01", job_id="12345", db_path=db_path)
+        json_dir = tmp_path / "db" / "json" / "recon"
+        files = list(json_dir.glob("*.jsonl"))
+        assert len(files) == 1
+        record = json.loads(files[0].read_text().strip())
+        assert record["event"] == "start"
+        assert record["subject"] == "001"
+        assert record["task_name"] == "recon"
+        assert record["session"] == "01"
+        assert record["job_id"] == "12345"
+
+    def test_file_named_by_job_id(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_job_start("001", "recon", job_id="42", db_path=db_path)
+        json_dir = tmp_path / "db" / "json" / "recon"
+        files = list(json_dir.glob("42_*.jsonl"))
+        assert len(files) == 1
+
+
+# ---------------------------------------------------------------------------
+# log_job_end
+# ---------------------------------------------------------------------------
+
+class TestLogJobEnd:
+
+    def test_appends_end_event_by_job_id(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_job_start("001", "recon", session="01", job_id="12345", db_path=db_path)
+        log_job_end("001", "recon", "COMPLETED", session="01", job_id="12345", db_path=db_path)
+
+        json_dir = tmp_path / "db" / "json" / "recon"
+        files = list(json_dir.glob("*.jsonl"))
+        assert len(files) == 1
+        lines = files[0].read_text().strip().splitlines()
+        assert len(lines) == 2
+        end_record = json.loads(lines[1])
+        assert end_record["event"] == "end"
+        assert end_record["status"] == "COMPLETED"
+
+    def test_fallback_to_mtime_when_job_id_unmatched(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        json_dir = tmp_path / "db" / "json" / "recon"
+        json_dir.mkdir(parents=True)
+        existing = json_dir / "unknown_000000.jsonl"
+        existing.write_text(json.dumps({"event": "start"}) + "\n")
+
+        log_job_end("001", "recon", "FAILED", job_id="nonexistent_id", db_path=db_path)
+        lines = existing.read_text().strip().splitlines()
+        assert len(lines) == 2
+        assert json.loads(lines[1])["event"] == "end"
+        assert json.loads(lines[1])["status"] == "FAILED"
+
+    def test_missing_json_dir_returns_silently(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        # No json dir created — should not raise
+        log_job_end("001", "recon", "COMPLETED", db_path=db_path)
+
+
+# ---------------------------------------------------------------------------
+# log_pipeline_execution + update_pipeline_execution
+# ---------------------------------------------------------------------------
+
+class TestLogPipelineExecution:
+
+    def test_returns_integer_execution_id(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        eid = log_pipeline_execution(
+            command_line="neuropipe run",
+            project_name="proj",
+            input_dir="/in",
+            output_dir="/out",
+            work_dir="/work",
+            db_path=db_path,
+        )
+        assert isinstance(eid, int)
+
+    def test_subjects_list_serialised_as_csv(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_pipeline_execution(
+            command_line="cmd",
+            project_name="proj",
+            input_dir="/in",
+            output_dir="/out",
+            work_dir="/work",
+            subjects=["001", "002", "003"],
+            db_path=db_path,
+        )
+        json_dir = tmp_path / "db" / "json" / "_pipeline"
+        records = [
+            json.loads(line)
+            for f in json_dir.glob("*.jsonl")
+            for line in f.read_text().splitlines()
+            if line
+        ]
+        start = next(r for r in records if r["event"] == "pipeline_start")
+        assert start["subjects"] == "001,002,003"
+
+    def test_subjects_string_preserved(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_pipeline_execution(
+            command_line="cmd",
+            project_name="proj",
+            input_dir="/in",
+            output_dir="/out",
+            work_dir="/work",
+            subjects="001,002",
+            db_path=db_path,
+        )
+        json_dir = tmp_path / "db" / "json" / "_pipeline"
+        records = [
+            json.loads(line)
+            for f in json_dir.glob("*.jsonl")
+            for line in f.read_text().splitlines()
+            if line
+        ]
+        start = next(r for r in records if r["event"] == "pipeline_start")
+        assert start["subjects"] == "001,002"
+
+    def test_tasks_list_serialised_as_csv(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_pipeline_execution(
+            command_line="cmd",
+            project_name="proj",
+            input_dir="/in",
+            output_dir="/out",
+            work_dir="/work",
+            requested_tasks=["recon", "volume"],
+            db_path=db_path,
+        )
+        json_dir = tmp_path / "db" / "json" / "_pipeline"
+        records = [
+            json.loads(line)
+            for f in json_dir.glob("*.jsonl")
+            for line in f.read_text().splitlines()
+            if line
+        ]
+        start = next(r for r in records if r["event"] == "pipeline_start")
+        assert start["requested_tasks"] == "recon,volume"
+
+
+class TestUpdatePipelineExecution:
+
+    def test_appends_update_record(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        eid = log_pipeline_execution(
+            command_line="cmd",
+            project_name="proj",
+            input_dir="/in",
+            output_dir="/out",
+            work_dir="/work",
+            db_path=db_path,
+        )
+        update_pipeline_execution(eid, status="COMPLETED", db_path=db_path)
+
+        json_dir = tmp_path / "db" / "json" / "_pipeline"
+        jsonl_file = json_dir / f"execution_{eid}.jsonl"
+        lines = jsonl_file.read_text().strip().splitlines()
+        assert len(lines) == 2
+        update_record = json.loads(lines[1])
+        assert update_record["event"] == "pipeline_update"
+        assert update_record["status"] == "COMPLETED"
+
+    def test_missing_file_does_not_raise(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        # File never created — should not raise
+        update_pipeline_execution(999999, status="COMPLETED", db_path=db_path)
+
+
+# ---------------------------------------------------------------------------
+# log_command_output — stdout/stderr truncation
+# ---------------------------------------------------------------------------
+
+class TestLogCommandOutput:
+
+    def _setup_job(self, tmp_path, job_id="99"):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        log_job_start("001", "recon", job_id=job_id, db_path=db_path)
+        return db_path
+
+    def _read_command_record(self, tmp_path):
+        json_dir = tmp_path / "db" / "json" / "recon"
+        lines = list(json_dir.glob("*.jsonl"))[0].read_text().strip().splitlines()
+        return json.loads(lines[1])
+
+    def test_long_stdout_truncated_to_last_50_lines(self, tmp_path):
+        db_path = self._setup_job(tmp_path)
+        long_out = "\n".join(f"line {i}" for i in range(100))
+        log_command_output("001", "recon", "script.sh", "cmd",
+                           stdout=long_out, job_id="99", db_path=db_path)
+        record = self._read_command_record(tmp_path)
+        result_lines = record["stdout"].split("\n")
+        assert len(result_lines) == 50
+        assert result_lines[-1] == "line 99"
+
+    def test_short_stdout_unchanged(self, tmp_path):
+        db_path = self._setup_job(tmp_path)
+        short_out = "\n".join(f"line {i}" for i in range(10))
+        log_command_output("001", "recon", "script.sh", "cmd",
+                           stdout=short_out, job_id="99", db_path=db_path)
+        record = self._read_command_record(tmp_path)
+        assert len(record["stdout"].split("\n")) == 10
+
+    def test_long_stderr_truncated(self, tmp_path):
+        db_path = self._setup_job(tmp_path)
+        long_err = "\n".join(f"err {i}" for i in range(80))
+        log_command_output("001", "recon", "script.sh", "cmd",
+                           stderr=long_err, job_id="99", db_path=db_path)
+        record = self._read_command_record(tmp_path)
+        assert len(record["stderr"].split("\n")) == 50
+
+    def test_missing_json_dir_returns_silently(self, tmp_path):
+        db_path = str(tmp_path / "db" / "pipeline_jobs.db")
+        # No prior log_job_start — json dir absent, should not raise
+        log_command_output("001", "recon", "script.sh", "cmd", db_path=db_path)
+
+
+# ---------------------------------------------------------------------------
+# query_pipeline_executions / query_jobs
+# ---------------------------------------------------------------------------
+
+class TestQueryFunctions:
+
+    def _make_db(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        conn = get_db_connection(db_path)
+        conn.execute(
+            "INSERT INTO pipeline_executions "
+            "(execution_id, project_name, session, status, subjects, requested_tasks, dry_run, total_jobs) "
+            "VALUES (1001, 'proj_a', '01', 'COMPLETED', '001,002', 'recon', 0, 2)"
+        )
+        conn.execute(
+            "INSERT INTO pipeline_executions "
+            "(execution_id, project_name, session, status, subjects, requested_tasks, dry_run, total_jobs) "
+            "VALUES (1002, 'proj_b', '02', 'RUNNING', '003', 'volume', 0, 1)"
+        )
+        conn.execute(
+            "INSERT INTO job_status "
+            "(execution_id, subject, task_name, session, status) "
+            "VALUES (1001, '001', 'recon', '01', 'COMPLETED')"
+        )
+        conn.execute(
+            "INSERT INTO job_status "
+            "(execution_id, subject, task_name, session, status) "
+            "VALUES (1001, '002', 'recon', '01', 'FAILED')"
+        )
+        conn.commit()
+        conn.close()
+        return db_path
+
+    # pipeline_executions queries
+    # col order: id(0), execution_id(1), execution_time(2), command_line(3),
+    #            project_name(4), session(5), ..., total_jobs(12), status(13), error_msg(14)
+
+    def test_query_executions_filter_by_project(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_pipeline_executions(project_name="proj_a", db_path=db_path)
+        assert len(rows) == 1
+        assert rows[0][4] == "proj_a"
+
+    def test_query_executions_filter_by_session(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_pipeline_executions(session="02", db_path=db_path)
+        assert len(rows) == 1
+        assert rows[0][5] == "02"
+
+    def test_query_executions_filter_by_status(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_pipeline_executions(status="RUNNING", db_path=db_path)
+        assert len(rows) == 1
+        assert rows[0][13] == "RUNNING"
+
+    def test_query_executions_no_match_returns_empty(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_pipeline_executions(project_name="nonexistent", db_path=db_path)
+        assert rows == []
+
+    def test_query_executions_default_returns_all(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_pipeline_executions(limit=10, db_path=db_path)
+        assert len(rows) == 2
+
+    # job_status queries
+    # col order: id(0), execution_id(1), subject(2), task_name(3), session(4),
+    #            start_time(5), end_time(6), status(7), exit_code(8), ...
+
+    def test_query_jobs_filter_by_subject(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_jobs(subject="001", db_path=db_path)
+        assert len(rows) == 1
+        assert rows[0][2] == "001"
+
+    def test_query_jobs_filter_by_status(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_jobs(status="FAILED", db_path=db_path)
+        assert len(rows) == 1
+        assert rows[0][7] == "FAILED"
+
+    def test_query_jobs_filter_by_task(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_jobs(task_name="recon", db_path=db_path)
+        assert len(rows) == 2
+
+    def test_query_jobs_no_match_returns_empty(self, tmp_path):
+        db_path = self._make_db(tmp_path)
+        rows = query_jobs(subject="999", db_path=db_path)
+        assert rows == []
