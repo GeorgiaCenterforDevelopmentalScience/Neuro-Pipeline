@@ -1,6 +1,22 @@
 # Dev Log - [Neuroimage-Pipeline]
 
 ---
+## [0.14.1-alpha] – 2026-04-29
+
+### Tests
+- Added test files for core, db backup, job database, and report generator.
+- Expanded `test_dag.py` and `test_hpc_utils.py` coverage.
+
+### Changed
+- `check-outputs` and `generate-report` now support multiple session IDs.
+- Updated container versions for qsiprep, qsirecon, and fmriprep; standardized session ID parameters across preprocessing scripts.
+- Added postprocessing scripts for new modalities.
+
+### Docs
+- Updated CLI reference for `check-outputs` and `generate-report` to document multi-session usage.
+- Added GitHub Actions workflow for automated handbook deployment.
+
+---
 ## [0.14.0-alpha] – 2026-04-13
 
 ### Added

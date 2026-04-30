@@ -2,6 +2,8 @@
 
 A modular neuroimaging preprocessing pipeline for HPC clusters, with both a GUI and CLI. Pipeline parameters and analysis workflows are configured through YAML files, allowing flexible customization without modifying the underlying code.
 
+Full handbook: https://georgiacenterfordevelopmentalscience.github.io/Neuro-Pipeline/
+
 ---
 
 ## Supported Pipelines
@@ -26,7 +28,7 @@ The key distinction between pipeline types:
 **Prerequisites:** Python 3.10+, HPC cluster with SLURM or PBS, neuroimaging software installed on the cluster.
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/GeorgiaCenterforDevelopmentalScience/Neuro-Pipeline.git
 cd GCDS_Neuro_Pipeline
 pip install -e .
 

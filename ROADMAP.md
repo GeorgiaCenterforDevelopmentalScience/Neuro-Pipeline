@@ -15,7 +15,11 @@ A robust, modular, reproducible pipeline for neuroimaging preprocessing and anal
 # Completed Features
 
 ## v0.14.x
-- **Handbook (initial release):** First complete documentation site covering CLI reference, configuration guides, pipeline task reference, how-to guides, and internals.
+- **Handbook:** Complete documentation site with CLI reference, configuration guides, pipeline task reference, and internals. Automated deployment via GitHub Actions.
+- **Multi-session support:** `check-outputs` and `generate-report` now accept multiple session IDs.
+- **Test expansion:** Added test modules for core, db backup, job database, and report generator; integration-level testing completed in production.
+- **Script updates:** Container versions updated; postprocessing and group analysis scripts added.
+- **Frontend:** Interface improvements completed.
 
 ## v0.13.x
 - **CLI redesign:** Replaced hard-coded modality flags with abstract `--bids-prep` / `--staged-prep` flags driven by `config.yaml`. Adding a new modality no longer requires backend changes.
@@ -33,24 +37,4 @@ A robust, modular, reproducible pipeline for neuroimaging preprocessing and anal
 
 # Milestones
 
----
-
-## v0.15.x – Stability & Expansion
-### Testing
-- Expand test coverage.
-- Add integration-level tests for DAG execution and HPC job submission.
-
-### Documentation
-- Iterate on handbook based on user feedback; fill gaps identified during first real-world runs.
-
-### Frontend
-- Minor interface improvements as needed.
-
-### New Scripts
-- Add DWI scripts (building on existing qsiprep/qsirecon templates).
-- Add group analysis scripts.
-
----
-
-## Long-Term / Exploratory
-- Further goals will be defined as the project matures.
+_No active milestones. Future work will be defined as needed._
