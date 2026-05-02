@@ -12,13 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-from .config_utils import _CONFIG_DIR
-
-try:
-    with open(_CONFIG_DIR / "hpc_config.yaml", "r", encoding="utf-8") as _f:
-        _hpc_config: Dict[str, Any] = yaml.safe_load(_f) or {}
-except FileNotFoundError:
-    _hpc_config = {}
+from .config_utils import get_config_dir
 
 @dataclass
 class Issue:
@@ -63,7 +57,13 @@ class PreflightChecker:
     ):
         self.project_config = project_config
         self.global_config = global_config
-        self.hpc_config = hpc_config if hpc_config is not None else _hpc_config
+        if hpc_config is None:
+            try:
+                with open(get_config_dir() / "hpc_config.yaml", "r", encoding="utf-8") as _f:
+                    hpc_config = yaml.safe_load(_f) or {}
+            except (FileNotFoundError, RuntimeError):
+                hpc_config = {}
+        self.hpc_config = hpc_config
         self._issues: List[Issue] = []
 
     def _err(self, category: str, message: str) -> None:

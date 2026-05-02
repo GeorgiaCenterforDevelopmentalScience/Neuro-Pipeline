@@ -4,16 +4,30 @@ import typer
 import yaml
 from pathlib import Path
 
-# Repo-root config directory: utils/ -> pipeline/ -> neuro_pipeline/ -> src/ -> repo root
-_CONFIG_DIR = Path(__file__).parents[4] / "config"
 
-# Load global config
-config_path = _CONFIG_DIR / "config.yaml"
-try:
-    with open(config_path, "r", encoding="utf-8") as f:
+_config_dir: Optional[Path] = None
+
+
+def get_config_dir() -> Path:
+    if _config_dir is None:
+        raise RuntimeError(
+            "Config directory not set. Pass --config-dir to the command."
+        )
+    return _config_dir
+
+
+def get_config() -> dict:
+    return config
+
+
+def set_config_dir(path) -> None:
+    global _config_dir, config
+    _config_dir = Path(path)
+    with open(_config_dir / "config.yaml", "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
-except FileNotFoundError:
-    config = {}
+
+
+config: dict = {}
 
 
 class PrepChoice(str, Enum):
@@ -149,7 +163,7 @@ def get_staged_pipeline_names() -> List[str]:
 def load_project_config(project_name: str, config_dir: str = None):
     """Load project configuration from YAML file"""
     if config_dir is None:
-        config_dir = _CONFIG_DIR / "project_config"
+        config_dir = get_config_dir() / "project_config"
 
     config_file = Path(config_dir) / f"{project_name}_config.yaml"
 

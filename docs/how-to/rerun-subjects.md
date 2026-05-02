@@ -18,6 +18,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --intermed volume \
@@ -40,6 +41,7 @@ Or use `check-outputs` to find subjects with missing files:
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects $(cat all_subjects.txt | tr '\n' ',') \
   --task rest_preprocess
 ```
@@ -65,6 +67,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --intermed volume \
@@ -74,7 +77,7 @@ neuropipe run \
 The pipeline checks `{project}_checks.yaml` for each task and silently excludes subjects that already passed. Subjects with missing or incomplete outputs are submitted as normal.
 
 :::{note}
-`--resume` requires `config/results_check/{project}_checks.yaml` to exist. See [Output Checks Configuration](../configuration/output-checks.md) for how to define check rules.
+`--resume` requires `{project}_checks.yaml` to exist inside `<config-dir>/results_check/`. See [Output Checks Configuration](../configuration/output-checks.md) for how to define check rules.
 :::
 
 ## Option 3: Dry-Run First
@@ -83,7 +86,7 @@ Always validate your subject list before a large rerun:
 
 ```bash
 neuropipe run --subjects subjects_failed.txt \
-  --project my_study ... \
+  --project my_study --config-dir /data/config ... \
   --intermed volume --dry-run
 ```
 

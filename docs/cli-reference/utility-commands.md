@@ -37,13 +37,53 @@ neuropipe run --subjects subjects.txt ...
 
 ---
 
+## `neuropipe init`
+
+Initialises a new project directory with config and script templates copied from the package defaults.
+
+```bash
+neuropipe init /scratch/my_study
+
+# Also generate a starter project config
+neuropipe init /scratch/my_study --project my_study
+```
+
+Creates the following layout under the given directory:
+
+```
+/scratch/my_study/
+├── config/
+│   ├── config.yaml
+│   ├── hpc_config.yaml
+│   └── project_config/
+└── scripts/
+    └── (template .sh scripts)
+```
+
+Pass `--config-dir /scratch/my_study/config` in all subsequent `neuropipe` commands.
+
+**Arguments / Options:**
+
+| Argument/Option | Description |
+|-----------------|-------------|
+| `output_dir` | Directory to initialise (positional, required) |
+| `--project` | Also generate a starter `{project}_config.yaml` in `project_config/` |
+
+---
+
 ## `neuropipe list-tasks`
 
 Lists all task names, scripts, and dependencies from `config.yaml`.
 
 ```bash
-neuropipe list-tasks
+neuropipe list-tasks --config-dir /data/config
 ```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--config-dir` | Path to config directory (required) |
 
 ---
 
@@ -71,10 +111,11 @@ Open `http://localhost:8050`. The GUI has three tabs:
 Generate a blank project config template (`{project}_config.yaml`). Equivalent to clicking **Generate Template** in the GUI Project Config tab.
 
 ```bash
-neuropipe generate-config branch
+neuropipe generate-config branch --config-dir /data/config
 
 # Write to a custom directory
-neuropipe generate-config branch --output-dir /scratch/my_project/config/project_config
+neuropipe generate-config branch --config-dir /data/config \
+  --output-dir /scratch/my_project/config/project_config
 ```
 
 **Arguments / Options:**
@@ -82,7 +123,8 @@ neuropipe generate-config branch --output-dir /scratch/my_project/config/project
 | | Description |
 |---|-------------|
 | `PROJECT_NAME` | Project name — determines the output filename |
-| `--output-dir` / `-o` | Output directory (default: `config/project_config/`) |
+| `--config-dir` | Path to config directory (required) |
+| `--output-dir` / `-o` | Output directory (default: `<config-dir>/project_config/`) |
 
 The generated file is a fully-commented YAML template. Open it in the GUI editor or any text editor and fill in paths, modules, and task parameters.
 
@@ -93,10 +135,11 @@ The generated file is a fully-commented YAML template. Open it in the GUI editor
 Generate a blank results-check config template (`{project}_checks.yaml`). Equivalent to clicking **New** in the GUI Results Check Config tab.
 
 ```bash
-neuropipe generate-checks branch
+neuropipe generate-checks branch --config-dir /data/config
 
 # Write to a custom directory
-neuropipe generate-checks branch --output-dir /scratch/my_project/config/results_check
+neuropipe generate-checks branch --config-dir /data/config \
+  --output-dir /scratch/my_project/config/results_check
 ```
 
 **Arguments / Options:**
@@ -104,6 +147,7 @@ neuropipe generate-checks branch --output-dir /scratch/my_project/config/results
 | | Description |
 |---|-------------|
 | `PROJECT_NAME` | Project name — determines the output filename |
-| `--output-dir` / `-o` | Output directory (default: `config/results_check/`) |
+| `--config-dir` | Path to config directory (required) |
+| `--output-dir` / `-o` | Output directory (default: `<config-dir>/results_check/`) |
 
 The generated file contains commented examples for both `required_files` and `count_check` block types. See [Output Checks Configuration](../configuration/output-checks.md) for the full reference.

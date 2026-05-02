@@ -9,6 +9,7 @@ title: CLI Reference
 | Command | Description |
 |---------|-------------|
 | `neuropipe run` | Submit pipeline jobs to SLURM |
+| `neuropipe init` | Initialise a new project directory with config and script templates |
 | `neuropipe check-outputs` | Inspect which subjects completed a task |
 | `neuropipe detect-subjects` | Find subject IDs in a directory |
 | `neuropipe list-tasks` | List all configured tasks |

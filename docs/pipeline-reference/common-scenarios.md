@@ -1,7 +1,6 @@
 ---
 title: Common Scenarios
 ---
-TODO: add detials
 # Common Scenarios
 
 Quick reference for the most common `neuropipe run` workflows. All examples use generic paths — substitute your actual directories and subject list.
@@ -18,6 +17,7 @@ neuropipe run \
   --input /data/raw_zip_files \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --prep unzip_recon \
@@ -40,6 +40,7 @@ neuropipe run \
   --input /data/raw_zip_files \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --prep unzip
@@ -53,6 +54,7 @@ neuropipe run \
   --input /data/raw \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --prep recon
@@ -66,6 +68,7 @@ neuropipe run \
   --input /data/raw_zip_files \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --prep unzip_recon
@@ -85,6 +88,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --intermed volume
@@ -98,6 +102,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --bids-prep rest \
@@ -112,6 +117,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --bids-prep dwi \
@@ -126,6 +132,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --intermed volume \
@@ -144,6 +151,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --mriqc all
@@ -153,10 +161,10 @@ Individual and group reports separately:
 
 ```bash
 # Individual subject reports first
-neuropipe run ... --mriqc individual
+neuropipe run ... --config-dir /data/config --mriqc individual
 
 # Then group report (after individual jobs finish)
-neuropipe run ... --mriqc group
+neuropipe run ... --config-dir /data/config --mriqc group
 ```
 
 ---
@@ -169,6 +177,7 @@ neuropipe run \
   --input /data/raw \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --prep recon \
@@ -186,6 +195,7 @@ neuropipe run \
   --input /data/raw \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --prep recon \
@@ -205,6 +215,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --intermed volume \
@@ -226,6 +237,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --intermed volume \

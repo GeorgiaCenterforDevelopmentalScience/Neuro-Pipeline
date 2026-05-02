@@ -53,6 +53,7 @@ Before generating any report, confirm which subjects actually have valid output 
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects 001,002,003,004,005 \
   --session 01
 ```
@@ -63,6 +64,7 @@ To check multiple sessions at once, pass them comma-separated:
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects 001,002,003,004,005 \
   --session 01,02
 ```
@@ -73,6 +75,7 @@ If your subject list is in a file:
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects subjects.txt \
   --session 01
 ```
@@ -83,6 +86,7 @@ To check only specific tasks rather than all configured tasks:
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects subjects.txt \
   --session 01 \
   --task rest_preprocess \
@@ -307,6 +311,7 @@ subject | task_name       | exit_code | job_id      | script_name
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects subjects.txt \
   --session 01
 ```
@@ -317,6 +322,7 @@ To narrow down to specific tasks:
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects subjects.txt \
   --task rest_preprocess \
   --task volume

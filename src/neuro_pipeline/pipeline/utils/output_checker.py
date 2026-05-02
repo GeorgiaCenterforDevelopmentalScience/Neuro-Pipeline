@@ -268,8 +268,8 @@ def load_checks_config(project_name: str,
     Raises FileNotFoundError if it does not exist.
     """
     if checks_dir is None:
-        from .config_utils import _CONFIG_DIR
-        checks_dir = _CONFIG_DIR / "results_check"
+        from .config_utils import get_config_dir
+        checks_dir = get_config_dir() / "results_check"
 
     config_file = Path(checks_dir) / f"{project_name}_checks.yaml"
 

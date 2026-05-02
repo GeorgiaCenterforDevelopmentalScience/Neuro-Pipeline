@@ -241,7 +241,7 @@ class TestCreateWrapperScript:
         fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
 
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
+             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import create_wrapper_script
 
             wrapper_path, _ = create_wrapper_script(
@@ -417,7 +417,7 @@ class TestSubmitSlurmJobDryRun:
         }
 
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
+             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
 
             job_id = submit_slurm_job(
@@ -451,7 +451,7 @@ class TestSubmitSlurmJobDryRun:
         }
 
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}), \
+             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}), \
              patch("subprocess.run") as mock_run:
 
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
@@ -479,7 +479,7 @@ class TestSubmitSlurmJobDryRun:
         }
 
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
+             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
 
             with pytest.raises(FileNotFoundError, match="ghost_script.sh"):
@@ -514,7 +514,7 @@ class TestSubmitSlurmJobDryRun:
         }
 
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
+             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
 
             submit_slurm_job(
@@ -659,7 +659,7 @@ class TestSubmitSlurmJobExtras:
         fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
         kwargs = {**self.BASE_KWARGS, "output_dir": str(tmp_path / "output"), **(extra_kwargs or {})}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
+             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
             return submit_slurm_job(
                 script_name="afni_cards_preprocessing.sh",
@@ -695,7 +695,7 @@ class TestSubmitSlurmJobExtras:
         task_config = {"name": "cards_preprocess", "profile": "standard", "array": False,
                        "scripts": ["afni_cards_preprocessing.sh"]}
         with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
-             patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}), \
+             patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}), \
              patch("neuro_pipeline.pipeline.utils.hpc_utils.SLURMBackend.submit_job",
                    return_value="99999") as mock_submit:
             from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job

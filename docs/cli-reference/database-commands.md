@@ -18,24 +18,28 @@ By default (no `--subjects` or `--session`), subjects are auto-detected from `--
 # One-click: auto-detect subjects, check all sessions
 neuropipe check-outputs \
   --project my_study \
-  --work /data/work
+  --work /data/work \
+  --config-dir /data/config
 
 # Filter to specific session
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --session 01
 
 # Filter to multiple sessions
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --session 01,02
 
 # Filter to specific subjects and tasks
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects 001,002,003 \
   --session 01 \
   --task rest_preprocess \
@@ -45,6 +49,7 @@ neuropipe check-outputs \
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --checks-dir /path/to/custom/checks/
 ```
 
@@ -54,6 +59,7 @@ neuropipe check-outputs \
 |--------|-------------|
 | `--project` | Project name (required) |
 | `--work` | Work/output base directory (required) |
+| `--config-dir` | Path to config directory (required) |
 | `--subjects` | Subject list or file path — auto-detected from `--work` if omitted |
 | `--session` | Session ID(s), comma-separated (e.g. `01,02`). Checks all sessions if omitted. |
 | `--task` | Specific task(s) to check; repeatable; defaults to all configured |

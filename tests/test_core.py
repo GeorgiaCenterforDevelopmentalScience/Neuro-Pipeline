@@ -219,11 +219,13 @@ class TestCheckOutputsCmd:
 
     def test_missing_checks_config_exits_1(self, tmp_path):
         runner, app = _runner()
-        result = runner.invoke(app, [
-            "check-outputs",
-            "--project", "no_such_project_xyz",
-            "--work", str(tmp_path),
-        ])
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"):
+            result = runner.invoke(app, [
+                "check-outputs",
+                "--project", "no_such_project_xyz",
+                "--work", str(tmp_path),
+                "--config-dir", str(tmp_path),
+            ])
         assert result.exit_code == 1
 
     def test_no_subjects_found_exits_1(self, tmp_path):
@@ -233,12 +235,14 @@ class TestCheckOutputsCmd:
             "task1:\n  output_path: '{work_dir}'\n"
             "  required_files:\n    - 'file.txt'\n"
         )
-        with patch("neuro_pipeline.pipeline.utils.output_checker.load_checks_config",
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
+             patch("neuro_pipeline.pipeline.utils.output_checker.load_checks_config",
                    return_value=str(yaml_path)):
             result = runner.invoke(app, [
                 "check-outputs",
                 "--project", "proj",
                 "--work", str(tmp_path),
+                "--config-dir", str(tmp_path),
             ])
         assert result.exit_code == 1
 
@@ -280,12 +284,42 @@ class TestGenerateConfigCmd:
 
     def test_generate_config_delegates_to_utility(self, tmp_path):
         runner, app = _runner()
-        with patch("neuro_pipeline.pipeline.utils.generate_project_config.generate_project_config") as mock_fn:
-            runner.invoke(app, ["generate-config", "my_study", "--output-dir", str(tmp_path)])
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
+             patch("neuro_pipeline.pipeline.utils.generate_project_config.generate_project_config") as mock_fn:
+            runner.invoke(app, [
+                "generate-config", "my_study",
+                "--config-dir", str(tmp_path),
+                "--output-dir", str(tmp_path),
+            ])
         mock_fn.assert_called_once()
 
     def test_generate_checks_delegates_to_utility(self, tmp_path):
         runner, app = _runner()
-        with patch("neuro_pipeline.pipeline.utils.generate_results_check.generate_results_check") as mock_fn:
-            runner.invoke(app, ["generate-checks", "my_study", "--output-dir", str(tmp_path)])
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
+             patch("neuro_pipeline.pipeline.utils.generate_results_check.generate_results_check") as mock_fn:
+            runner.invoke(app, [
+                "generate-checks", "my_study",
+                "--config-dir", str(tmp_path),
+                "--output-dir", str(tmp_path),
+            ])
+        mock_fn.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# CLI — init
+# ---------------------------------------------------------------------------
+
+class TestInitCmd:
+
+    def test_creates_output_dir_and_prints_next_steps(self, tmp_path):
+        runner, app = _runner()
+        result = runner.invoke(app, ["init", str(tmp_path / "study")])
+        assert result.exit_code == 0
+        assert "Initialised at" in result.output
+
+    def test_with_project_calls_generate_project_config(self, tmp_path):
+        runner, app = _runner()
+        with patch("neuro_pipeline.pipeline.utils.generate_project_config.generate_project_config") as mock_fn:
+            result = runner.invoke(app, ["init", str(tmp_path / "study"), "--project", "my_study"])
+        assert result.exit_code == 0
         mock_fn.assert_called_once()

@@ -3,21 +3,27 @@ conftest.py — Shared fixtures for all test modules
 
 Assumed package layout:
     neuro_pipeline/
+        config/
+            config.yaml
+            hpc_config.yaml
+            project_config/
+            results_check/
+        scripts/
+            template/
+            ...
         pipeline/
             core.py
             dag.py
-            config/
-                config.yaml
             utils/
                 config_utils.py
                 hpc_utils.py
                 detect_subjects.py
                 job_db.py
-        tests/
-            conftest.py
-            test_config_utils.py
-            test_dag.py
-            test_hpc_utils.py
+    tests/
+        conftest.py
+        test_config_utils.py
+        test_dag.py
+        test_hpc_utils.py
 """
 
 import pytest

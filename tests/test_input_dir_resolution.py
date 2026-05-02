@@ -29,7 +29,7 @@ def _run_submit(tmp_path, scripts_dir, task_config, requested_tasks,
     with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), \
          patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
          patch(CONFIG_UTILS_PATH, MOCK_CONFIG), \
-         patch.dict("sys.modules", {"neuro_pipeline.pipeline.scripts": fake_scripts_pkg}):
+         patch.dict("sys.modules", {"neuro_pipeline.scripts": fake_scripts_pkg}):
         from neuro_pipeline.pipeline.utils.hpc_utils import submit_slurm_job
         submit_slurm_job(
             script_name=task_config["scripts"][0],

@@ -3,7 +3,7 @@
 import argparse
 import yaml
 from pathlib import Path
-from .config_utils import _CONFIG_DIR
+from .config_utils import get_config_dir
 
 def generate_project_config(project_name: str, output_dir: str = None):
     config_template = {
@@ -51,7 +51,7 @@ def generate_project_config(project_name: str, output_dir: str = None):
         }
     }
     
-    out = Path(output_dir) if output_dir else _CONFIG_DIR / "project_config"
+    out = Path(output_dir) if output_dir else get_config_dir() / "project_config"
     out.mkdir(parents=True, exist_ok=True)
     config_file = out / f"{project_name}_config.yaml"
     

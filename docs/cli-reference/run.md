@@ -18,7 +18,8 @@ neuropipe run [OPTIONS]
 | `--input` | Input data directory | `/data/BIDS` |
 | `--output` | Output base directory | `/data/processed` |
 | `--work` | Work base directory (logs, database, temp files) | `/data/work` |
-| `--project` | Project name — loads `{project}_config.yaml` | `my_study` |
+| `--config-dir` | Path to config directory — must contain `config.yaml`, `hpc_config.yaml`, and `project_config/` | `/data/config` |
+| `--project` | Project name — loads `{project}_config.yaml` from `--config-dir/project_config/` | `my_study` |
 | `--session` | Session or wave ID | `01` |
 
 :::{important}

@@ -251,6 +251,7 @@ Run checks independently of a pipeline submission:
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects 001,002,003,004,005
 ```
 
@@ -261,6 +262,7 @@ neuropipe check-outputs \
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects 001,002,003 \
   --task rest_preprocess
 
@@ -268,6 +270,7 @@ neuropipe check-outputs \
 neuropipe check-outputs \
   --project my_study \
   --work /data/work \
+  --config-dir /data/config \
   --subjects 001,002,003 \
   --checks-dir /path/to/custom/checks/
 ```

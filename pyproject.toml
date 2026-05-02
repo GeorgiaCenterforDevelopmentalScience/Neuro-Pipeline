@@ -37,6 +37,9 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 include = ["neuro_pipeline*"]
 
+[tool.setuptools.package-data]
+"neuro_pipeline" = ["config/**/*.yaml", "scripts/**/*.sh"]
+
 [project.scripts]
 neuropipe = "neuro_pipeline.pipeline.core:app"
 neuropipe-gui = "neuro_pipeline.interface.run_gui:main"

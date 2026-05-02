@@ -12,12 +12,18 @@ The pipeline is structured as a DAG of tasks. You choose which tasks to run via 
 
 ## 1. Configure
 
-For each new study, create two files in `config/project_config/`:
+Run `neuropipe init` once to create a config directory with template files:
 
-- **`{project}_config.yaml`** — HPC module names, container paths, and task parameters (e.g. `blur_size`, `remove_TRs`).
-- **`{project}_checks.yaml`** — expected output files per task, used by `--resume` and `check-outputs` to determine which subjects are complete.
+```bash
+neuropipe init /scratch/my_study --project my_study
+```
 
-`config/hpc_config.yaml` and `config/config.yaml` are cluster-wide and shared across all projects; set them up once when deploying on a new cluster.
+Then edit the two per-project files inside the generated config directory:
+
+- **`project_config/{project}_config.yaml`** — HPC module names, container paths, and task parameters (e.g. `blur_size`, `remove_TRs`).
+- **`results_check/{project}_checks.yaml`** — expected output files per task, used by `--resume` and `check-outputs` to determine which subjects are complete.
+
+`hpc_config.yaml` and `config.yaml` at the root of the config directory are cluster-wide and shared across all projects; set them up once when deploying on a new cluster.
 
 See [Project Config Guide](../configuration/project-config.md) and [Output Checks Config](../configuration/output-checks.md). For the shared configs, see [HPC Config](../configuration/hpc-config.md) and [Pipeline Config](../configuration/pipeline-config.md).
 
@@ -51,6 +57,7 @@ Before submitting to the cluster, run with `--dry-run` to validate your config, 
 neuropipe run \
   --subjects subjects.txt \
   --input /data/raw --output /data/processed --work /data/work \
+  --config-dir /scratch/my_study/config \
   --project my_study --session 01 \
   --prep unzip_recon \
   --intermed volume \
@@ -74,6 +81,7 @@ Remove `--dry-run`. Preflight and BIDS validation run again automatically.
 neuropipe run \
   --subjects subjects.txt \
   --input /data/raw --output /data/processed --work /data/work \
+  --config-dir /scratch/my_study/config \
   --project my_study --session 01 \
   --prep unzip_recon \
   --intermed volume \
@@ -123,6 +131,7 @@ Check that all expected output files exist for every subject:
 ```bash
 neuropipe check-outputs \
   --project my_study --work /data/processed \
+  --config-dir /scratch/my_study/config \
   --subjects subjects.txt --session 01
 ```
 
@@ -146,6 +155,7 @@ Use `--resume` to skip subjects whose outputs already pass the output checks and
 neuropipe run \
   --subjects subjects.txt \
   --input /data/processed --output /data/processed --work /data/work \
+  --config-dir /scratch/my_study/config \
   --project my_study --session 01 \
   --intermed volume \
   --resume

@@ -41,29 +41,48 @@ neuropipe-gui --help
 
 The fastest way to verify everything works is a **dry-run**: this generates and prints all SLURM commands without submitting any jobs.
 
-### Step 1: Create your config files
+### Step 1: Initialise your config directory
 
-The pipeline uses four config files split into two tiers:
+Run `neuropipe init` once to create a config directory pre-populated with template files:
+
+```bash
+neuropipe init /scratch/my_study --project my_study
+```
+
+This creates:
+
+```
+/scratch/my_study/
+├── config/                    ← pass this to --config-dir
+│   ├── config.yaml
+│   ├── hpc_config.yaml
+│   └── project_config/
+│       └── my_study_config.yaml   (starter template)
+└── scripts/
+    └── (template .sh scripts)
+```
+
+You then pass `--config-dir /scratch/my_study/config` to every `neuropipe` command. The pipeline uses four config files split into two tiers:
 
 **Required — create one per project:**
 
-| File | Location | What you do |
-|------|----------|-------------|
-| `{project}_config.yaml` | `config/project_config/` | Per-project settings: HPC paths, module versions, and task parameters. **This is the main file you create for each new study.** |
-| `{project}_checks.yaml` | `config/results_check/` | Output file checks used by `--resume` and `check-outputs`. Required for resume and output verification to work. |
+| File | Location inside `--config-dir` | What you do |
+|------|--------------------------------|-------------|
+| `{project}_config.yaml` | `project_config/` | Per-project settings: HPC paths, module versions, and task parameters. **This is the main file you create for each new study.** |
+| `{project}_checks.yaml` | `results_check/` | Output file checks used by `--resume` and `check-outputs`. Required for resume and output verification to work. |
 
 **Shared — review once, rarely touch after that:**
 
-| File | Location | What you do |
-|------|----------|-------------|
-| `hpc_config.yaml` | `config/` | Scheduler type (SLURM/PBS), cluster-wide resource profiles, and job submission flag templates. Review when setting up on a new cluster. |
-| `config.yaml` | `config/` | Global task definitions and resource profiles shared across all projects. Ships with defaults for the standard task set. **Only edit this when adding a new task type.** |
+| File | Location inside `--config-dir` | What you do |
+|------|--------------------------------|-------------|
+| `hpc_config.yaml` | root | Scheduler type (SLURM/PBS), cluster-wide resource profiles, and job submission flag templates. Review when setting up on a new cluster. |
+| `config.yaml` | root | Global task definitions and resource profiles shared across all projects. Ships with defaults for the standard task set. **Only edit this when adding a new task type.** |
 
 :::{tip}
 **Day-to-day you only edit `{project}_config.yaml`.** The shared configs are a one-time cluster setup — once they're right for your HPC environment, you won't need to touch them again.
 :::
 
-The most common setup task is creating `{project}_config.yaml`. Use the GUI to generate a template:
+The most common setup task is editing `{project}_config.yaml`. Use the GUI to generate a template:
 
 ```bash
 neuropipe-gui
@@ -99,6 +118,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /scratch/my_study/config \
   --project my_study \
   --session 01 \
   --prep unzip_recon \
@@ -113,6 +133,7 @@ neuropipe run \
   --input /data/raw \
   --output /data/processed \
   --work /data/work \
+  --config-dir /scratch/my_study/config \
   --project my_study \
   --session 01 \
   --prep unzip_recon \

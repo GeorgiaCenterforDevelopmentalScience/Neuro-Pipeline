@@ -9,15 +9,26 @@ from typing import Dict, Any, List, Optional, Tuple
 import typer
 import yaml
 
-from .config_utils import _CONFIG_DIR
+from .config_utils import get_config_dir
 
-# Load global configuration
-with open(_CONFIG_DIR / "config.yaml", "r", encoding="utf-8") as f:
-    config = yaml.safe_load(f)
+_config: Optional[dict] = None
+_hpc_config: Optional[dict] = None
 
-# Load HPC scheduler configuration
-with open(_CONFIG_DIR / "hpc_config.yaml", "r", encoding="utf-8") as f:
-    hpc_config = yaml.safe_load(f)
+
+def _get_config() -> dict:
+    global _config
+    if _config is None:
+        with open(get_config_dir() / "config.yaml", "r", encoding="utf-8") as f:
+            _config = yaml.safe_load(f)
+    return _config
+
+
+def _get_hpc_config() -> dict:
+    global _hpc_config
+    if _hpc_config is None:
+        with open(get_config_dir() / "hpc_config.yaml", "r", encoding="utf-8") as f:
+            _hpc_config = yaml.safe_load(f)
+    return _hpc_config
 
 
 class HPCBackend(ABC):
@@ -272,8 +283,9 @@ class PBSBackend(HPCBackend):
 
 
 def get_hpc_backend() -> HPCBackend:
-    scheduler = hpc_config.get("scheduler", "slurm").lower()
-    scheduler_cfg = hpc_config.get(scheduler)
+    hpc_cfg = _get_hpc_config()
+    scheduler = hpc_cfg.get("scheduler", "slurm").lower()
+    scheduler_cfg = hpc_cfg.get(scheduler)
 
     if scheduler_cfg is None:
         raise ValueError(
@@ -313,19 +325,20 @@ class HPCResources:
 def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
     """Get HPC resource configuration from task config and global settings"""
     
-    defaults = hpc_config.get('defaults', {})
+    hpc_cfg = _get_hpc_config()
+    defaults = hpc_cfg.get('defaults', {})
     profile_name = task_config.get('profile', 'standard')
-    profile_config = hpc_config.get('resource_profiles', {}).get(profile_name, {})
+    profile_config = hpc_cfg.get('resource_profiles', {}).get(profile_name, {})
 
     if not profile_config:
-        available = ', '.join(hpc_config.get('resource_profiles', {}).keys())
+        available = ', '.join(hpc_cfg.get('resource_profiles', {}).keys())
         raise ValueError(f"Profile '{profile_name}' not found. Available: {available}")
     
     merged_config = {**defaults, **profile_config}
     
     array_param = None
     if task_config.get('array', False):
-        array_config = config.get('array_config', {})
+        array_config = _get_config().get('array_config', {})
         array_param = array_config.get('pattern', '1-{num}%15')
     
     return HPCResources(
@@ -362,8 +375,7 @@ def get_environment_commands(task_config: Dict[str, Any], project_config: Dict[s
 
 def get_script_with_validation(script_name: str, scripts_dir: str) -> Optional[Path]:
     """Validate and return script path, with helpful error messages"""
-    sd = Path(scripts_dir)
-    scripts_dir_path = sd if sd.is_absolute() else Path(__file__).parent.parent / sd
+    scripts_dir_path = Path(scripts_dir)
     script_path = scripts_dir_path / script_name
 
     if script_path.exists():
@@ -601,9 +613,8 @@ def create_wrapper_script(
     if not db_path:
         db_path = str(Path(work_dir) / "log" / "pipeline_jobs.db")
     
-    # Get the correct script directory
-    from ..scripts import SCRIPTS_DIR
-    pipeline_root = SCRIPTS_DIR.parent
+    # pipeline/ dir: used by bash wrapper to locate utils/wrapper_functions.sh
+    pipeline_root = Path(__file__).parent.parent
     
     # Write minimal wrapper script
     with open(wrapper_path, 'w') as f:
@@ -617,7 +628,8 @@ def create_wrapper_script(
         
         # Submission command reference (for debugging)
         if slurm_args:
-            submit_cmd = hpc_config.get(hpc_config.get("scheduler", "slurm"), {}).get("submit_cmd", "sbatch")
+            _hc = _get_hpc_config()
+            submit_cmd = _hc.get(_hc.get("scheduler", "slurm"), {}).get("submit_cmd", "sbatch")
             f.write("#\n")
             f.write("# Submission Command:\n")
             f.write(f"# {submit_cmd} {' '.join(slurm_args)} {wrapper_path}\n")
@@ -670,7 +682,8 @@ def create_wrapper_script(
 
     os.chmod(wrapper_path, 0o755)
 
-    submit_cmd = hpc_config.get(hpc_config.get("scheduler", "slurm"), {}).get("submit_cmd", "sbatch")
+    _hc = _get_hpc_config()
+    submit_cmd = _hc.get(_hc.get("scheduler", "slurm"), {}).get("submit_cmd", "sbatch")
     sections = {
         "full_content": wrapper_path.read_text(),
         "slurm_cmd": f"{submit_cmd} {' '.join(slurm_args)} {wrapper_path}" if slurm_args else "",

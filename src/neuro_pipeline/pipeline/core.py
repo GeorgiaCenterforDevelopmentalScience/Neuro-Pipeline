@@ -1,5 +1,4 @@
 import typer
-import yaml
 import sys
 import os
 from pathlib import Path
@@ -11,19 +10,16 @@ from .utils.config_utils import (
     PrepChoice,
     MRIQCChoice,
     load_project_config,
-    _CONFIG_DIR,
+    set_config_dir,
+    get_config_dir,
+    get_config,
 )
 from .utils.job_db import log_pipeline_execution, update_pipeline_execution
 import shutil
 
 app = typer.Typer()
 
-
 from .utils.detect_subjects import parse_subjects_input as _parse_subjects
-
-# Load global config
-with open(_CONFIG_DIR / "config.yaml", "r", encoding="utf-8") as f:
-    config = yaml.safe_load(f)
 
 @dataclass
 class TaskOptions:
@@ -74,6 +70,8 @@ def run(
     output_dir: str = typer.Option(..., "--output", help="Output directory"),
     work_dir: str = typer.Option(..., "--work", help="Work directory"),
 
+    config_dir: str = typer.Option(..., "--config-dir", help="Path to config directory (contains config.yaml, hpc_config.yaml, project_config/)"),
+
     project: str = typer.Option(..., help="Project name"),
 
     prep: Optional[PrepChoice] = typer.Option(None, help="Preprocessing steps"),
@@ -98,10 +96,13 @@ def run(
     polling_interval: int = typer.Option(60, "--polling-interval", help="Polling interval (seconds)")
 ):
 
+    set_config_dir(config_dir)
+    config = get_config()
+
     execution_id = None
     db_path = None
     command_line = " ".join(sys.argv)
-    
+
     try:
         options = TaskOptions(
             prep=prep,
@@ -319,9 +320,14 @@ def run(
             )
         raise e
 
-@app.command()
-def list_tasks():
+@app.command("list-tasks")
+def list_tasks(
+    config_dir: str = typer.Option(..., "--config-dir", help="Path to config directory"),
+):
     """List available tasks"""
+    if config_dir:
+        set_config_dir(config_dir)
+    from .utils.config_utils import config
     typer.echo("Available tasks:")
     for section_name, section_tasks in config.items():
         if not isinstance(section_tasks, list):
@@ -447,6 +453,7 @@ def generate_report_cmd(
 def check_outputs_cmd(
     project: str = typer.Option(..., help="Project name"),
     work_dir: str = typer.Option(..., "--work", help="Work/output directory"),
+    config_dir: str = typer.Option(..., "--config-dir", help="Path to config directory"),
     subjects: Optional[str] = typer.Option(None, help="Subject list or file path (auto-detected from work_dir if omitted)"),
     session: Optional[str] = typer.Option(None, help="Session ID(s), comma-separated (e.g. 01,02). Checks all sessions if omitted."),
     tasks: Optional[List[str]] = typer.Option(None, "--task",
@@ -468,6 +475,8 @@ def check_outputs_cmd(
       neuropipe check-outputs --project test --work /data/processed \\
           --subjects 001,002 --session 01
     """
+    set_config_dir(config_dir)
+
     from .utils.output_checker import OutputChecker, load_checks_config
     from .utils.detect_subjects import detect_subjects
 
@@ -544,18 +553,79 @@ def check_outputs_cmd(
     typer.echo(f"Full report saved to: {csv_path}")
 
 
+@app.command()
+def init(
+    output_dir: str = typer.Argument(..., help="Directory to initialise (e.g. /scratch/my_study)"),
+    project: Optional[str] = typer.Option(None, "--project", help="Also generate a starter project config with this name"),
+):
+    """Initialise a project directory with config and script templates.
+
+    Copies global config templates (config.yaml, hpc_config.yaml) and bash
+    script templates to output_dir, then prints the --config-dir value to use
+    with neuropipe run.
+
+    Example:
+      neuropipe init /scratch/my_study --project my_study
+    """
+    from .utils.config_utils import get_config_dir
+
+    output = Path(output_dir)
+    config_out = output / "config"
+    scripts_out = output / "scripts"
+
+    # Locate bundled config templates: prefer package-internal copy, fall back to repo root
+    pkg_config = Path(__file__).parent.parent / "config"
+    src_config = pkg_config if pkg_config.exists() else get_config_dir()
+
+    config_out.mkdir(parents=True, exist_ok=True)
+    for fname in ("config.yaml", "hpc_config.yaml"):
+        src = src_config / fname
+        if src.exists():
+            shutil.copy2(src, config_out / fname)
+            typer.echo(f"  Copied {fname} → {config_out / fname}")
+        else:
+            typer.echo(f"  Warning: {fname} not found in {src_config}", err=True)
+
+    project_config_src = src_config / "project_config"
+    if project_config_src.exists():
+        shutil.copytree(project_config_src, config_out / "project_config", dirs_exist_ok=True)
+        typer.echo(f"  Copied project_config/ → {config_out / 'project_config'}")
+
+    # Copy bash script templates
+    template_scripts = Path(__file__).parent.parent / "scripts" / "template"
+    if template_scripts.exists():
+        scripts_out.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(template_scripts, scripts_out, dirs_exist_ok=True)
+        typer.echo(f"  Copied scripts/template/ → {scripts_out}")
+
+    if project:
+        from .utils.generate_project_config import generate_project_config
+        generate_project_config(project, str(config_out / "project_config"))
+
+    typer.echo(f"\nInitialised at: {output}")
+    typer.echo(f"\nNext steps:")
+    typer.echo(f"  1. Edit {config_out}/hpc_config.yaml  — scheduler & resource settings")
+    typer.echo(f"  2. Edit {config_out}/project_config/  — project-specific config")
+    typer.echo(f"  3. Edit {scripts_out}/                — adapt .sh scripts to your HPC")
+    typer.echo(f"\nThen run:")
+    typer.echo(f"  neuropipe run --config-dir {config_out} ...")
+
+
 @app.command("generate-config")
 def generate_config_cmd(
     project_name: str = typer.Argument(..., help="Project name (e.g., branch, study1)"),
     output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o",
-        help="Output directory (default: config/project_config/)"),
+        help="Output directory (default: <config-dir>/project_config/)"),
+    config_dir: str = typer.Option(..., "--config-dir",
+        help="Path to config directory (sets default output location)"),
 ):
     """Generate a blank project config template.
 
     Example:
-      neuropipe generate-config branch
+      neuropipe generate-config branch --config-dir /scratch/my_study/config
       neuropipe generate-config branch --output-dir /scratch/my_project/config/project_config
     """
+    set_config_dir(config_dir)
     from .utils.generate_project_config import generate_project_config
     generate_project_config(project_name, output_dir)
 
@@ -564,13 +634,16 @@ def generate_config_cmd(
 def generate_checks_cmd(
     project_name: str = typer.Argument(..., help="Project name (e.g., branch, study1)"),
     output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o",
-        help="Output directory (default: config/results_check/)"),
+        help="Output directory (default: <config-dir>/results_check/)"),
+    config_dir: str = typer.Option(..., "--config-dir",
+        help="Path to config directory (sets default output location)"),
 ):
     """Generate a blank results-check config template.
 
     Example:
-      neuropipe generate-checks branch
+      neuropipe generate-checks branch --config-dir /scratch/my_study/config
       neuropipe generate-checks branch --output-dir /scratch/my_project/config/results_check
     """
+    set_config_dir(config_dir)
     from .utils.generate_results_check import generate_results_check
     generate_results_check(project_name, output_dir)

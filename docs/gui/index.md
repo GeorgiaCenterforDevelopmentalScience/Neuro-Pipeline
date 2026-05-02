@@ -141,7 +141,7 @@ See [Project Config Guide](../configuration/project-config.md) for field-by-fiel
 
 ![Config2](../images/config_results.png)
 
-Edit the output check rules used by **Resume Mode** and `check-outputs`. Enter your project name to load or create `config/project_config/{project}_checks.yaml`.
+Edit the output check rules used by **Resume Mode** and `check-outputs`. Enter your project name to load or create `{project}_checks.yaml` inside `<config-dir>/results_check/`.
 
 The editor hints show both supported check types (`required_files` with optional `min_size_kb`, and `count_check` with `expected_count` ± `tolerance`). See [Output Checks Config](../configuration/output-checks.md) for syntax details.
 

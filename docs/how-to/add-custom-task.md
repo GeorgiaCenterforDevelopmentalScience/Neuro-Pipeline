@@ -25,21 +25,21 @@ Adding a task involves three files:
 
 | File | What you do |
 |------|-------------|
-| `scripts/{dir}/your_script.sh` (or `.py`, `.r`, ...) | Write the analysis logic |
-| `config/config.yaml` | Register the task in the pipeline task graph |
-| `config/project_config/{project}_config.yaml` | Set task parameters for your project |
-| `config/results_check/{project}_checks.yaml` | (Optional) Define output checks for `--resume` |
+| `{scripts_dir}/your_script.sh` (or `.py`, `.r`, ...) | Write the analysis logic |
+| `<config-dir>/config.yaml` | Register the task in the pipeline task graph |
+| `<config-dir>/project_config/{project}_config.yaml` | Set task parameters for your project |
+| `<config-dir>/results_check/{project}_checks.yaml` | (Optional) Define output checks for `--resume` |
 
 ### Where task definitions live
 
-Task types are defined in `config/config.yaml`. Add new pipeline sections directly to this file. Task-specific parameters (resources, paths, tool versions) go in your project config under `tasks`.
+Task types are defined in `config.yaml` inside your `--config-dir`. Add new pipeline sections directly to this file. Task-specific parameters (resources, paths, tool versions) go in your project config under `tasks`.
 
 ## Step 1: Write the Analysis Script
 
-Create the script under your project's scripts directory:
+Create the script in the directory set by `scripts_dir` in your project config:
 
 ```
-src/neuro_pipeline/pipeline/scripts/{scripts_dir}/afni_flanker_preprocess.sh
+{scripts_dir}/afni_flanker_preprocess.sh
 ```
 
 Scripts can be written in any language. The pipeline dispatches based on file extension: `.py` files are run with `python`, everything else is run with `bash`. The script receives **one argument: the subject ID** (e.g., `001`). Everything else is available as **environment variables** that the pipeline exports automatically.
@@ -110,7 +110,7 @@ Windows CRLF line endings cause `$'\r': command not found` errors on Linux compu
 
 ## Step 2: Register in `config.yaml`
 
-Open `config/config.yaml` and add your task as a new top-level section. For a staged task fMRI pipeline, add it like `cards` or `kidvid`:
+Open `config.yaml` in your `--config-dir` and add your task as a new top-level section. For a staged task fMRI pipeline, add it like `cards` or `kidvid`:
 
 ```yaml
 # Add a new section for the flanker task
@@ -180,6 +180,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --staged-prep flanker \
@@ -202,7 +203,7 @@ If the dry-run looks correct, remove `--dry-run` to submit.
 
 ## Step 6: Add Output Checks for `--resume`
 
-Without a checks entry, `--resume` will always resubmit this task with a warning. Add a rule to `config/results_check/{project}_checks.yaml`:
+Without a checks entry, `--resume` will always resubmit this task with a warning. Add a rule to `<config-dir>/results_check/{project}_checks.yaml`:
 
 ```yaml
 flanker_preprocess:

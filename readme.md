@@ -44,7 +44,7 @@ neuropipe-gui --help
 
 ## Configuration
 
-Each project requires a `{project}_config.yaml` in `src/neuro_pipeline/pipeline/config/project_config/`. Use the GUI's **Project Config** tab to generate a template, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
+Each project requires a `{project}_config.yaml` in `src/neuro_pipeline/config/project_config/`. Use the GUI's **Project Config** tab to generate a template, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
 
 Modalities available under `--bids-prep` and `--staged-prep` are declared in `config.yaml`.
 
@@ -69,6 +69,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --bids-prep rest \
@@ -83,6 +84,7 @@ neuropipe run \
   --input /data/raw \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --prep unzip_recon \
@@ -108,6 +110,7 @@ Dependencies are enforced automatically by the scheduler.
 | `--input` | Input BIDS directory |
 | `--output` | Output directory |
 | `--work` | Work directory (logs, database, intermediate files) |
+| `--config-dir` | Path to config directory (contains `config.yaml`, `hpc_config.yaml`, `project_config/`) |
 | `--project` | Project name (must match a `{project}_config.yaml`) |
 | `--session` | Session label (e.g. `01`) |
 
@@ -139,6 +142,7 @@ neuropipe run \
   --input /data/BIDS \
   --output /data/processed \
   --work /data/work \
+  --config-dir /data/config \
   --project my_study \
   --session 01 \
   --bids-prep rest \

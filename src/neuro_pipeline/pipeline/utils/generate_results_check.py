@@ -2,7 +2,7 @@
 
 import argparse
 from pathlib import Path
-from .config_utils import _CONFIG_DIR
+from .config_utils import get_config_dir
 
 RESULTS_CHECK_TEMPLATE = """\
 # Results check configuration
@@ -28,7 +28,7 @@ recon:
 
 def generate_results_check(project_name: str, output_dir: str = None) -> Path:
     """Write a blank results-check template for project_name. Returns the output path."""
-    out = Path(output_dir) if output_dir else _CONFIG_DIR / "results_check"
+    out = Path(output_dir) if output_dir else get_config_dir() / "results_check"
     out.mkdir(parents=True, exist_ok=True)
     config_file = out / f"{project_name}_checks.yaml"
     config_file.write_text(RESULTS_CHECK_TEMPLATE, encoding="utf-8")
