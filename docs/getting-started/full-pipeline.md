@@ -15,7 +15,7 @@ The pipeline is structured as a DAG of tasks. You choose which tasks to run via 
 Run `neuropipe init` once to create a config directory with template files:
 
 ```bash
-neuropipe init /scratch/my_study --project my_study
+neuropipe init /scratch/my_study
 ```
 
 Then edit the two per-project files inside the generated config directory:

@@ -207,15 +207,17 @@ The `--check-results` path must point to a `check_results_*.csv` produced by `ch
 
 ### What the report contains
 
+The report is organised by session. Each session gets its own section in the navbar and contains all sub-sections below.
+
 | Section | Description |
 |---------|-------------|
 | **Header** | Project, session, generation time, last run time, input/output/work paths, full command line |
-| **Task Completion** | Table: each task's completed / failed / not-run counts, completion %, average runtime (mean ± std), last run date |
-| **Subject × Task Status** | Colour-coded table — green = SUCCESS, red = FAILED, grey = not run |
-| **Run History** | Collapsed. Task × Run colour-block matrix (worst-case status per task per run). Only shown when more than one run exists |
-| **Failed Jobs** | Collapsed per task: subject, exit code, start time, stdout snippet |
-| **Output Validation** | Only shown when check-results data is available. Compact colour-block matrix (rows = check type grouped by task, columns = subjects). Failed checks expandable in a detail table below |
-| **Environment & Reproducibility** | Collapsed appendix: the SLURM command, modules, env vars, and execute command from the latest wrapper script for each task |
+| **Task Completion** *(per session)* | Table: each task's completed / failed / not-run counts, completion %, average runtime (mean ± std), last run date |
+| **Subject × Task Status** *(per session)* | Colour-coded table — green = SUCCESS, red = FAILED, grey = not run |
+| **Run History** *(per session)* | Collapsed. Task × Run colour-block matrix (worst-case status per task per run). Only shown when more than one run exists |
+| **Failed Jobs** *(per session)* | Collapsed per task: subject, exit code, start time, stdout snippet |
+| **Output Validation** *(per session)* | Compact colour-block matrix (rows = check type grouped by task, columns = subjects). Only shown when check-results data is available. Failed checks expandable in a detail table below |
+| **Environment & Reproducibility** *(per session)* | Collapsed. The SLURM command, modules, env vars, and execute command from the latest wrapper script for each task |
 
 <!-- ![Subject × Task Status heatmap](../images/report_heatmap_placeholder.png) -->
 

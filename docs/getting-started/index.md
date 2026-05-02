@@ -46,7 +46,7 @@ The fastest way to verify everything works is a **dry-run**: this generates and 
 Run `neuropipe init` once to create a config directory pre-populated with template files:
 
 ```bash
-neuropipe init /scratch/my_study --project my_study
+neuropipe init /scratch/my_study
 ```
 
 This creates:

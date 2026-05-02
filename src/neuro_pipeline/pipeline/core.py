@@ -575,7 +575,6 @@ def check_outputs_cmd(
 @app.command()
 def init(
     output_dir: str = typer.Argument(..., help="Directory to initialise (e.g. /scratch/my_study)"),
-    project: Optional[str] = typer.Option(None, "--project", help="Also generate a starter project config with this name"),
 ):
     """Initialise a project directory with config and script templates.
 
@@ -583,7 +582,7 @@ def init(
     results_check/) and bash script templates to output_dir.
 
     Example:
-      neuropipe init /scratch/my_study --project my_study
+      neuropipe init /scratch/my_study
     """
     from .utils.init_utils import init_project_templates
 
@@ -593,10 +592,6 @@ def init(
     copied = init_project_templates(config_out)
     for item in copied:
         typer.echo(f"  Copied {item}")
-
-    if project:
-        from .utils.generate_project_config import generate_project_config
-        generate_project_config(project, str(config_out / "project_config"))
 
     scripts_out = output / "scripts"
     typer.echo(f"\nInitialised at: {output}")

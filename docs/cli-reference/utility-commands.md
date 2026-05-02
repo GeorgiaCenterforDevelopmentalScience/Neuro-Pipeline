@@ -43,9 +43,6 @@ Initialises a new project directory with config and script templates copied from
 
 ```bash
 neuropipe init /scratch/my_study
-
-# Also generate a starter project config
-neuropipe init /scratch/my_study --project my_study
 ```
 
 Creates the following layout under the given directory:
@@ -67,7 +64,6 @@ Pass `--config-dir /scratch/my_study/config` in all subsequent `neuropipe` comma
 | Argument/Option | Description |
 |-----------------|-------------|
 | `output_dir` | Directory to initialise (positional, required) |
-| `--project` | Also generate a starter `{project}_config.yaml` in `project_config/` |
 
 ---
 

@@ -395,9 +395,3 @@ class TestInitCmd:
         assert result.exit_code == 0
         assert "NEUROPIPE_CONFIG_DIR" in result.output
 
-    def test_with_project_calls_generate_project_config(self, tmp_path):
-        runner, app = _runner()
-        with patch("neuro_pipeline.pipeline.utils.generate_project_config.generate_project_config") as mock_fn:
-            result = runner.invoke(app, ["init", str(tmp_path / "study"), "--project", "my_study"])
-        assert result.exit_code == 0
-        mock_fn.assert_called_once()

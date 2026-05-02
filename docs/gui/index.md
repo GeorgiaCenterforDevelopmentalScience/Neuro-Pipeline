@@ -41,6 +41,17 @@ For re-runs after failures: go back to Analysis Control, enable **Resume Mode**,
 
 This tab is the GUI equivalent of `neuropipe run`. Configure everything here and click **Execute Pipeline** to submit.
 
+### Config Directory
+
+The config directory must be set before task options (Intermed, BIDS, Staged) can populate. Enter the path to your `config/` folder, then choose one of two actions:
+
+- **Init** — first-time setup for a new study. Copies the package template files (`config.yaml`, `hpc_config.yaml`, script templates) into the given directory, creating it if needed. Equivalent to `neuropipe init`. After Init completes, click **Apply** to load the config.
+- **Apply** — load an existing config directory. Reads `config.yaml` and populates the task checklists (Intermed, BIDS pipelines, Staged pipelines) with the tasks defined in your config.
+
+:::{tip}
+Setting `$NEUROPIPE_CONFIG_DIR` in your shell profile means you never need to fill in this field — it is pre-populated automatically on GUI launch.
+:::
+
 ### Subject Selection
 
 Two ways to specify subjects:
