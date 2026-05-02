@@ -23,6 +23,38 @@ def _import_helpers():
 
 
 # ---------------------------------------------------------------------------
+# _resolve_config_dir
+# ---------------------------------------------------------------------------
+
+class TestResolveConfigDir:
+
+    def _fn(self):
+        from neuro_pipeline.pipeline.core import _resolve_config_dir
+        return _resolve_config_dir
+
+    def test_returns_explicit_arg(self, monkeypatch):
+        monkeypatch.delenv("NEUROPIPE_CONFIG_DIR", raising=False)
+        result = self._fn()("/some/path")
+        assert result == "/some/path"
+
+    def test_falls_back_to_env_var(self, monkeypatch):
+        monkeypatch.setenv("NEUROPIPE_CONFIG_DIR", "/env/path")
+        result = self._fn()(None)
+        assert result == "/env/path"
+
+    def test_cli_takes_precedence_over_env_var(self, monkeypatch):
+        monkeypatch.setenv("NEUROPIPE_CONFIG_DIR", "/env/path")
+        result = self._fn()("/cli/path")
+        assert result == "/cli/path"
+
+    def test_exits_when_neither_set(self, monkeypatch):
+        import click
+        monkeypatch.delenv("NEUROPIPE_CONFIG_DIR", raising=False)
+        with pytest.raises(click.exceptions.Exit):
+            self._fn()(None)
+
+
+# ---------------------------------------------------------------------------
 # _parse_comma_list
 # ---------------------------------------------------------------------------
 
@@ -112,6 +144,43 @@ class TestParseAndExpandTasks:
 # ---------------------------------------------------------------------------
 
 class TestCliRunErrors:
+
+    def test_exits_when_config_dir_missing_and_no_env(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("NEUROPIPE_CONFIG_DIR", raising=False)
+        from typer.testing import CliRunner
+        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
+            from neuro_pipeline.pipeline.core import app
+        runner = CliRunner()
+        result = runner.invoke(app, [
+            "run",
+            "--subjects", "001",
+            "--input", str(tmp_path),
+            "--output", str(tmp_path),
+            "--work", str(tmp_path),
+            "--project", "test_proj",
+            "--session", "01",
+        ])
+        assert result.exit_code == 1
+        assert "NEUROPIPE_CONFIG_DIR" in (result.output or "")
+
+    def test_env_var_used_when_no_config_dir_flag(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("NEUROPIPE_CONFIG_DIR", str(tmp_path))
+        from typer.testing import CliRunner
+        with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
+            from neuro_pipeline.pipeline.core import app
+        runner = CliRunner()
+        with patch("neuro_pipeline.pipeline.core.set_config_dir") as mock_set, \
+             patch("neuro_pipeline.pipeline.core.get_config", return_value=MOCK_CONFIG):
+            runner.invoke(app, [
+                "run",
+                "--subjects", "001",
+                "--input", str(tmp_path / "nonexistent"),
+                "--output", str(tmp_path),
+                "--work", str(tmp_path),
+                "--project", "test_proj",
+                "--session", "01",
+            ])
+        mock_set.assert_called_once_with(str(tmp_path))
 
     def test_exits_when_input_dir_missing(self, tmp_path):
         from typer.testing import CliRunner
@@ -319,6 +388,12 @@ class TestInitCmd:
         result = runner.invoke(app, ["init", str(tmp_path / "study")])
         assert result.exit_code == 0
         assert "Initialised at" in result.output
+
+    def test_prints_env_var_tip(self, tmp_path):
+        runner, app = _runner()
+        result = runner.invoke(app, ["init", str(tmp_path / "study")])
+        assert result.exit_code == 0
+        assert "NEUROPIPE_CONFIG_DIR" in result.output
 
     def test_with_project_calls_generate_project_config(self, tmp_path):
         runner, app = _runner()

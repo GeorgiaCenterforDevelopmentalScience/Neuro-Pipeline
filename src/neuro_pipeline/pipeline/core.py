@@ -22,6 +22,25 @@ config: dict = {}
 
 from .utils.detect_subjects import parse_subjects_input as _parse_subjects
 
+
+def _resolve_config_dir(config_dir: Optional[str]) -> str:
+    resolved = config_dir or os.environ.get("NEUROPIPE_CONFIG_DIR")
+    if not resolved:
+        typer.echo(
+            "Error: --config-dir is required, or set NEUROPIPE_CONFIG_DIR environment variable.",
+            err=True,
+        )
+        raise typer.Exit(1)
+    return resolved
+
+
+def _offer_export_env_var(config_path: str) -> None:
+    export_line = f'export NEUROPIPE_CONFIG_DIR="{config_path}"'
+    typer.echo(
+        f"\nTip: to skip --config-dir on every command, add this to your ~/.bashrc:\n"
+        f"  {export_line}"
+    )
+
 @dataclass
 class TaskOptions:
     # Preprocessing
@@ -71,7 +90,7 @@ def run(
     output_dir: str = typer.Option(..., "--output", help="Output directory"),
     work_dir: str = typer.Option(..., "--work", help="Work directory"),
 
-    config_dir: str = typer.Option(..., "--config-dir", help="Path to config directory (contains config.yaml, hpc_config.yaml, project_config/)"),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory (contains config.yaml, hpc_config.yaml, project_config/). Defaults to $NEUROPIPE_CONFIG_DIR."),
 
     project: str = typer.Option(..., help="Project name"),
 
@@ -97,7 +116,7 @@ def run(
     polling_interval: int = typer.Option(60, "--polling-interval", help="Polling interval (seconds)")
 ):
 
-    set_config_dir(config_dir)
+    set_config_dir(_resolve_config_dir(config_dir))
     config = get_config()
 
     execution_id = None
@@ -323,11 +342,10 @@ def run(
 
 @app.command("list-tasks")
 def list_tasks(
-    config_dir: str = typer.Option(..., "--config-dir", help="Path to config directory"),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory. Defaults to $NEUROPIPE_CONFIG_DIR."),
 ):
     """List available tasks"""
-    if config_dir:
-        set_config_dir(config_dir)
+    set_config_dir(_resolve_config_dir(config_dir))
     from .utils.config_utils import config
     typer.echo("Available tasks:")
     for section_name, section_tasks in config.items():
@@ -454,7 +472,7 @@ def generate_report_cmd(
 def check_outputs_cmd(
     project: str = typer.Option(..., help="Project name"),
     work_dir: str = typer.Option(..., "--work", help="Work/output directory"),
-    config_dir: str = typer.Option(..., "--config-dir", help="Path to config directory"),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir", help="Path to config directory. Defaults to $NEUROPIPE_CONFIG_DIR."),
     subjects: Optional[str] = typer.Option(None, help="Subject list or file path (auto-detected from work_dir if omitted)"),
     session: Optional[str] = typer.Option(None, help="Session ID(s), comma-separated (e.g. 01,02). Checks all sessions if omitted."),
     tasks: Optional[List[str]] = typer.Option(None, "--task",
@@ -476,7 +494,7 @@ def check_outputs_cmd(
       neuropipe check-outputs --project test --work /data/processed \\
           --subjects 001,002 --session 01
     """
-    set_config_dir(config_dir)
+    set_config_dir(_resolve_config_dir(config_dir))
 
     from .utils.output_checker import OutputChecker, load_checks_config
     from .utils.detect_subjects import detect_subjects
@@ -589,14 +607,16 @@ def init(
     typer.echo(f"\nThen run:")
     typer.echo(f"  neuropipe run --config-dir {config_out} ...")
 
+    _offer_export_env_var(str(config_out))
+
 
 @app.command("generate-config")
 def generate_config_cmd(
     project_name: str = typer.Argument(..., help="Project name (e.g., branch, study1)"),
     output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o",
         help="Output directory (default: <config-dir>/project_config/)"),
-    config_dir: str = typer.Option(..., "--config-dir",
-        help="Path to config directory (sets default output location)"),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir",
+        help="Path to config directory (sets default output location). Defaults to $NEUROPIPE_CONFIG_DIR."),
 ):
     """Generate a blank project config template.
 
@@ -604,7 +624,7 @@ def generate_config_cmd(
       neuropipe generate-config branch --config-dir /scratch/my_study/config
       neuropipe generate-config branch --output-dir /scratch/my_project/config/project_config
     """
-    set_config_dir(config_dir)
+    set_config_dir(_resolve_config_dir(config_dir))
     from .utils.generate_project_config import generate_project_config
     generate_project_config(project_name, output_dir)
 
@@ -614,8 +634,8 @@ def generate_checks_cmd(
     project_name: str = typer.Argument(..., help="Project name (e.g., branch, study1)"),
     output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o",
         help="Output directory (default: <config-dir>/results_check/)"),
-    config_dir: str = typer.Option(..., "--config-dir",
-        help="Path to config directory (sets default output location)"),
+    config_dir: Optional[str] = typer.Option(None, "--config-dir",
+        help="Path to config directory (sets default output location). Defaults to $NEUROPIPE_CONFIG_DIR."),
 ):
     """Generate a blank results-check config template.
 
@@ -623,6 +643,6 @@ def generate_checks_cmd(
       neuropipe generate-checks branch --config-dir /scratch/my_study/config
       neuropipe generate-checks branch --output-dir /scratch/my_project/config/results_check
     """
-    set_config_dir(config_dir)
+    set_config_dir(_resolve_config_dir(config_dir))
     from .utils.generate_results_check import generate_results_check
     generate_results_check(project_name, output_dir)
