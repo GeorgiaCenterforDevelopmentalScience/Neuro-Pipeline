@@ -23,17 +23,27 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
+    # Support comma-separated sessions (e.g. "01,02")
+    sessions = [s.strip() for s in session.split(',') if s.strip()] if session else []
+    if sessions:
+        sess_ph = ','.join('?' * len(sessions))
+        sess_filter_eq    = f" AND session IN ({sess_ph})"
+        sess_filter_subq  = f"AND session IN ({sess_ph})"
+        sess_filter_alias = f"AND js.session IN ({sess_ph})"
+    else:
+        sess_filter_eq = sess_filter_subq = sess_filter_alias = ""
+    sess_params = sessions  # list of values to bind for one session placeholder group
+
     meta_sql = ("SELECT * FROM pipeline_executions WHERE project_name = ?"
-                + (" AND session = ?" if session else "")
+                + sess_filter_eq
                 + " ORDER BY execution_time DESC LIMIT 1")
-    meta_params = [project_name] + ([session] if session else [])
+    meta_params = [project_name] + sess_params
     meta_row = conn.execute(meta_sql, meta_params).fetchone()
     metadata = dict(meta_row) if meta_row else {}
 
     subj_sql = ("SELECT subjects FROM pipeline_executions WHERE project_name = ?"
-                + (" AND session = ?" if session else ""))
-    subj_rows = conn.execute(subj_sql,
-                             [project_name] + ([session] if session else [])).fetchall()
+                + sess_filter_eq)
+    subj_rows = conn.execute(subj_sql, [project_name] + sess_params).fetchall()
     all_subjects: set = set()
     for row in subj_rows:
         if row[0]:
@@ -41,8 +51,6 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
 
     if all_subjects:
         ph = ','.join('?' * len(all_subjects))
-        sess_filter_subq  = "AND session = ?"    if session else ""
-        sess_filter_alias = "AND js.session = ?" if session else ""
         latest_sql = f"""
             SELECT js.subject, js.task_name, js.session, js.status,
                    js.duration_hours, js.start_time, js.end_time,
@@ -61,7 +69,7 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
                    OR (js.session IS NULL AND latest.session IS NULL))
               AND js.start_time = latest.max_start
         """
-        latest_params = list(all_subjects) + ([session] if session else [])
+        latest_params = list(all_subjects) + sess_params
         job_status = _rows(conn, latest_sql, latest_params)
 
         failed_sql = f"""
@@ -90,7 +98,7 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
 
     exec_sql = ("SELECT execution_time, requested_tasks FROM pipeline_executions "
                 "WHERE project_name = ?"
-                + (" AND session = ?" if session else "")
+                + sess_filter_eq
                 + " ORDER BY execution_time ASC")
     executions = _rows(conn, exec_sql, meta_params)
 
@@ -102,7 +110,7 @@ def get_report_data(db_path: str, project_name: str, session: Optional[str]) -> 
             {sess_filter_subq}
             ORDER BY start_time ASC
         """
-        all_jobs = _rows(conn, all_jobs_sql, list(all_subjects) + ([session] if session else []))
+        all_jobs = _rows(conn, all_jobs_sql, list(all_subjects) + sess_params)
 
         all_runs = []
         for i, ex in enumerate(executions):

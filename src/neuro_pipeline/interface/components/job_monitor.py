@@ -17,15 +17,6 @@ def create_job_monitor_layout():
             dbc.CardBody([
                 dbc.Row([
                     dbc.Col([
-                        dbc.Label("Database Path:", html_for="db-path"),
-                        dbc.Input(
-                            id="db-path",
-                            type="text",
-                            placeholder="/path/to/database/pipeline_jobs.db",
-                            value=os.path.join(os.getcwd(), "database", "pipeline_jobs.db"),
-                        )
-                    ], width=8),
-                    dbc.Col([
                         dbc.Label("Work Directory:", html_for="work-dir-input"),
                         dbc.Input(
                             id="work-dir-input",
@@ -33,7 +24,16 @@ def create_job_monitor_layout():
                             placeholder="/data/work/my_study",
                             value=os.getcwd(),
                         )
-                    ], width=4),
+                    ], width=5),
+                    dbc.Col([
+                        dbc.Label("Database Path:", html_for="db-path"),
+                        dbc.Input(
+                            id="db-path",
+                            type="text",
+                            placeholder="e.g. {work_dir}/database/pipeline_jobs.db",
+                            value=os.path.join(os.getcwd(), "database", "pipeline_jobs.db"),
+                        )
+                    ], width=7),
                 ])
             ])
         ], className="mb-4"),
@@ -42,6 +42,17 @@ def create_job_monitor_layout():
 
             # ── Tab 1: Database Maintenance ─────────────────────────────────
             dbc.Tab(label="Database", tab_id="tab-db", children=[
+                dbc.Alert([
+                    html.I(className="fas fa-info-circle me-2"),
+                    html.Strong("Setup: "),
+                    "Fill in ",
+                    html.Strong("Work Directory"),
+                    " first. The database is auto-created at ",
+                    html.Code("{work_dir}/database/pipeline_jobs.db"),
+                    " on the first pipeline run. Set ",
+                    html.Strong("Database Path"),
+                    " to that file before querying or syncing."
+                ], color="info", className="mt-3 mb-0"),
                 dbc.Card([
                     dbc.CardBody([
                         dbc.Row([
@@ -271,7 +282,7 @@ def create_job_monitor_layout():
                                 dbc.Col([
                                     dbc.Label("Session (optional):", html_for="report-session"),
                                     dbc.Input(id="report-session", type="text",
-                                              placeholder="e.g., 01", className="mb-3")
+                                              placeholder="e.g., 01,02", className="mb-3")
                                 ], width=2),
                                 dbc.Col([
                                     dbc.Label("Check Results CSV:", html_for="report-check-results"),

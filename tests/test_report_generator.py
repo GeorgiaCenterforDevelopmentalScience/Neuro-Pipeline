@@ -259,6 +259,53 @@ class TestGetReportData:
             data = get_report_data(db_path, "proj", session=None)
         assert "099" in data["all_subjects"]
 
+    def test_comma_sessions_collect_subjects_from_all(self, tmp_path):
+        db_path = _make_db(tmp_path, session="01")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "INSERT INTO pipeline_executions "
+            "(execution_id, project_name, session, status, subjects, requested_tasks, dry_run, total_jobs, execution_time) "
+            "VALUES (8888, 'proj', '02', 'COMPLETED', '099', 'recon', 0, 1, '2024-01-04 09:00:00')"
+        )
+        conn.commit()
+        conn.close()
+
+        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+            data = get_report_data(db_path, "proj", "01,02")
+        assert "099" in data["all_subjects"]
+        assert "001" in data["all_subjects"]
+
+    def test_comma_sessions_exclude_unlisted_session(self, tmp_path):
+        db_path = _make_db(tmp_path, session="01")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "INSERT INTO pipeline_executions "
+            "(execution_id, project_name, session, status, subjects, requested_tasks, dry_run, total_jobs, execution_time) "
+            "VALUES (7777, 'proj', '03', 'COMPLETED', '077', 'recon', 0, 1, '2024-01-05 09:00:00')"
+        )
+        conn.commit()
+        conn.close()
+
+        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+            data = get_report_data(db_path, "proj", "01")
+        assert "077" not in data["all_subjects"]
+
+    def test_comma_sessions_with_spaces(self, tmp_path):
+        db_path = _make_db(tmp_path, session="01")
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "INSERT INTO pipeline_executions "
+            "(execution_id, project_name, session, status, subjects, requested_tasks, dry_run, total_jobs, execution_time) "
+            "VALUES (6666, 'proj', '02', 'COMPLETED', '088', 'recon', 0, 1, '2024-01-06 09:00:00')"
+        )
+        conn.commit()
+        conn.close()
+
+        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+            data = get_report_data(db_path, "proj", "01, 02")  # space after comma
+        assert "088" in data["all_subjects"]
+        assert "001" in data["all_subjects"]
+
     def test_empty_db_returns_empty_subjects(self, tmp_path):
         db_path = str(tmp_path / "empty.db")
         get_db_connection(db_path).close()
