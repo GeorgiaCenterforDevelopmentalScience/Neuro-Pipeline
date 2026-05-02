@@ -102,18 +102,18 @@ class TestGetEnvironmentCommands:
             return get_environment_commands(task_config, project_config)
 
     def test_environ_as_list_returns_correct_commands(self):
-        task_config = {"environ": ["afni_25.1.01"]}
+        task_config = {"environ": ["afni_24.3.06"]}
         cmds = self._get_env(task_config, MOCK_PROJECT_CONFIG)
         assert "ml AFNI/24.3.06-foss-2023a" in cmds
 
     def test_multiple_environ_concatenated(self):
-        task_config = {"environ": ["data_manage_1", "afni_25.1.01"]}
+        task_config = {"environ": ["data_manage_1", "afni_24.3.06"]}
         cmds = self._get_env(task_config, MOCK_PROJECT_CONFIG)
         assert "ml p7zip/17.05-GCCcore-13.3.0" in cmds
         assert "ml AFNI/24.3.06-foss-2023a" in cmds
 
     def test_environ_as_string_works(self):
-        task_config = {"environ": "afni_25.1.01"}
+        task_config = {"environ": "afni_24.3.06"}
         cmds = self._get_env(task_config, MOCK_PROJECT_CONFIG)
         assert any("AFNI" in c for c in cmds)
 
@@ -128,7 +128,7 @@ class TestGetEnvironmentCommands:
         assert cmds == []
 
     def test_no_project_config_returns_empty_list(self):
-        task_config = {"environ": ["afni_25.1.01"]}
+        task_config = {"environ": ["afni_24.3.06"]}
         cmds = self._get_env(task_config, project_config=None)
         assert cmds == []
 
@@ -214,7 +214,7 @@ class TestCreateWrapperScript:
         "remove_TRs": 2,
         "template": "HaskinsPeds_NL_template1.0_SSW.nii",
         "blur_size": 4.0,
-        "environ": ["afni_25.1.01"],
+        "environ": ["afni_24.3.06"],
         "censor_motion": "0.3",
         "censor_outliers": "0.05",
         "scripts": ["afni_cards_preprocessing.sh"],

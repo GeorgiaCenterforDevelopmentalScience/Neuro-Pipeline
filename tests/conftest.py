@@ -228,7 +228,7 @@ MOCK_PROJECT_CONFIG = {
         ". /home/$USER/virtual_environ/neuro_pipeline/bin/activate",
     ],
     "modules": {
-        "afni_25.1.01": [
+        "afni_24.3.06": [
             "ml Flask/2.3.3-GCCcore-12.3.0",
             "ml netpbm/10.73.43-GCC-12.3.0",
             "ml AFNI/24.3.06-foss-2023a",
@@ -243,14 +243,14 @@ MOCK_PROJECT_CONFIG = {
         ],
     },
     "tasks": {
-        "unzip":            {"environ": ["data_manage_1", "afni_25.1.01"]},
+        "unzip":            {"environ": ["data_manage_1", "afni_24.3.06"]},
         "recon":       {"container": "dcm2bids_3.2.0.sif", "config": "branch_config.json"},
-        "volume":           {"environ": ["afni_25.1.01"], "template": "HaskinsPeds_NL_template1.0_SSW.nii"},
-        "bfc":              {"environ": ["afni_25.1.01"]},
+        "volume":           {"environ": ["afni_24.3.06"], "template": "HaskinsPeds_NL_template1.0_SSW.nii"},
+        "bfc":              {"environ": ["afni_24.3.06"]},
         "rest_preprocess":  {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "fmriprep_25.1.3.sif", "license": "license.txt"},
         "rest_post":        {"remove_TRs": 6, "template": "MNI152NLin2009cAsym", "container": "xcp_d-0.11.0rc1.sif", "rest_mode": "abcd", "nuisance_regressors": "36P", "license": "license.txt"},
-        "cards_preprocess": {"remove_TRs": 2, "template": "HaskinsPeds_NL_template1.0_SSW.nii", "blur_size": 4.0, "environ": ["afni_25.1.01"], "censor_motion": "0.3", "censor_outliers": "0.05"},
-        "kidvid_preprocess":{"remove_TRs": 22, "template": "HaskinsPeds_NL_template1.0_SSW.nii", "blur_size": 4.0, "environ": ["afni_25.1.01"], "censor_motion": "0.3", "censor_outliers": "0.05"},
+        "cards_preprocess": {"remove_TRs": 2, "template": "HaskinsPeds_NL_template1.0_SSW.nii", "blur_size": 4.0, "environ": ["afni_24.3.06"], "censor_motion": "0.3", "censor_outliers": "0.05"},
+        "kidvid_preprocess":{"remove_TRs": 22, "template": "HaskinsPeds_NL_template1.0_SSW.nii", "blur_size": 4.0, "environ": ["afni_24.3.06"], "censor_motion": "0.3", "censor_outliers": "0.05"},
         "dwi_preprocess":   {"container": "qsiprep_0.23.0.sif"},
         "dwi_post":         {"container": "qsirecon_0.23.0.sif"},
         "mriqc_preprocess": {"container": "mriqc_24.0.2.sif"},

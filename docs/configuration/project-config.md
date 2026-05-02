@@ -38,7 +38,7 @@ global_python:
 # 4. Named module sets; tasks reference them by name via their `environ` field
 modules:
 
-  afni_25.1.01:
+  afni_24.3.06:
     - ml Flask/2.3.3-GCCcore-12.3.0
     - ml netpbm/10.73.43-GCC-12.3.0
     - ml AFNI/24.3.06-foss-2023a
@@ -59,14 +59,14 @@ modules:
 tasks:
 
   unzip:
-    environ: ["data_manage_1", "afni_25.1.01"]
+    environ: ["data_manage_1", "afni_24.3.06"]
 
   recon:
     container: "dcm2bids_3.2.0.sif"
     config: "branch_config.json"
 
   volume:
-    environ: ["afni_25.1.01"]
+    environ: ["afni_24.3.06"]
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
 
   rest_preprocess:
@@ -90,7 +90,7 @@ tasks:
     remove_TRs: 2
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
     blur_size: 4.0
-    environ: ["afni_25.1.01"]
+    environ: ["afni_24.3.06"]
     censor_motion: "0.3"
     censor_outliers: "0.05"
 
@@ -98,7 +98,7 @@ tasks:
     remove_TRs: 22
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
     blur_size: 4.0
-    environ: ["afni_25.1.01"]
+    environ: ["afni_24.3.06"]
     censor_motion: "0.3"
     censor_outliers: "0.05"
 
@@ -183,9 +183,9 @@ The field names under `envir_dir:` and `tasks:` are not hardcoded — you can ad
 ## How `tasks` and `modules` Relate
 
 ```
-tasks.cards_preprocess.environ = ["afni_25.1.01"]
+tasks.cards_preprocess.environ = ["afni_24.3.06"]
         ↓
-modules.afni_25.1.01 = [ml Flask/..., ml netpbm/..., ml AFNI/...]
+modules.afni_24.3.06 = [ml Flask/..., ml netpbm/..., ml AFNI/...]
         ↓
 Wrapper script: runs those module commands before executing the analysis script
 ```
@@ -206,7 +206,7 @@ envir_dir:
   template_dir:  "/work/cglab/projects/BRANCH/all_data/for_AFNI/"
 
 modules:
-  afni_25.1.01:
+  afni_24.3.06:
     - ml Flask/2.3.3-GCCcore-12.3.0
     - ml netpbm/10.73.43-GCC-12.3.0
     - ml AFNI/24.3.06-foss-2023a
@@ -216,7 +216,7 @@ tasks:
     remove_TRs: 2
     template:   "HaskinsPeds_NL_template1.0_SSW.nii"
     blur_size:  4.0
-    environ:    ["afni_25.1.01"]
+    environ:    ["afni_24.3.06"]
     censor_motion:    "0.3"
     censor_outliers:  "0.05"
 ```
@@ -249,7 +249,7 @@ ml Python/3.11.3-GCCcore-12.3.0
 PYTHON_EOF
 )
 
-# Module load commands (from modules.afni_25.1.01)
+# Module load commands (from modules.afni_24.3.06)
 export ENV_COMMANDS=$(cat << "ENV_EOF"
 ml Flask/2.3.3-GCCcore-12.3.0
 ml netpbm/10.73.43-GCC-12.3.0
@@ -313,7 +313,7 @@ tasks:
     blur_size:   4.0
     censor_motion:   "0.3"
     censor_outliers: "0.05"
-    environ: ["afni_25.1.01"]
+    environ: ["afni_24.3.06"]
     polort:    "A"           # → $POLORT  in your script
     bandpass:  "0.01 0.1"   # → $BANDPASS in your script
 ```

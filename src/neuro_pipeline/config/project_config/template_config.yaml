@@ -1,25 +1,25 @@
 prefix: "sub-"
 
 # Scripts directory
-scripts_dir: "scripts/dagtest"
+scripts_dir: "path/to/scripts/"
 
 # Database configuration
 database:
   db_path: "$WORK_DIR/database/pipeline_jobs.db"
 
 envir_dir:
-  container_dir: "/work/cglab/containers"
-  virtual_envir: "/work/cglab/conda_env"
-  template_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/"
-  atlas_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/"
-  freesurfer_dir: "/work/cglab/containers/.licenses/freesurfer"
-  config_dir: "/work/cglab/conda_env/config_for_BIDS"
-  stimulus_dir: "/work/cglab/projects/BRANCH/all_data/for_AFNI/processing_scripts"
+  container_dir: "/path/to/containers"
+  virtual_envir: "/path/to/conda_env"
+  template_dir: "/path/to/template_dir/"
+  atlas_dir: "/path/to/atlas_dir/"
+  freesurfer_dir: "/path/to/freesurfer"
+  config_dir: "/path/to/config_for_BIDS"
+  stimulus_dir: "/path/to/other_processing_scripts"
 
 # Global Python Environment
 global_python:
   - ml Python/3.11.3-GCCcore-12.3.0
-  - . /home/$USER/virtual_environ/neuro_pipeline/bin/activate
+  - . /python_envir/bin/activate
 
 # Environment Modules
 modules:
@@ -99,18 +99,12 @@ tasks:
   cards_postprocess:
     remove_TRs: 2
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
-    blur_size: 4.0
     environ: ["afni_24.3.06"]
-    censor_motion: "0.3"
-    censor_outliers: "0.05"
 
   kidvid_postprocess:
     remove_TRs: 22
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
-    blur_size: 4.0
     environ: ["afni_24.3.06"]
-    censor_motion: "0.3"
-    censor_outliers: "0.05"
 
   mriqc_preprocess:
     container: "mriqc_24.0.2.sif"

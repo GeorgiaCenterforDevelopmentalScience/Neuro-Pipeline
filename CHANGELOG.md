@@ -7,6 +7,10 @@
 - `NEUROPIPE_CONFIG_DIR` environment variable: all commands that previously required `--config-dir` now fall back to this variable, making it optional. Set it once in `~/.bashrc` to avoid passing `--config-dir` on every command. Explicit `--config-dir` always takes precedence.
 - `neuropipe init` now prints a tip with the exact `export` line to add to `~/.bashrc`.
 
+### Changed
+- `neuropipe init` no longer generates project config files. Copy `template_config.yaml` as a starting point instead.
+- Report generation and GUI job monitor further enhanced for multi-session data; related functions and tests refactored for clarity.
+
 ### Docs
 - Updated Getting Started, CLI Reference (run, utility commands), and README to document the new env var.
 

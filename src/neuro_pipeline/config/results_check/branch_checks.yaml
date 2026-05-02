@@ -1,25 +1,3 @@
-# test_checks.yaml
-# Per-project output check configuration for resume / check-outputs.
-#
-# Each key is a task name (must match the task names in config.yaml).
-# Two check types are supported and can be combined freely:
-#
-#   required_files:
-#     - pattern: "glob pattern relative to output_path"
-#       min_size_kb: 500          # optional – omit to skip size check
-#
-#   count_check:
-#     <data_type_label>:
-#       pattern: "glob pattern relative to output_path"
-#       expected_count: 2
-#       tolerance: 1              # abs(actual - expected) <= tolerance → PASS
-#
-# Path variables available in output_path:
-#   {work_dir}  – the project work/output directory
-#   {subject}   – subject ID without prefix, e.g. "001"
-#   {session}   – session label, e.g. "01"
-#   {prefix}    – subject prefix, e.g. "sub-"
-
 # Prep
 
 recon:

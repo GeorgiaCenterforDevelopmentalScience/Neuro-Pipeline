@@ -33,7 +33,7 @@ Intermed tasks perform intermediate MRI processing steps (e.g. structural normal
 ```yaml
 tasks:
   volume:
-    environ: ["afni_25.1.01"]
+    environ: ["afni_24.3.06"]
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
 ```
 
@@ -58,7 +58,7 @@ Any task defined under the `intermed:` section of `config.yaml` can be requested
    ```yaml
    tasks:
      bfc:
-       environ: ["afni_25.1.01"]
+       environ: ["afni_24.3.06"]
    ```
 4. Run: `neuropipe run ... --intermed volume,bfc`
 

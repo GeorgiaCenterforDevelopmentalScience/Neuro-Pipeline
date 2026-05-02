@@ -82,7 +82,7 @@ Issues are reported as **ERROR** (blocks submission) or **warning** (information
 [preflight] 1 error(s), 0 warning(s) found
 
   [schema]
-    ERROR  : task 'volume': environ entry 'afni_25.1.01' is not defined in project config modules
+    ERROR  : task 'volume': environ entry 'afni_24.3.06' is not defined in project config modules
 
 [preflight] 1 error(s) must be resolved before jobs can be submitted.
             Re-run with --skip-preflight to bypass these checks.

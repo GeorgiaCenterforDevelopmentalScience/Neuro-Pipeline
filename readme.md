@@ -44,7 +44,7 @@ neuropipe-gui --help
 
 ## Configuration
 
-Each project requires a `{project}_config.yaml` in `src/neuro_pipeline/config/project_config/`. Use the GUI's **Project Config** tab to generate a template, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
+Each project requires a `{project}_config.yaml` in `src/neuro_pipeline/config/project_config/`. Copy `template_config.yaml` as a starting point, then fill in paths, HPC modules, and pipeline options. Output folder names are defined in this file and can be changed freely.
 
 Modalities available under `--bids-prep` and `--staged-prep` are declared in `config.yaml`.
 
@@ -121,7 +121,9 @@ Dependencies are enforced automatically by the scheduler.
 | `--prep` | Data preparation: `unzip`, `recon`, `unzip_recon` |
 | `--intermed <tasks>` | Intermed tasks to run (comma-separated, e.g. `volume`); required before `--staged-prep` |
 | `--bids-prep <modalities>` | BIDS pipeline preprocessing (comma-separated, e.g. `rest,dwi`) |
+| `--bids-post <modalities>` | BIDS pipeline postprocessing (comma-separated, e.g. `rest,dwi`) |
 | `--staged-prep <modalities>` | Staged pipeline preprocessing (comma-separated, e.g. `cards,kidvid`) |
+| `--staged-post <modalities>` | Staged pipeline postprocessing (comma-separated, e.g. `cards,kidvid`) |
 | `--mriqc` | Quality control: `individual`, `group`, `all` |
 
 ### Run options

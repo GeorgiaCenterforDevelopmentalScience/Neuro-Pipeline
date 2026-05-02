@@ -66,7 +66,7 @@ tasks:
     remove_TRs: 2
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
     blur_size: 4.0
-    environ: ["afni_25.1.01"]
+    environ: ["afni_24.3.06"]
     censor_motion: "0.3"
     censor_outliers: "0.05"
 ```
@@ -89,7 +89,7 @@ tasks:
     remove_TRs: 22
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
     blur_size: 4.0
-    environ: ["afni_25.1.01"]
+    environ: ["afni_24.3.06"]
     censor_motion: "0.3"
     censor_outliers: "0.05"
 ```
@@ -162,7 +162,7 @@ The steps below use AFNI as an example, but the same pattern applies to any tool
      my_task_preprocess:
        remove_TRs: 4
        blur_size: 4.0
-       environ: ["afni_25.1.01"]   # or fsl, spm, etc.
+       environ: ["afni_24.3.06"]   # or fsl, spm, etc.
        censor_motion: "0.3"
    ```
 

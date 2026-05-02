@@ -20,8 +20,6 @@
 #   {session}   – session label, e.g. "01"
 #   {prefix}    – subject prefix, e.g. "sub-"
 
-# TODO: consider add expected_count and tolerance to required_files for each task?
-
 # Prep
 
 recon:

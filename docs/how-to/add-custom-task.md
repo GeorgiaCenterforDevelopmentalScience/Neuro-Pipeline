@@ -147,7 +147,7 @@ tasks:
     remove_TRs: 4
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
     blur_size: 4.0
-    environ: ["afni_25.1.01"]       # module names to load (from your modules section)
+    environ: ["afni_24.3.06"]       # module names to load (from your modules section)
     censor_motion: "0.3"
     censor_outliers: "0.05"
 ```
@@ -156,7 +156,7 @@ The `environ` list is resolved against your `modules` section. For example:
 
 ```yaml
 modules:
-  afni_25.1.01:
+  afni_24.3.06:
     - ml AFNI/25.1.01-foss-2023a
 ```
 
