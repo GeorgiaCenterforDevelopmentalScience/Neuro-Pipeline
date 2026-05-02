@@ -1,6 +1,16 @@
 # Dev Log - [Neuroimage-Pipeline]
 
 ---
+## [0.14.2-alpha] – 2026-05-02
+
+### Added
+- `NEUROPIPE_CONFIG_DIR` environment variable: all commands that previously required `--config-dir` now fall back to this variable, making it optional. Set it once in `~/.bashrc` to avoid passing `--config-dir` on every command. Explicit `--config-dir` always takes precedence.
+- `neuropipe init` now prints a tip with the exact `export` line to add to `~/.bashrc`.
+
+### Docs
+- Updated Getting Started, CLI Reference (run, utility commands), and README to document the new env var.
+
+---
 ## [0.14.1-alpha] – 2026-04-29
 
 ### Tests

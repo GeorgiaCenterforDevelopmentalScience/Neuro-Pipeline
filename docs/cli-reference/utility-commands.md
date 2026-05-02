@@ -60,7 +60,7 @@ Creates the following layout under the given directory:
     └── (template .sh scripts)
 ```
 
-Pass `--config-dir /scratch/my_study/config` in all subsequent `neuropipe` commands.
+Pass `--config-dir /scratch/my_study/config` in all subsequent `neuropipe` commands, or set `$NEUROPIPE_CONFIG_DIR` once to skip it (see [Getting Started](../getting-started/index.md#step-1-initialise-your-config-directory)).
 
 **Arguments / Options:**
 
@@ -83,7 +83,7 @@ neuropipe list-tasks --config-dir /data/config
 
 | Option | Description |
 |--------|-------------|
-| `--config-dir` | Path to config directory (required) |
+| `--config-dir` | Path to config directory. Optional if `$NEUROPIPE_CONFIG_DIR` is set. |
 
 ---
 
@@ -123,7 +123,7 @@ neuropipe generate-config branch --config-dir /data/config \
 | | Description |
 |---|-------------|
 | `PROJECT_NAME` | Project name — determines the output filename |
-| `--config-dir` | Path to config directory (required) |
+| `--config-dir` | Path to config directory. Optional if `$NEUROPIPE_CONFIG_DIR` is set. |
 | `--output-dir` / `-o` | Output directory (default: `<config-dir>/project_config/`) |
 
 The generated file is a fully-commented YAML template. Open it in the GUI editor or any text editor and fill in paths, modules, and task parameters.
@@ -147,7 +147,7 @@ neuropipe generate-checks branch --config-dir /data/config \
 | | Description |
 |---|-------------|
 | `PROJECT_NAME` | Project name — determines the output filename |
-| `--config-dir` | Path to config directory (required) |
+| `--config-dir` | Path to config directory. Optional if `$NEUROPIPE_CONFIG_DIR` is set. |
 | `--output-dir` / `-o` | Output directory (default: `<config-dir>/results_check/`) |
 
 The generated file contains commented examples for both `required_files` and `count_check` block types. See [Output Checks Configuration](../configuration/output-checks.md) for the full reference.

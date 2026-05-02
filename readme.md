@@ -110,7 +110,7 @@ Dependencies are enforced automatically by the scheduler.
 | `--input` | Input BIDS directory |
 | `--output` | Output directory |
 | `--work` | Work directory (logs, database, intermediate files) |
-| `--config-dir` | Path to config directory (contains `config.yaml`, `hpc_config.yaml`, `project_config/`) |
+| `--config-dir` | Path to config directory (contains `config.yaml`, `hpc_config.yaml`, `project_config/`). Optional if `$NEUROPIPE_CONFIG_DIR` is exported. |
 | `--project` | Project name (must match a `{project}_config.yaml`) |
 | `--session` | Session label (e.g. `01`) |
 
@@ -192,5 +192,5 @@ work_directory/
 
 ---
 
-**Version**: 0.13.0-alpha | **Updated**: April 2026  
+**Version**: 0.14.2-alpha | **Updated**: May 2026  
 For questions or issues, contact [QiuyuYu](https://github.com/QiuyuYu3) or open a repository issue.

@@ -64,6 +64,17 @@ This creates:
 
 You then pass `--config-dir /scratch/my_study/config` to every `neuropipe` command. The pipeline uses four config files split into two tiers:
 
+:::{important}
+**Skip `--config-dir` by exporting an environment variable.**
+If you always work with the same config directory, add this line to your `~/.bashrc` once:
+
+```bash
+export NEUROPIPE_CONFIG_DIR=/scratch/my_study/config
+```
+
+After that, all `neuropipe` commands will pick it up automatically and you can omit `--config-dir`. You can still override it any time by passing `--config-dir` explicitly.
+:::
+
 **Required — create one per project:**
 
 | File | Location inside `--config-dir` | What you do |
