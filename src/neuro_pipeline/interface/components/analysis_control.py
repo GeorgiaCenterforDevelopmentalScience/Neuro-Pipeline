@@ -15,6 +15,35 @@ def create_analysis_control_layout():
             ])
         ]),
 
+        # Pipeline Setup Section
+        dbc.Row([
+            dbc.Col([
+                html.H4("Pipeline Setup", className="mb-3"),
+                dbc.Card([
+                    dbc.CardBody([
+                        dbc.Row([
+                            dbc.Col([
+                                dbc.Label("Config Directory:", html_for="config-dir-input"),
+                                dbc.Input(
+                                    id="config-dir-input",
+                                    type="text",
+                                    placeholder="/path/to/your/study/config",
+                                    value=os.environ.get("CONFIG_DIR", ""),
+                                )
+                            ]),
+                            dbc.Col([
+                                dbc.Button("Apply", id="apply-config-dir-btn",
+                                           color="primary", className="me-2"),
+                                dbc.Button("Init", id="init-study-btn",
+                                           color="dark")
+                            ], width="auto", className="d-flex align-items-end")
+                        ], className="align-items-end"),
+                        html.Div(id="config-dir-status", className="mt-2")
+                    ])
+                ])
+            ])
+        ], className="mb-4"),
+
         # Subject Selection Section
         dbc.Row([
             dbc.Col([
@@ -234,9 +263,9 @@ def create_analysis_control_layout():
 
 def create_pipeline_modules_section():
     """Create the pipeline modules configuration section"""
-    intermed_options = [{"label": name, "value": name} for name in get_intermed_task_names()]
-    bids_options = [{"label": name.capitalize(), "value": name} for name in get_bids_pipeline_names()]
-    staged_options = [{"label": name.capitalize(), "value": name} for name in get_staged_pipeline_names()]
+    intermed_options = []
+    bids_options = []
+    staged_options = []
 
     return dbc.Row([
         dbc.Col([

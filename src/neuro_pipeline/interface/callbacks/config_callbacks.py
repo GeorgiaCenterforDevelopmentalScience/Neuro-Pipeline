@@ -10,7 +10,14 @@ _CONFIG_DIR: Optional[Path] = None
 
 
 def _effective_config_dir() -> Path:
-    return _CONFIG_DIR if _CONFIG_DIR is not None else _effective_config_dir()
+    if _CONFIG_DIR is not None:
+        return _CONFIG_DIR
+    env = os.environ.get("CONFIG_DIR")
+    if env:
+        return Path(env)
+    return get_config_dir()
+
+
 from dash import html, Input, Output, State, callback_context
 import dash_bootstrap_components as dbc
 
@@ -76,21 +83,14 @@ def _trigger_id():
         return None
     return ctx.triggered[0]["prop_id"].split(".")[0]
 
-def _resolve_path(raw_path):
-    if raw_path and not Path(raw_path).is_absolute():
-        return str(_effective_config_dir().parent / raw_path)
-    return raw_path
-
 
 # ── Tab 1: Project Config ─────────────────────────────────────────────────────
 
-def autofill_project_config_path(project_name):
-    if not project_name:
-        return ""
-    return f"config/project_config/{project_name}_config.yaml"
+def _project_config_path(project_name: str) -> Path:
+    return _effective_config_dir() / "project_config" / f"{project_name}_config.yaml"
 
 
-def generate_new_config_callback(_n_clicks, project_name, config_path):
+def generate_new_config_callback(_n_clicks, project_name):
     if not project_name:
         return dbc.Alert([
             html.I(className="fas fa-exclamation-triangle me-2"),
@@ -100,13 +100,7 @@ def generate_new_config_callback(_n_clicks, project_name, config_path):
     try:
         from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
 
-        if config_path and not Path(config_path).is_absolute():
-            resolved_dir = str(_effective_config_dir().parent / os.path.dirname(config_path))
-        elif config_path:
-            resolved_dir = os.path.dirname(config_path)
-        else:
-            resolved_dir = str(_effective_config_dir() / "project_config")
-
+        resolved_dir = str(_effective_config_dir() / "project_config")
         generate_project_config(project_name, resolved_dir)
         config_file = os.path.join(resolved_dir, f"{project_name}_config.yaml")
 
@@ -126,16 +120,18 @@ def generate_new_config_callback(_n_clicks, project_name, config_path):
         ], color="danger")
 
 
-def load_config_callback(n_clicks, config_path):
+def load_config_callback(n_clicks, project_name):
     if n_clicks is None:
         return ""
-    content, err = _load_file(_resolve_path(config_path))
+    if not project_name:
+        return "# Please provide a project name."
+    content, err = _load_file(str(_project_config_path(project_name)))
     if err:
         return f"# {err}"
     return content
 
 
-def save_config_callback(_save_clicks, _validate_clicks, config_path, yaml_content):
+def save_config_callback(_save_clicks, _validate_clicks, project_name, yaml_content):
     try:
         if not yaml_content:
             return _alert_warn("Editor is empty.")
@@ -144,20 +140,20 @@ def save_config_callback(_save_clicks, _validate_clicks, config_path, yaml_conte
             return err
         if _trigger_id() == "validate-config-btn":
             return _alert_ok("Valid YAML")
-        return _save_file(_resolve_path(config_path), yaml_content)
+        if not project_name:
+            return _alert_warn("Please provide a project name.")
+        return _save_file(str(_project_config_path(project_name)), yaml_content)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")
 
 
 # ── Tab 2: Results Check ──────────────────────────────────────────────────────
 
-def autofill_checks_path(project_name):
-    if not project_name:
-        return ""
-    return f"config/results_check/{project_name}_checks.yaml"
+def _checks_path(project_name: str) -> Path:
+    return _effective_config_dir() / "results_check" / f"{project_name}_checks.yaml"
 
 
-def load_checks_callback(load_clicks, new_clicks, checks_path):
+def load_checks_callback(load_clicks, new_clicks, project_name):
     ctx = callback_context
     if not ctx.triggered:
         return "", ""
@@ -170,13 +166,10 @@ def load_checks_callback(load_clicks, new_clicks, checks_path):
             color="info", className="mt-2"
         )
 
-    if not checks_path:
-        return "", dbc.Alert("Please provide a file path.", color="warning")
+    if not project_name:
+        return "", dbc.Alert("Please provide a project name.", color="warning")
 
-    resolved = Path(checks_path)
-    if not resolved.is_absolute():
-        resolved = _effective_config_dir().parent / checks_path
-
+    resolved = _checks_path(project_name)
     if not resolved.exists():
         return "", dbc.Alert(
             f"File not found: {resolved}. Click 'New' to start from a template.",
@@ -193,7 +186,7 @@ def load_checks_callback(load_clicks, new_clicks, checks_path):
         return "", dbc.Alert(f"Error loading file: {e}", color="danger")
 
 
-def save_checks_callback(save_clicks, validate_clicks, checks_path, yaml_content):
+def save_checks_callback(save_clicks, validate_clicks, project_name, yaml_content):
     try:
         if not yaml_content:
             return _alert_warn("Editor is empty.")
@@ -204,10 +197,9 @@ def save_checks_callback(save_clicks, validate_clicks, checks_path, yaml_content
             if not isinstance(parsed, dict):
                 return _alert_warn("Top-level must be a YAML mapping (task_name: ...).")
             return _alert_ok(f"Valid YAML · {len(parsed)} task(s) defined: {', '.join(parsed.keys())}")
-        resolved = Path(checks_path)
-        if not resolved.is_absolute():
-            resolved = _effective_config_dir().parent / checks_path
-        return _save_file(str(resolved), yaml_content)
+        if not project_name:
+            return _alert_warn("Please provide a project name.")
+        return _save_file(str(_checks_path(project_name)), yaml_content)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")
 
@@ -282,46 +274,33 @@ def save_hpc_config_callback(_save_clicks, _validate_clicks, yaml_content):
 def register_config_callbacks(app):
 
     app.callback(
-        Output("config-file-path", "value"),
-        Input("new-project-name", "value"),
-        prevent_initial_call=True
-    )(autofill_project_config_path)
-
-    app.callback(
         Output("new-config-result", "children"),
         [Input("generate-new-config-btn", "n_clicks")],
-        [State("new-project-name", "value"),
-         State("config-file-path", "value")],
+        [State("new-project-name", "value")],
         prevent_initial_call=True
     )(generate_new_config_callback)
 
     app.callback(
         Output("yaml-editor", "value"),
         [Input("load-config-btn", "n_clicks")],
-        [State("config-file-path", "value")]
+        [State("new-project-name", "value")]
     )(load_config_callback)
 
     app.callback(
         Output("yaml-validation-result", "children"),
         [Input("save-config-btn", "n_clicks"),
          Input("validate-config-btn", "n_clicks")],
-        [State("config-file-path", "value"),
+        [State("new-project-name", "value"),
          State("yaml-editor", "value")],
         prevent_initial_call=True
     )(save_config_callback)
-
-    app.callback(
-        Output("checks-file-path", "value"),
-        Input("checks-project-name", "value"),
-        prevent_initial_call=True
-    )(autofill_checks_path)
 
     app.callback(
         [Output("checks-yaml-editor", "value"),
          Output("checks-validation-result", "children")],
         [Input("load-checks-btn", "n_clicks"),
          Input("new-checks-btn", "n_clicks")],
-        State("checks-file-path", "value"),
+        State("checks-project-name", "value"),
         prevent_initial_call=True
     )(load_checks_callback)
 
@@ -329,7 +308,7 @@ def register_config_callbacks(app):
         Output("checks-validation-result", "children", allow_duplicate=True),
         [Input("save-checks-btn", "n_clicks"),
          Input("validate-checks-btn", "n_clicks")],
-        [State("checks-file-path", "value"),
+        [State("checks-project-name", "value"),
          State("checks-yaml-editor", "value")],
         prevent_initial_call=True
     )(save_checks_callback)

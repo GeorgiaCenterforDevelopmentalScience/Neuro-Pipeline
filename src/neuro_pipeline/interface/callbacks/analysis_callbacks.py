@@ -1,10 +1,76 @@
+import os
 import subprocess
+from pathlib import Path
 
 from dash import html, Input, Output, State, callback_context
 import dash_bootstrap_components as dbc
 
 
 def register_analysis_callbacks(app):
+
+    # Apply config-dir: load config and update pipeline module options
+    @app.callback(
+        [Output("config-dir-status", "children"),
+         Output("intermed-checklist", "options"),
+         Output("bids-prep-checklist", "options"),
+         Output("bids-post-checklist", "options"),
+         Output("staged-prep-checklist", "options"),
+         Output("staged-post-checklist", "options")],
+        Input("apply-config-dir-btn", "n_clicks"),
+        State("config-dir-input", "value"),
+        prevent_initial_call=True
+    )
+    def apply_config_dir(n_clicks, config_dir):
+        if not config_dir:
+            return dbc.Alert("Please enter a config directory path.", color="warning"), [], [], [], [], []
+        try:
+            from ...pipeline.utils.config_utils import (
+                set_config_dir, get_intermed_task_names,
+                get_bids_pipeline_names, get_staged_pipeline_names,
+            )
+            set_config_dir(config_dir)
+            os.environ["CONFIG_DIR"] = str(config_dir)
+
+            intermed_opts = [{"label": n, "value": n} for n in get_intermed_task_names()]
+            bids_opts = [{"label": n.capitalize(), "value": n} for n in get_bids_pipeline_names()]
+            staged_opts = [{"label": n.capitalize(), "value": n} for n in get_staged_pipeline_names()]
+
+            status = dbc.Alert([
+                html.I(className="fas fa-check-circle me-2"),
+                f"Config loaded from: {config_dir}",
+            ], color="success", className="mb-0")
+            return status, intermed_opts, bids_opts, bids_opts, staged_opts, staged_opts
+
+        except FileNotFoundError as e:
+            msg = dbc.Alert(
+                f"Config file not found: {e}. Run Init first, then edit the YAML files.",
+                color="warning", className="mb-0"
+            )
+            return msg, [], [], [], [], []
+        except Exception as e:
+            return dbc.Alert(f"Error loading config: {e}", color="danger", className="mb-0"), [], [], [], [], []
+
+    # Init: copy package templates to the given config directory
+    @app.callback(
+        Output("config-dir-status", "children", allow_duplicate=True),
+        Input("init-study-btn", "n_clicks"),
+        State("config-dir-input", "value"),
+        prevent_initial_call=True
+    )
+    def init_study(n_clicks, config_dir):
+        if not config_dir:
+            return dbc.Alert("Please enter a config directory path first.", color="warning")
+        try:
+            from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
+            copied = init_project_templates(Path(config_dir))
+            if copied:
+                return dbc.Alert([
+                    html.I(className="fas fa-check-circle me-2"),
+                    f"Initialized. Copied: {', '.join(copied)}. Click Apply to load the config.",
+                ], color="success", className="mb-0")
+            return dbc.Alert("No template files found in package.", color="warning", className="mb-0")
+        except Exception as e:
+            return dbc.Alert(f"Init error: {e}", color="danger", className="mb-0")
 
     # Subject detection and manual input callback
     @app.callback(
@@ -97,6 +163,7 @@ def register_analysis_callbacks(app):
         Output("pipeline-commands-store", "data")],
         [Input("generate-commands-btn", "n_clicks")],
         [State("subjects-store", "data"),
+        State("config-dir-input", "value"),
         State("input-dir", "value"),
         State("output-dir", "value"),
         State("work-dir", "value"),
@@ -114,7 +181,7 @@ def register_analysis_callbacks(app):
         State("skip-preflight-checkbox", "value"),
         State("skip-bids-validation-checkbox", "value")]
     )
-    def generate_command_callback(n_clicks, subjects, input_dir, output_dir, work_dir,
+    def generate_command_callback(n_clicks, subjects, config_dir, input_dir, output_dir, work_dir,
                                 project_name, session, prep_option, intermed_value,
                                 bids_prep, bids_post, staged_prep, staged_post,
                                 mriqc_option, dry_run, resume, skip_preflight, skip_bids_validation):
@@ -136,6 +203,9 @@ def register_analysis_callbacks(app):
             cmd_parts.append('')
 
             cmd_parts.append('neuropipe run \\')
+
+            if config_dir:
+                cmd_parts.append(f'  --config-dir "{config_dir}" \\')
 
             subjects_str = ",".join(subjects)
             cmd_parts.append(f'  --subjects {subjects_str} \\')
@@ -185,6 +255,7 @@ def register_analysis_callbacks(app):
 
             command_data = {
                 "subjects": subjects,
+                "config_dir": config_dir,
                 "input_dir": input_dir,
                 "output_dir": output_dir,
                 "work_dir": work_dir,
@@ -233,6 +304,9 @@ def register_analysis_callbacks(app):
             is_dry_run = "dry_run" in (dry_run or [])
 
             cmd = ["neuropipe", "run"]
+
+            if command_data.get("config_dir"):
+                cmd.extend(["--config-dir", command_data["config_dir"]])
 
             subjects_str = ",".join(command_data["subjects"])
             cmd.extend(["--subjects", subjects_str])

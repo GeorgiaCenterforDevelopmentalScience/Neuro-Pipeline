@@ -561,48 +561,26 @@ def init(
 ):
     """Initialise a project directory with config and script templates.
 
-    Copies global config templates (config.yaml, hpc_config.yaml) and bash
-    script templates to output_dir, then prints the --config-dir value to use
-    with neuropipe run.
+    Copies global config templates (config.yaml, hpc_config.yaml, project_config/,
+    results_check/) and bash script templates to output_dir.
 
     Example:
       neuropipe init /scratch/my_study --project my_study
     """
-    from .utils.config_utils import get_config_dir
+    from .utils.init_utils import init_project_templates
 
     output = Path(output_dir)
     config_out = output / "config"
-    scripts_out = output / "scripts"
 
-    # Locate bundled config templates: prefer package-internal copy, fall back to repo root
-    pkg_config = Path(__file__).parent.parent / "config"
-    src_config = pkg_config if pkg_config.exists() else get_config_dir()
-
-    config_out.mkdir(parents=True, exist_ok=True)
-    for fname in ("config.yaml", "hpc_config.yaml"):
-        src = src_config / fname
-        if src.exists():
-            shutil.copy2(src, config_out / fname)
-            typer.echo(f"  Copied {fname} → {config_out / fname}")
-        else:
-            typer.echo(f"  Warning: {fname} not found in {src_config}", err=True)
-
-    project_config_src = src_config / "project_config"
-    if project_config_src.exists():
-        shutil.copytree(project_config_src, config_out / "project_config", dirs_exist_ok=True)
-        typer.echo(f"  Copied project_config/ → {config_out / 'project_config'}")
-
-    # Copy bash script templates
-    template_scripts = Path(__file__).parent.parent / "scripts" / "template"
-    if template_scripts.exists():
-        scripts_out.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(template_scripts, scripts_out, dirs_exist_ok=True)
-        typer.echo(f"  Copied scripts/template/ → {scripts_out}")
+    copied = init_project_templates(config_out)
+    for item in copied:
+        typer.echo(f"  Copied {item}")
 
     if project:
         from .utils.generate_project_config import generate_project_config
         generate_project_config(project, str(config_out / "project_config"))
 
+    scripts_out = output / "scripts"
     typer.echo(f"\nInitialised at: {output}")
     typer.echo(f"\nNext steps:")
     typer.echo(f"  1. Edit {config_out}/hpc_config.yaml  — scheduler & resource settings")

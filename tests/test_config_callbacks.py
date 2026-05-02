@@ -103,22 +103,21 @@ class TestGenerateTemplate:
     def test_callback_generates_and_shows_success(self, tmp_path):
         from neuro_pipeline.interface.callbacks.config_callbacks import generate_new_config_callback
         config_root = tmp_path / "config"
-        rel_path = "config/project_config/demo_config.yaml"
 
         with patch(f"{_CB_MOD}._CONFIG_DIR", config_root):
-            result = generate_new_config_callback(1, "demo", rel_path)
+            result = generate_new_config_callback(1, "demo")
 
         assert _get_alert_color(result) == "success"
         assert (config_root / "project_config" / "demo_config.yaml").exists()
 
     def test_callback_warns_on_missing_project_name(self):
         from neuro_pipeline.interface.callbacks.config_callbacks import generate_new_config_callback
-        result = generate_new_config_callback(1, "", "config/project_config/x.yaml")
+        result = generate_new_config_callback(1, "")
         assert _get_alert_color(result) == "warning"
 
     def test_callback_warns_on_none_project_name(self):
         from neuro_pipeline.interface.callbacks.config_callbacks import generate_new_config_callback
-        result = generate_new_config_callback(1, None, None)
+        result = generate_new_config_callback(1, None)
         assert _get_alert_color(result) == "warning"
 
 
@@ -136,20 +135,26 @@ class TestLoadConfigCallback:
         yaml_file.write_text("prefix: sub-\ntasks: {}")
 
         with patch(f"{_CB_MOD}._CONFIG_DIR", config_root):
-            result = load_config_callback(1, "config/project_config/test_config.yaml")
+            result = load_config_callback(1, "test")
 
         assert "prefix: sub-" in result
 
     def test_returns_error_comment_for_missing_file(self, tmp_path):
         from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"):
-            result = load_config_callback(1, "config/project_config/missing.yaml")
+            result = load_config_callback(1, "missing")
+        assert result.startswith("# ")
+
+    def test_returns_error_comment_for_no_project_name(self, tmp_path):
+        from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback
+        with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"):
+            result = load_config_callback(1, "")
         assert result.startswith("# ")
 
     def test_returns_empty_string_on_initial_call(self, tmp_path):
         from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"):
-            result = load_config_callback(None, "config/project_config/test.yaml")
+            result = load_config_callback(None, "test")
         assert result == ""
 
 
@@ -159,62 +164,62 @@ class TestLoadConfigCallback:
 
 class TestSaveConfigCallback:
 
-    def _call_save(self, tmp_path, yaml_content, config_path_str, trigger="save-config-btn"):
+    def _call_save(self, tmp_path, yaml_content, project_name, trigger="save-config-btn"):
         from neuro_pipeline.interface.callbacks.config_callbacks import save_config_callback
         mock_ctx = _make_triggered(trigger)
         with patch(f"{_CB_MOD}._CONFIG_DIR", tmp_path / "config"), \
              patch(f"{_CB_MOD}.callback_context", mock_ctx):
-            return save_config_callback(1, None, config_path_str, yaml_content)
+            return save_config_callback(1, None, project_name, yaml_content)
 
     def test_saves_valid_yaml(self, tmp_path):
         content = "prefix: sub-\ntasks: {}"
-        dest = "config/project_config/save_test_config.yaml"
-        result = self._call_save(tmp_path, content, dest)
+        result = self._call_save(tmp_path, content, "save_test")
         assert _get_alert_color(result) == "success"
-        saved = (tmp_path / dest).read_text()
+        saved = (tmp_path / "config" / "project_config" / "save_test_config.yaml").read_text()
         assert "prefix" in saved
 
     def test_warns_on_empty_editor(self, tmp_path):
-        result = self._call_save(tmp_path, "", "config/project_config/x.yaml")
+        result = self._call_save(tmp_path, "", "x")
         assert _get_alert_color(result) == "warning"
 
     def test_warns_on_none_content(self, tmp_path):
-        result = self._call_save(tmp_path, None, "config/project_config/x.yaml")
+        result = self._call_save(tmp_path, None, "x")
+        assert _get_alert_color(result) == "warning"
+
+    def test_warns_on_missing_project_name(self, tmp_path):
+        result = self._call_save(tmp_path, "key: value", "")
         assert _get_alert_color(result) == "warning"
 
     def test_errors_on_invalid_yaml(self, tmp_path):
-        result = self._call_save(tmp_path, "key: [unclosed", "config/project_config/x.yaml")
+        result = self._call_save(tmp_path, "key: [unclosed", "x")
         assert _get_alert_color(result) == "danger"
 
     def test_validate_does_not_write_file(self, tmp_path):
-        dest = "config/project_config/nowrite.yaml"
-        result = self._call_save(tmp_path, "key: value", dest, trigger="validate-config-btn")
+        result = self._call_save(tmp_path, "key: value", "nowrite", trigger="validate-config-btn")
         assert _get_alert_color(result) == "success"
-        assert not (tmp_path / dest).exists()
+        assert not (tmp_path / "config" / "project_config" / "nowrite_config.yaml").exists()
 
     def test_roundtrip_generate_load_save(self, tmp_path):
-        """Full workflow: generate template → load → save to new path."""
+        """Full workflow: generate template → load → save under new project name."""
         from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
         from neuro_pipeline.interface.callbacks.config_callbacks import load_config_callback, save_config_callback
 
         config_root = tmp_path / "config"
-        out_dir = config_root / "project_config"
-        generate_project_config("roundtrip", str(out_dir))
+        generate_project_config("roundtrip", str(config_root / "project_config"))
 
-        rel_path = "config/project_config/roundtrip_config.yaml"
         with patch(f"{_CB_MOD}._CONFIG_DIR", config_root):
-            editor_content = load_config_callback(1, rel_path)
+            editor_content = load_config_callback(1, "roundtrip")
 
         assert "roundtrip" in editor_content
         assert not editor_content.startswith("# ")
 
-        save_dest = "config/project_config/roundtrip_saved.yaml"
         mock_ctx = _make_triggered("save-config-btn")
         with patch(f"{_CB_MOD}._CONFIG_DIR", config_root), \
              patch(f"{_CB_MOD}.callback_context", mock_ctx):
-            save_result = save_config_callback(1, None, save_dest, editor_content)
+            save_result = save_config_callback(1, None, "roundtrip_copy", editor_content)
 
         assert _get_alert_color(save_result) == "success"
-        saved_data = yaml.safe_load((tmp_path / save_dest).read_text())
+        saved_file = config_root / "project_config" / "roundtrip_copy_config.yaml"
+        saved_data = yaml.safe_load(saved_file.read_text())
         assert saved_data["prefix"] == "sub-"
         assert "tasks" in saved_data

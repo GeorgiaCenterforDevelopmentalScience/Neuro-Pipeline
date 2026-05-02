@@ -32,17 +32,8 @@ def create_project_config_page():
                                             dbc.Col([
                                                 dbc.Label("Project Name:", html_for="new-project-name"),
                                                 dbc.Input(id="new-project-name", type="text",
-                                                          placeholder="e.g., branch, study1",
-                                                          className="mb-2")
-                                            ], width=4),
-                                            dbc.Col([
-                                                dbc.Label("Config File Path:", html_for="config-file-path"),
-                                                dbc.Input(id="config-file-path", type="text",
-                                                          placeholder="Auto-filled · or type any path",
-                                                          className="mb-2")
-                                            ], width=8),
-                                        ]),
-                                        dbc.Row([
+                                                          placeholder="e.g., branch, study1")
+                                            ]),
                                             dbc.Col([
                                                 dbc.Button("Generate Template",
                                                            id="generate-new-config-btn",
@@ -50,8 +41,8 @@ def create_project_config_page():
                                                            className="me-2"),
                                                 dbc.Button("Load", id="load-config-btn",
                                                            color="primary", size="sm")
-                                            ], className="d-flex justify-content-end mt-1")
-                                        ]),
+                                            ], width="auto", className="d-flex align-items-end")
+                                        ], className="align-items-end mb-2"),
                                         html.Div(id="new-config-result", className="mt-2")
                                     ])
                                 ])
@@ -111,25 +102,16 @@ def create_project_config_page():
                                             dbc.Col([
                                                 dbc.Label("Project Name:", html_for="checks-project-name"),
                                                 dbc.Input(id="checks-project-name", type="text",
-                                                          placeholder="e.g., test, branch",
-                                                          className="mb-2")
-                                            ], width=4),
-                                            dbc.Col([
-                                                dbc.Label("Checks File Path:", html_for="checks-file-path"),
-                                                dbc.Input(id="checks-file-path", type="text",
-                                                          placeholder="Auto-filled · or type any path",
-                                                          className="mb-2")
-                                            ], width=8),
-                                        ]),
-                                        dbc.Row([
+                                                          placeholder="e.g., test, branch")
+                                            ]),
                                             dbc.Col([
                                                 dbc.Button("Load", id="load-checks-btn",
                                                            color="primary", size="sm",
                                                            className="me-2"),
                                                 dbc.Button("New", id="new-checks-btn",
                                                            color="outline-secondary", size="sm")
-                                            ], className="d-flex justify-content-end mt-1")
-                                        ])
+                                            ], width="auto", className="d-flex align-items-end")
+                                        ], className="align-items-end mb-2")
                                     ])
                                 ])
                             ])
