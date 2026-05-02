@@ -19,6 +19,7 @@ from neuro_pipeline.pipeline.utils.report_generator import (
     get_report_data,
     ordered_tasks_from_summary,
     generate_report,
+    _build_sessions_data,
 )
 
 TASK_ORDER_PATH = "neuro_pipeline.pipeline.utils.report_generator.TASK_ORDER"
@@ -173,6 +174,79 @@ class TestComputeTaskSummary:
         with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
             summary = compute_task_summary([], ["001", "002"])
         assert summary == []
+
+
+    def test_success_rate_never_exceeds_100_percent_multi_session(self):
+        # 2 subjects × 2 sessions = 4 SUCCESS records for the same task
+        # When compute_task_summary is called with only session-01 jobs and
+        # only session-01 subjects, ok/total must be ≤ 1.0
+        js_sess01 = [
+            {"subject": "001", "task_name": "recon", "session": "01",
+             "status": "SUCCESS", "duration_hours": 1.0, "start_time": "2024-01-01"},
+            {"subject": "002", "task_name": "recon", "session": "01",
+             "status": "SUCCESS", "duration_hours": 1.0, "start_time": "2024-01-01"},
+        ]
+        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+            summary = compute_task_summary(js_sess01, ["001", "002"])
+        recon = next(r for r in summary if r["task"] == "recon")
+        assert recon["ok"] <= recon["total"]
+
+
+# ---------------------------------------------------------------------------
+# _build_sessions_data
+# ---------------------------------------------------------------------------
+
+class TestBuildSessionsData:
+
+    def _make_jobs(self):
+        return [
+            {"subject": "001", "task_name": "recon", "session": "01",
+             "status": "SUCCESS", "duration_hours": 1.0, "start_time": "2024-01-01"},
+            {"subject": "002", "task_name": "recon", "session": "01",
+             "status": "FAILED",  "duration_hours": None, "start_time": "2024-01-01"},
+            {"subject": "001", "task_name": "recon", "session": "02",
+             "status": "SUCCESS", "duration_hours": 2.0, "start_time": "2024-01-15"},
+        ]
+
+    def test_splits_into_one_entry_per_session(self):
+        sessions_data = _build_sessions_data(self._make_jobs(), [], [])
+        assert len(sessions_data) == 2
+        assert {sd["session"] for sd in sessions_data} == {"01", "02"}
+
+    def test_subjects_per_session_are_correct(self):
+        sessions_data = _build_sessions_data(self._make_jobs(), [], [])
+        sess01 = next(sd for sd in sessions_data if sd["session"] == "01")
+        sess02 = next(sd for sd in sessions_data if sd["session"] == "02")
+        assert set(sess01["all_subjects"]) == {"001", "002"}
+        assert set(sess02["all_subjects"]) == {"001"}
+
+    def test_task_summary_total_matches_session_subjects(self):
+        with patch(TASK_ORDER_PATH, MOCK_TASK_ORDER):
+            sessions_data = _build_sessions_data(self._make_jobs(), [], [])
+        sess01 = next(sd for sd in sessions_data if sd["session"] == "01")
+        recon = next(r for r in sess01["task_summary"] if r["task"] == "recon")
+        assert recon["total"] == 2   # only 2 subjects in session 01
+
+    def test_failed_jobs_split_by_session(self):
+        failed = [
+            {"subject": "002", "task_name": "recon", "session": "01", "status": "FAILED",
+             "start_time": "2024-01-01", "exit_code": 1, "error_msg": "OOM",
+             "stderr": "", "stdout": ""},
+        ]
+        sessions_data = _build_sessions_data(self._make_jobs(), failed, [])
+        sess01 = next(sd for sd in sessions_data if sd["session"] == "01")
+        sess02 = next(sd for sd in sessions_data if sd["session"] == "02")
+        assert len(sess01["failed_jobs"]) == 1
+        assert len(sess02["failed_jobs"]) == 0
+
+    def test_no_session_field_groups_all_under_none(self):
+        jobs_no_sess = [
+            {"subject": "001", "task_name": "recon", "session": None,
+             "status": "SUCCESS", "duration_hours": 1.0, "start_time": "2024-01-01"},
+        ]
+        sessions_data = _build_sessions_data(jobs_no_sess, [], [])
+        assert len(sessions_data) == 1
+        assert sessions_data[0]["session"] is None
 
 
 # ---------------------------------------------------------------------------

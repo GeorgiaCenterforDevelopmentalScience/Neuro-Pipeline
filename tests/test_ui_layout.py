@@ -107,21 +107,26 @@ class TestReportHtml:
         self.render_html = render_html
 
     def _minimal_html(self, **overrides):
-        defaults = dict(
-            metadata={},
-            task_summary=[],
-            job_status=[],
-            all_subjects=[],
-            all_tasks=[],
-            all_runs=[],
-            failed_jobs=[],
-            check_df=None,
-            wrapper_scripts=[],
-            project_name="test",
-            session=None,
+        session        = overrides.pop("session", None)
+        metadata       = overrides.pop("metadata", {})
+        project_name   = overrides.pop("project_name", "test")
+        sess_data = dict(
+            session=session,
+            task_summary=overrides.pop("task_summary", []),
+            job_status=overrides.pop("job_status", []),
+            all_subjects=overrides.pop("all_subjects", []),
+            all_tasks=overrides.pop("all_tasks", []),
+            all_runs=overrides.pop("all_runs", []),
+            failed_jobs=overrides.pop("failed_jobs", []),
+            check_df=overrides.pop("check_df", None),
+            wrapper_scripts=overrides.pop("wrapper_scripts", []),
         )
-        defaults.update(overrides)
-        return self.render_html(**defaults)
+        return self.render_html(
+            metadata=metadata,
+            sessions_data=[sess_data],
+            project_name=project_name,
+            session=session,
+        )
 
     def test_renders_without_data(self):
         html = self._minimal_html()

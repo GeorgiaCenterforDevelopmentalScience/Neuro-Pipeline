@@ -80,33 +80,9 @@ def _make_job_status(session_filter=None):
     return rows
 
 
-def _make_task_summary(job_status):
-    from collections import defaultdict
-    by_task = defaultdict(list)
-    for j in job_status:
-        by_task[j["task_name"]].append(j)
-
-    rows = []
-    for task in TASKS:
-        jobs = by_task[task]
-        ok      = sum(1 for j in jobs if j["status"] == "SUCCESS")
-        failed  = sum(1 for j in jobs if j["status"] == "FAILED")
-        not_run = len(SUBJECTS) - len({j["subject"] for j in jobs})
-        durs = [j["duration_hours"] for j in jobs if j["status"] == "SUCCESS" and j["duration_hours"]]
-        if len(durs) >= 2:
-            import statistics
-            dur_str = f"{statistics.mean(durs):.1f}h ± {statistics.stdev(durs):.1f}h"
-        elif len(durs) == 1:
-            dur_str = f"{durs[0]:.1f}h"
-        else:
-            dur_str = "—"
-        last_date = max((j["start_time"][:10] for j in jobs), default="—")
-        rows.append({
-            "task": task, "total": len(SUBJECTS),
-            "ok": ok, "failed": failed, "not_run": not_run,
-            "dur": dur_str, "last": last_date,
-        })
-    return rows
+def _make_task_summary(sess_jobs, sess_subjects):
+    from neuro_pipeline.pipeline.utils.report_generator import compute_task_summary
+    return compute_task_summary(sess_jobs, sess_subjects)
 
 
 def _make_failed_jobs(job_status):
@@ -189,22 +165,39 @@ def main():
     args = parser.parse_args()
 
     job_status      = _make_job_status(args.session)
-    task_summary    = _make_task_summary(job_status)
     failed_jobs     = _make_failed_jobs(job_status)
     all_runs        = _make_all_runs(job_status)
     check_df        = _make_check_df(args.session)
     wrapper_scripts = _make_wrapper_scripts()
 
+    # Build per-session data (mirrors report_generator._build_sessions_data)
+    active_sessions = [args.session] if args.session else SESSIONS
+    sessions_data = []
+    for sess in active_sessions:
+        sess_jobs   = [j for j in job_status   if j["session"] == sess]
+        sess_failed = [j for j in failed_jobs  if j["session"] == sess]
+        sess_runs   = [
+            {**r, "jobs": [j for j in r["jobs"] if j.get("session") == sess]}
+            for r in all_runs
+        ]
+        sess_runs = [r for r in sess_runs if r["jobs"]]
+        subj_in_sess = sorted(set(j["subject"] for j in sess_jobs), key=lambda x: x.lower())
+        sess_check_df = check_df[check_df["session"].astype(str) == str(sess)] if not check_df.empty else check_df
+        sessions_data.append({
+            "session":         sess,
+            "task_summary":    _make_task_summary(sess_jobs, subj_in_sess),
+            "job_status":      sess_jobs,
+            "all_subjects":    subj_in_sess,
+            "all_tasks":       [t for t in TASKS if any(j["task_name"] == t for j in sess_jobs)],
+            "failed_jobs":     sess_failed,
+            "all_runs":        sess_runs,
+            "check_df":        sess_check_df,
+            "wrapper_scripts": wrapper_scripts,
+        })
+
     html = render_html(
         metadata=METADATA,
-        task_summary=task_summary,
-        job_status=job_status,
-        all_subjects=SUBJECTS,
-        all_tasks=TASKS,
-        all_runs=all_runs,
-        failed_jobs=failed_jobs,
-        check_df=check_df,
-        wrapper_scripts=wrapper_scripts,
+        sessions_data=sessions_data,
         project_name="GCDS",
         session=args.session,
     )

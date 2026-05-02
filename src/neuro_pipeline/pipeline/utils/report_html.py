@@ -19,6 +19,19 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-size: 14px; color: #2c2c2c; background: #fff; line-height: 1.55;
 }
+.navbar {
+    position: sticky; top: 0; z-index: 100;
+    background: #fff; border-bottom: 2px solid #e4e4e4;
+    display: flex; gap: 2px; align-items: center;
+    padding: 8px 36px; margin: 0 -36px 24px;
+    overflow-x: auto;
+}
+.navbar a {
+    color: #555; text-decoration: none; font-size: 13px; font-weight: 500;
+    padding: 5px 12px; border-radius: 4px; white-space: nowrap;
+}
+.navbar a:hover { background: #f0f0f0; color: #111; }
+.navbar-sep { color: #ddd; padding: 0 2px; font-size: 16px; }
 .container { max-width: 1150px; margin: 0 auto; padding: 28px 36px 60px; }
 header { margin-bottom: 28px; }
 h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
@@ -33,11 +46,19 @@ h1 { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
 .meta-label { color: #888; min-width: 72px; flex-shrink: 0; }
 .meta-val { word-break: break-all; }
 h2 {
-    font-size: 14px; font-weight: 600;
-    margin: 32px 0 12px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #e4e4e4;
+    font-size: 15px; font-weight: 700;
+    margin: 36px 0 14px;
+    padding: 8px 12px;
+    background: #f6f6f6; border-left: 3px solid #aaa;
+    border-radius: 0 3px 3px 0;
     color: #222;
+}
+h3 {
+    font-size: 13px; font-weight: 600;
+    margin: 20px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e4e4e4;
+    color: #444;
 }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
 th {
@@ -417,19 +438,21 @@ def _section_environment(wrapper_scripts: list) -> str:
 
 def render_html(
     metadata: dict,
-    task_summary: list,
-    job_status: list,
-    all_subjects: list,
-    all_tasks: list,
-    all_runs: list,
-    failed_jobs: list,
-    check_df: Optional[pd.DataFrame],
-    wrapper_scripts: list,
+    sessions_data: list,
     project_name: str,
     session: Optional[str],
 ) -> str:
     generated = datetime.now().strftime('%Y-%m-%d %H:%M')
     last_exec = str(metadata.get('execution_time', '') or '')[:16]
+
+    # Nav bar
+    nav_links = ['<a href="#summary">Summary</a>', '<span class="navbar-sep">|</span>']
+    for sd in sessions_data:
+        sess = sd['session']
+        label  = f'Session {sess}' if sess else 'Jobs'
+        anchor = f'session-{sess}' if sess else 'session-all'
+        nav_links.append(f'<a href="#{anchor}">{_e(label)}</a>')
+    navbar = '<nav class="navbar">' + ''.join(nav_links) + '</nav>'
 
     subtitle_parts = [f'Project: <strong>{_e(project_name)}</strong>']
     if session:
@@ -463,13 +486,39 @@ def render_html(
             f'</div>'
         )
 
-    history_section = ''
-    if len(all_runs) > 1:
-        history_section = f'''
-  <section>
-    <h2>Run History</h2>
-    {_section_history_table(all_runs, all_tasks)}
-  </section>'''
+    # Per-session sections
+    session_html_parts = []
+    for sd in sessions_data:
+        sess   = sd['session']
+        anchor = f'session-{sess}' if sess else 'session-all'
+        title  = f'Session {_e(sess)}' if sess else 'Job Status'
+
+        history_html = ''
+        if len(sd['all_runs']) > 1:
+            history_html = (
+                f'<h3>Run History</h3>'
+                f'{_section_history_table(sd["all_runs"], sd["all_tasks"])}'
+            )
+
+        session_html_parts.append(f'''
+  <section id="{anchor}">
+    <h2>{title}</h2>
+    <h3>Task Completion</h3>
+    {_section_task_summary(sd["task_summary"])}
+    <h3>Subject × Task Status</h3>
+    {_section_status_matrix(sd["job_status"], sd["all_subjects"], sd["all_tasks"])}
+    {history_html}
+    <h3>Failed Jobs</h3>
+    {_section_failed_jobs(sd["failed_jobs"])}
+    <h3>Output Validation</h3>
+    {_section_check_results(sd.get("check_df"))}
+    <details style="margin-top:20px" class="appendix">
+      <summary>Environment &amp; Reproducibility (per task)</summary>
+      <div class="details-body">
+        {_section_environment(sd.get("wrapper_scripts") or [])}
+      </div>
+    </details>
+  </section>''')
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -483,39 +532,15 @@ def render_html(
 </head>
 <body>
 <div class="container">
+  {navbar}
 
-  <header>
+  <header id="summary">
     <h1>Pipeline Report</h1>
     <p class="subtitle">{'  &nbsp;|&nbsp;  '.join(subtitle_parts)}</p>
     <div class="meta-grid">{''.join(meta_items)}</div>
   </header>
 
-  <section>
-    <h2>Task Completion</h2>
-    {_section_task_summary(task_summary)}
-  </section>
-
-  <section>
-    <h2>Subject × Task Status</h2>
-    {_section_status_matrix(job_status, all_subjects, all_tasks)}
-  </section>
-{history_section}
-  <section>
-    <h2>Failed Jobs</h2>
-    {_section_failed_jobs(failed_jobs)}
-  </section>
-
-  <section>
-    <h2>Output Validation</h2>
-    {_section_check_results(check_df)}
-  </section>
-
-  <details class="appendix">
-    <summary>Environment &amp; Reproducibility (per task)</summary>
-    <div class="details-body">
-      {_section_environment(wrapper_scripts)}
-    </div>
-  </details>
+{''.join(session_html_parts)}
 
 </div>
 </body>

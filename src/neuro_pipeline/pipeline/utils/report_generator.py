@@ -202,6 +202,57 @@ def ordered_tasks_from_summary(summary: list) -> list:
     return [r['task'] for r in summary]
 
 
+def _build_sessions_data(
+    job_status: list,
+    failed_jobs: list,
+    all_runs: list,
+    check_df=None,
+    wrapper_scripts: Optional[list] = None,
+) -> list:
+    raw_sessions = sorted(set(j['session'] for j in job_status if j.get('session')))
+    if not raw_sessions:
+        raw_sessions = [None]
+
+    sessions_data = []
+    for sess in raw_sessions:
+        if sess is not None:
+            sess_jobs   = [j for j in job_status  if j.get('session') == sess]
+            sess_failed = [j for j in failed_jobs if j.get('session') == sess]
+            sess_runs   = [
+                {**r, 'jobs': [j for j in r['jobs'] if j.get('session') == sess]}
+                for r in all_runs
+            ]
+            sess_runs = [r for r in sess_runs if r['jobs']]
+            if (check_df is not None and not check_df.empty
+                    and 'session' in check_df.columns):
+                sess_check_df = check_df[check_df['session'].astype(str) == str(sess)]
+            else:
+                sess_check_df = check_df
+        else:
+            sess_jobs     = job_status
+            sess_failed   = failed_jobs
+            sess_runs     = all_runs
+            sess_check_df = check_df
+
+        subj_in_sess = sorted(
+            set(j['subject'] for j in sess_jobs if j.get('subject')),
+            key=lambda x: x.lower(),
+        )
+        task_summary = compute_task_summary(sess_jobs, subj_in_sess)
+        sessions_data.append({
+            'session':        sess,
+            'task_summary':   task_summary,
+            'job_status':     sess_jobs,
+            'all_subjects':   subj_in_sess,
+            'all_tasks':      ordered_tasks_from_summary(task_summary),
+            'failed_jobs':    sess_failed,
+            'all_runs':       sess_runs,
+            'check_df':       sess_check_df,
+            'wrapper_scripts': wrapper_scripts or [],
+        })
+    return sessions_data
+
+
 def generate_report(
     db_path: str,
     project_name: str,
@@ -226,24 +277,19 @@ def generate_report(
     print(f"  {len(data['all_subjects'])} subject(s), "
           f"{len(data['job_status'])} job records")
 
-    task_summary = compute_task_summary(data['job_status'], data['all_subjects'])
-    all_tasks    = ordered_tasks_from_summary(task_summary)
-
     if not os.path.isfile(check_results_path):
         raise FileNotFoundError(f"check-results file not found: {check_results_path}")
     check_df: Optional[pd.DataFrame] = pd.read_csv(check_results_path)
     print(f"  Loaded check-results: {len(check_df)} rows")
 
+    sessions_data = _build_sessions_data(
+        data['job_status'], data['failed_jobs'], data['all_runs'],
+        check_df=check_df, wrapper_scripts=data['wrapper_scripts'],
+    )
+
     html_content = render_html(
         metadata=data['metadata'],
-        task_summary=task_summary,
-        job_status=data['job_status'],
-        all_subjects=data['all_subjects'],
-        all_tasks=all_tasks,
-        all_runs=data['all_runs'],
-        failed_jobs=data['failed_jobs'],
-        check_df=check_df,
-        wrapper_scripts=data['wrapper_scripts'],
+        sessions_data=sessions_data,
         project_name=project_name,
         session=session,
     )

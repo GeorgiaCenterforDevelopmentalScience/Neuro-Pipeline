@@ -62,13 +62,28 @@ def register_analysis_callbacks(app):
             return dbc.Alert("Please enter a config directory path first.", color="warning")
         try:
             from neuro_pipeline.pipeline.utils.init_utils import init_project_templates
-            copied = init_project_templates(Path(config_dir))
-            if copied:
-                return dbc.Alert([
-                    html.I(className="fas fa-check-circle me-2"),
-                    f"Initialized. Copied: {', '.join(copied)}. Click Apply to load the config.",
-                ], color="success", className="mb-0")
-            return dbc.Alert("No template files found in package.", color="warning", className="mb-0")
+            config_path = Path(config_dir)
+            copied = init_project_templates(config_path)
+            if not copied:
+                return dbc.Alert("No template files found in package.", color="warning", className="mb-0")
+
+            scripts_out = config_path.parent / "scripts"
+            has_scripts = "scripts/" in copied
+            lines = [
+                html.I(className="fas fa-check-circle me-2"),
+                f"Initialized. Copied: {', '.join(copied)}.",
+                html.Br(),
+                f"Config: {config_path}",
+            ]
+            if has_scripts:
+                lines += [html.Br(), f"Scripts: {scripts_out}"]
+            else:
+                lines += [html.Br(), html.Span(
+                    "Warning: script templates not found in package — scripts/ was not created.",
+                    style={"color": "orange"},
+                )]
+            lines += [html.Br(), "Click Apply to load the config."]
+            return dbc.Alert(lines, color="success", className="mb-0")
         except Exception as e:
             return dbc.Alert(f"Init error: {e}", color="danger", className="mb-0")
 
