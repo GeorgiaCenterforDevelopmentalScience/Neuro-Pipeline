@@ -31,7 +31,7 @@ The detailed per-subject execution log (stdout + stderr combined) is written by 
 
 ```
 # Array jobs
-{work_dir}/log/subjects/sub-{subject}/{task_name}_{job_id}_{array_task_id}_{timestamp}.log
+{work_dir}/log/{task_name}/sub-{subject}/{task_name}_{job_id}_{array_task_id}_{timestamp}.log
 
 # Non-array jobs
 {work_dir}/log/{task_name}/{task_name}_{job_id}_{timestamp}.log

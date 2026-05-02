@@ -96,7 +96,7 @@ execute_wrapper() {
     
     # Setup log directories
     if [ -n "$SLURM_ARRAY_TASK_ID" ] && [ "${subjects_array[0]}" != "dummy" ]; then
-        SUB_LOG_DIR="$LOG_DIR/subjects/sub-${subject}"
+        SUB_LOG_DIR="$LOG_DIR/$task_name/sub-${subject}"
     else
         SUB_LOG_DIR="$LOG_DIR/$task_name"
     fi

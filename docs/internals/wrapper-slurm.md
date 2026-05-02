@@ -176,7 +176,7 @@ The environment is assembled in this order:
 
 5. export SUBJECT_ID="001"            ← computed at runtime from array index
    export SLURM_ARRAY_TASK_ID=...
-   export LOG_PATH="{work_dir}/log/subjects/sub-{subject}/{task}_{job_id}_{array_task_id}_{timestamp}.log"
+   export LOG_PATH="{work_dir}/log/{task}/sub-{subject}/{task}_{job_id}_{array_task_id}_{timestamp}.log"
 ```
 
 After sourcing the env file, `wrapper_functions.sh` calls the analysis script:

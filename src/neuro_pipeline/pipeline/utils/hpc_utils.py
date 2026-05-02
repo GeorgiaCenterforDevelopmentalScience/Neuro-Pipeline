@@ -450,15 +450,7 @@ def submit_slurm_job(
         typer.echo("Error: No subjects provided", err=True)
         return None
 
-    # Create subject directories for array jobs
     is_array_job = task_config and 'array' in task_config and task_config['array']
-    if is_array_job:
-        subjects_dir = Path(work_dir) / "log" / "subjects"
-        subjects_dir.mkdir(parents=True, exist_ok=True)
-        
-        for subject in subjects_list:
-            subject_dir = subjects_dir / f"sub-{subject}"
-            subject_dir.mkdir(parents=True, exist_ok=True)
 
     # Setup array parameter
     if is_array_job:
@@ -467,14 +459,19 @@ def submit_slurm_job(
             array_param = array_param.replace('{num}', str(len(subjects_list)))
     else:
         array_param = None
-    
+
     # Get task name for log directory
     task_name = task_config.get('name', script_path.stem) if task_config else script_path.stem
-    
+
     # Setup log paths - always use task-specific directory
     log_dir = Path(work_dir) / "log"
     task_log_dir = log_dir / task_name
     task_log_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create per-subject subdirectories inside task log dir for array jobs
+    if is_array_job:
+        for subject in subjects_list:
+            (task_log_dir / f"sub-{subject}").mkdir(parents=True, exist_ok=True)
     
     if is_array_job:
         slurm_output = f"{task_log_dir}/{task_name}_%A-%a.out"
