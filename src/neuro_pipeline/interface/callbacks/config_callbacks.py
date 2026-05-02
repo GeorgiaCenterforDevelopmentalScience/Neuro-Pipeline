@@ -1,9 +1,16 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 import yaml as _yaml
 from neuro_pipeline.pipeline.utils.config_utils import get_config_dir
 from neuro_pipeline.pipeline.utils.generate_results_check import RESULTS_CHECK_TEMPLATE
+
+_CONFIG_DIR: Optional[Path] = None
+
+
+def _effective_config_dir() -> Path:
+    return _CONFIG_DIR if _CONFIG_DIR is not None else _effective_config_dir()
 from dash import html, Input, Output, State, callback_context
 import dash_bootstrap_components as dbc
 
@@ -70,9 +77,8 @@ def _trigger_id():
     return ctx.triggered[0]["prop_id"].split(".")[0]
 
 def _resolve_path(raw_path):
-    """Resolve a relative config path against the project root."""
     if raw_path and not Path(raw_path).is_absolute():
-        return str(get_config_dir().parent / raw_path)
+        return str(_effective_config_dir().parent / raw_path)
     return raw_path
 
 
@@ -95,11 +101,11 @@ def generate_new_config_callback(_n_clicks, project_name, config_path):
         from neuro_pipeline.pipeline.utils.generate_project_config import generate_project_config
 
         if config_path and not Path(config_path).is_absolute():
-            resolved_dir = str(get_config_dir().parent / os.path.dirname(config_path))
+            resolved_dir = str(_effective_config_dir().parent / os.path.dirname(config_path))
         elif config_path:
             resolved_dir = os.path.dirname(config_path)
         else:
-            resolved_dir = str(get_config_dir() / "project_config")
+            resolved_dir = str(_effective_config_dir() / "project_config")
 
         generate_project_config(project_name, resolved_dir)
         config_file = os.path.join(resolved_dir, f"{project_name}_config.yaml")
@@ -169,7 +175,7 @@ def load_checks_callback(load_clicks, new_clicks, checks_path):
 
     resolved = Path(checks_path)
     if not resolved.is_absolute():
-        resolved = get_config_dir().parent / checks_path
+        resolved = _effective_config_dir().parent / checks_path
 
     if not resolved.exists():
         return "", dbc.Alert(
@@ -200,7 +206,7 @@ def save_checks_callback(save_clicks, validate_clicks, checks_path, yaml_content
             return _alert_ok(f"Valid YAML · {len(parsed)} task(s) defined: {', '.join(parsed.keys())}")
         resolved = Path(checks_path)
         if not resolved.is_absolute():
-            resolved = get_config_dir().parent / checks_path
+            resolved = _effective_config_dir().parent / checks_path
         return _save_file(str(resolved), yaml_content)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")
@@ -211,7 +217,7 @@ def save_checks_callback(save_clicks, validate_clicks, checks_path, yaml_content
 def load_global_config_callback(n_clicks):
     if not n_clicks:
         return "", ""
-    config_path = get_config_dir() / "config.yaml"
+    config_path = _effective_config_dir() / "config.yaml"
     content, err = _load_file(str(config_path))
     if err:
         return "", _alert_err(err)
@@ -233,7 +239,7 @@ def save_global_config_callback(save_clicks, validate_clicks, yaml_content):
             task_count = sum(len(v) for v in parsed.values() if isinstance(v, list))
             section_count = sum(1 for v in parsed.values() if isinstance(v, list))
             return _alert_ok(f"Valid YAML · {task_count} task(s) across {section_count} section(s)")
-        config_path = get_config_dir() / "config.yaml"
+        config_path = _effective_config_dir() / "config.yaml"
         return _save_file(str(config_path), yaml_content, restart_note=True)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")
@@ -244,7 +250,7 @@ def save_global_config_callback(save_clicks, validate_clicks, yaml_content):
 def load_hpc_config_callback(n_clicks):
     if not n_clicks:
         return "", ""
-    config_path = get_config_dir() / "hpc_config.yaml"
+    config_path = _effective_config_dir() / "hpc_config.yaml"
     content, err = _load_file(str(config_path))
     if err:
         return "", _alert_err(err)
@@ -265,7 +271,7 @@ def save_hpc_config_callback(_save_clicks, _validate_clicks, yaml_content):
                 return _alert_warn(f"Valid YAML but missing expected keys: {', '.join(sorted(missing))}")
             profile_count = len(parsed.get("resource_profiles", {}))
             return _alert_ok(f"Valid YAML · {profile_count} resource profile(s)")
-        config_path = get_config_dir() / "hpc_config.yaml"
+        config_path = _effective_config_dir() / "hpc_config.yaml"
         return _save_file(str(config_path), yaml_content, restart_note=True)
     except Exception as e:
         return _alert_err(f"Unexpected error: {e}")

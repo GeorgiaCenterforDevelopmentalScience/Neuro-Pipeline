@@ -26,6 +26,7 @@ def _run_submit(tmp_path, scripts_dir, task_config, requested_tasks,
     fake_scripts_pkg = MagicMock()
     fake_scripts_pkg.SCRIPTS_DIR = scripts_dir
 
+    project_config = {**MOCK_PROJECT_CONFIG, "scripts_dir": str(scripts_dir)}
     with patch(PIPELINE_CONFIG_PATH, MOCK_CONFIG), \
          patch(HPC_CONFIG_PATH, MOCK_HPC_CONFIG), \
          patch(CONFIG_UTILS_PATH, MOCK_CONFIG), \
@@ -39,7 +40,7 @@ def _run_submit(tmp_path, scripts_dir, task_config, requested_tasks,
             work_dir=str(tmp_path / "work"),
             container_dir="/containers",
             task_config=task_config,
-            project_config=MOCK_PROJECT_CONFIG,
+            project_config=project_config,
             requested_tasks=requested_tasks,
             dry_run=True,
             db_path=str(tmp_path / "work" / "pipeline_jobs.db"),

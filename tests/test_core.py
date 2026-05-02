@@ -118,17 +118,20 @@ class TestCliRunErrors:
         with patch(CORE_CONFIG_PATH, MOCK_CONFIG):
             from neuro_pipeline.pipeline.core import app
         runner = CliRunner()
-        result = runner.invoke(app, [
-            "run",
-            "--subjects", "001",
-            "--input", str(tmp_path / "nonexistent"),
-            "--output", str(tmp_path / "output"),
-            "--work", str(tmp_path / "work"),
-            "--project", "test_proj",
-            "--session", "01",
-        ])
+        with patch("neuro_pipeline.pipeline.core.set_config_dir"), \
+             patch("neuro_pipeline.pipeline.core.get_config", return_value=MOCK_CONFIG):
+            result = runner.invoke(app, [
+                "run",
+                "--subjects", "001",
+                "--input", str(tmp_path / "nonexistent"),
+                "--output", str(tmp_path / "output"),
+                "--work", str(tmp_path / "work"),
+                "--project", "test_proj",
+                "--session", "01",
+                "--config-dir", str(tmp_path),
+            ])
         assert result.exit_code == 1
-        assert "not found" in result.output.lower() or "not found" in (result.output or "").lower()
+        assert "not found" in (result.output or "").lower()
 
 
 def _runner():

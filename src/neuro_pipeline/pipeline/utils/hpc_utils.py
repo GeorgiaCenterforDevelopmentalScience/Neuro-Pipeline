@@ -11,24 +11,24 @@ import yaml
 
 from .config_utils import get_config_dir
 
-_config: Optional[dict] = None
-_hpc_config: Optional[dict] = None
+config: Optional[dict] = None
+hpc_config: Optional[dict] = None
 
 
-def _get_config() -> dict:
-    global _config
-    if _config is None:
+def _ensure_config() -> dict:
+    global config
+    if config is None:
         with open(get_config_dir() / "config.yaml", "r", encoding="utf-8") as f:
-            _config = yaml.safe_load(f)
-    return _config
+            config = yaml.safe_load(f)
+    return config
 
 
-def _get_hpc_config() -> dict:
-    global _hpc_config
-    if _hpc_config is None:
+def _ensure_hpc_config() -> dict:
+    global hpc_config
+    if hpc_config is None:
         with open(get_config_dir() / "hpc_config.yaml", "r", encoding="utf-8") as f:
-            _hpc_config = yaml.safe_load(f)
-    return _hpc_config
+            hpc_config = yaml.safe_load(f)
+    return hpc_config
 
 
 class HPCBackend(ABC):
@@ -283,7 +283,7 @@ class PBSBackend(HPCBackend):
 
 
 def get_hpc_backend() -> HPCBackend:
-    hpc_cfg = _get_hpc_config()
+    hpc_cfg = _ensure_hpc_config()
     scheduler = hpc_cfg.get("scheduler", "slurm").lower()
     scheduler_cfg = hpc_cfg.get(scheduler)
 
@@ -325,7 +325,7 @@ class HPCResources:
 def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
     """Get HPC resource configuration from task config and global settings"""
     
-    hpc_cfg = _get_hpc_config()
+    hpc_cfg = _ensure_hpc_config()
     defaults = hpc_cfg.get('defaults', {})
     profile_name = task_config.get('profile', 'standard')
     profile_config = hpc_cfg.get('resource_profiles', {}).get(profile_name, {})
@@ -338,7 +338,7 @@ def get_hpc_resources(task_config: Dict[str, Any]) -> HPCResources:
     
     array_param = None
     if task_config.get('array', False):
-        array_config = _get_config().get('array_config', {})
+        array_config = _ensure_config().get('array_config', {})
         array_param = array_config.get('pattern', '1-{num}%15')
     
     return HPCResources(
@@ -628,7 +628,7 @@ def create_wrapper_script(
         
         # Submission command reference (for debugging)
         if slurm_args:
-            _hc = _get_hpc_config()
+            _hc = _ensure_hpc_config()
             submit_cmd = _hc.get(_hc.get("scheduler", "slurm"), {}).get("submit_cmd", "sbatch")
             f.write("#\n")
             f.write("# Submission Command:\n")
@@ -682,7 +682,7 @@ def create_wrapper_script(
 
     os.chmod(wrapper_path, 0o755)
 
-    _hc = _get_hpc_config()
+    _hc = _ensure_hpc_config()
     submit_cmd = _hc.get(_hc.get("scheduler", "slurm"), {}).get("submit_cmd", "sbatch")
     sections = {
         "full_content": wrapper_path.read_text(),
