@@ -6,7 +6,7 @@ subject="$1"
 
 input_dir="$INPUT_DIR"
 output_dir="$OUTPUT_DIR"
-work_dir="$WORK_DIR"/mriqc/sub-${subject}
+work_dir="$WORK_DIR"/mriqc/
 
 mkdir -p ${work_dir}
 mkdir -p ${output_dir}
@@ -31,3 +31,9 @@ singularity run \
         --verbose-reports \
         --write-graph \
         -vv
+
+# BUG FIX: Delete old PyBIDS cache before running.
+# This prevents MRIQC from crashing with "empty result" (corrupted cache) 
+# or "Directory not empty" (HPC overwrite conflict).
+# rm -rf ${output_dir}/.bids_db
+# --bids-database-wipe \

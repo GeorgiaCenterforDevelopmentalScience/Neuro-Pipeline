@@ -6,7 +6,7 @@ subject="$1"
 
 input_dir="$INPUT_DIR"
 output_dir="$OUTPUT_DIR"
-work_dir="$WORK_DIR"/mriqc/sub-${subject}
+work_dir="$WORK_DIR"/mriqc/
 
 mkdir -p ${work_dir}
 mkdir -p ${output_dir}
