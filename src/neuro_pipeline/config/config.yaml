@@ -22,6 +22,13 @@ intermed:
     scripts: [sswarp_scratch.sh]
     output_pattern: "{base_output}/AFNI_derivatives"
 
+  - name: bfc
+    profile: standard_short
+    array: true
+    input_from: recon
+    scripts: [sdcflows.sh]
+    output_pattern: "{base_output}/BIDS_derivatives/sdcflows"
+
 # BIDS-native containerized pipelines (2-step: recon → task)
 # Add new BIDS pipelines as subsections here
 rest:

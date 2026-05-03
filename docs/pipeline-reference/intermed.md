@@ -1,7 +1,6 @@
 ---
 title: Intermediate Processing (--intermed)
 ---
-TODO: ADD BFC (bias field correction)
 # Intermediate Processing
 
 CLI flag: `--intermed task1,task2,...`
@@ -38,6 +37,24 @@ tasks:
 ```
 
 The `template` field becomes `$TEMPLATE` in the wrapper script, accessible inside `sswarp_scratch.sh`.
+
+## bfc
+
+**What it does:** Estimates B0 field maps for susceptibility distortion correction (SDC) using [SDCFlows](https://www.nipreps.org/sdcflows/master/cli.html). Produces fieldmap derivatives used by downstream fMRI pipelines.
+
+**Tool:** SDCFlows (via Singularity)  
+**SLURM profile:** `standard_short` (32 GB, 8 h) — array job  
+**Script:** `sdcflows.sh`  
+**Depends on:** `recon`  
+**Input:** `{output}/BIDS/`  
+**Output:** `{output}/BIDS_derivatives/sdcflows/`
+
+**Config entry:**
+```yaml
+tasks:
+  bfc:
+    container: "sdcflows-mriqc-2.10.0.sif"
+```
 
 ## Adding a new intermed task
 

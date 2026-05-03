@@ -106,6 +106,9 @@ tasks:
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
     environ: ["afni_24.3.06"]
 
+  bfc:
+    container: "sdcflows-mriqc-2.10.0.sif"
+
   mriqc_preprocess:
     container: "mriqc_24.0.2.sif"
 

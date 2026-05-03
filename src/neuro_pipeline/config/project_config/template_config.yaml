@@ -49,6 +49,9 @@ tasks:
     container: "dcm2bids_3.2.0.sif"
     config: "branch_config.json"
 
+  bfc:
+    container: "sdcflows-mriqc-2.10.0.sif"
+
   volume:
     environ: ["afni_24.3.06"]
     template: "HaskinsPeds_NL_template1.0_SSW.nii"

@@ -112,6 +112,9 @@ tasks:
     censor_motion: "0.3"
     censor_outliers: "0.05"
 
+  bfc:
+    container: "sdcflows-mriqc-2.10.0.sif"
+
   mriqc_preprocess:
     container: "mriqc_24.0.2.sif"
 
