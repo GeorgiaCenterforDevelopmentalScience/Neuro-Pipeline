@@ -56,6 +56,19 @@ HPC scheduler, resource profiles (memory, walltime, CPU), and submission flags a
 
 ## Quick Start
 
+**First-time setup:** scaffold config and script templates into your study directory.
+
+```bash
+neuropipe init /path/to/my_study
+# Optionally export to ~/.bashrc so you can omit --config-dir on every command.
+# If you skip this, pass --config-dir /path/to/my_study/config explicitly instead.
+export NEUROPIPE_CONFIG_DIR=/path/to/my_study/config
+```
+
+This copies `config.yaml`, `hpc_config.yaml`, `project_config/`, `results_check/`, and script templates. Edit them to match your cluster and project before running.
+
+---
+
 ```bash
 # Launch the GUI
 neuropipe-gui   # open http://localhost:8050 in your browser
