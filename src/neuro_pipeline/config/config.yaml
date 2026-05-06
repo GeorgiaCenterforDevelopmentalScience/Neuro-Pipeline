@@ -103,6 +103,43 @@ kidvid:
     scripts: [afni_kidvid_postprocessing.sh]
     output_pattern: "{base_output}/postprocessing/group/kidvid"
 
+ica_task:
+  - name: ica_task_preprocess
+    stage: prep
+    profile: standard
+    array: true
+    input_from: recon
+    multi_stage: true
+    scripts: [ica_task_preprocess.sh]
+    output_pattern: "{base_output}/ICA_derivatives"
+
+  - name: ica_task_postprocess
+    stage: post
+    profile: standard
+    array: true
+    input_from: ica_task_preprocess
+    multi_stage: true
+    scripts: [ica_task_postprocess.sh]
+    output_pattern: "{base_output}/postprocessing/ica_task"
+
+ica_rest:
+  - name: ica_rest_preprocess
+    stage: prep
+    profile: standard
+    array: true
+    input_from: recon
+    multi_stage: true
+    scripts: [ica_rest_preprocess.sh]
+    output_pattern: "{base_output}/ICA_derivatives"
+
+  - name: ica_rest_postprocess
+    stage: post
+    profile: standard
+    array: true
+    input_from: ica_rest_preprocess
+    multi_stage: true
+    scripts: [ica_rest_postprocess.sh]
+    output_pattern: "{base_output}/postprocessing/ica_rest"
 
 # Quality control
 qc:

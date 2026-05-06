@@ -100,14 +100,30 @@ tasks:
     censor_outliers: "0.05"
 
   cards_postprocess:
-    remove_TRs: 2
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
     environ: ["afni_24.3.06"]
 
   kidvid_postprocess:
-    remove_TRs: 22
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
     environ: ["afni_24.3.06"]
+
+  ica_task_preprocess:
+    remove_TRs: 2
+    template: "HaskinsPeds_NL_template1.0_SSW.nii"
+    blur_size: 4.0
+    environ: ["afni_24.3.06"]
+    censor_motion: "0.3"
+    censor_outliers: "0.05"
+
+  ica_task_postprocess:
+    environ: ["afni_24.3.06","fsl_6.0.7.14"]
+
+  ica_rest_preprocess:
+    template: "HaskinsPeds_NL_template1.0_SSW.nii"
+    environ: ["afni_24.3.06"]
+
+  ica_rest_postprocess:
+    environ: ["afni_24.3.06","fsl_6.0.7.14"]
 
   mriqc_preprocess:
     container: "mriqc_24.0.2.sif"
