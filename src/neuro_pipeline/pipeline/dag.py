@@ -164,6 +164,9 @@ class DAGExecutor:
         # Build DAG for requested tasks
         execution_order = self.build_dag(requested_tasks)
 
+        # Validate all scripts exist before submitting anything
+        self._validate_all_scripts(project_config)
+
         typer.echo("\nDAG execution plan:")
         for task_name in execution_order:
             task_deps = sorted(self.nodes[task_name].dependencies)
@@ -240,6 +243,22 @@ class DAGExecutor:
                     if isinstance(task, dict) and task.get('name') == 'merge_logs':
                         return task
         return None
+
+    def _validate_all_scripts(self, project_config: Optional[Dict]) -> None:
+        from pathlib import Path
+        from .utils.hpc_utils import get_script_with_validation
+        scripts_dir = (project_config or {}).get('scripts_dir', 'scripts/template')
+
+        missing: List[str] = []
+        for node in self.nodes.values():
+            for script in node.task_config.get('scripts', []):
+                if not get_script_with_validation(script, scripts_dir):
+                    missing.append(f"  [{node.name}] {script}")
+
+        if missing:
+            raise FileNotFoundError(
+                f"Aborting: the following scripts were not found in '{scripts_dir}':\n" + "\n".join(missing)
+            )
 
     def _execute_single_task(self, node: 'TaskNode', subjects: str, input_dir: str,
                         output_dir: str, work_dir: str, container_dir: str,

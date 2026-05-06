@@ -192,7 +192,7 @@ def run(
         
         typer.echo(f"Tasks: {requested_tasks}")
 
-        if not skip_bids_validation:
+        if not skip_bids_validation and not prep:
             if bids_prep or mriqc in (MRIQCChoice.individual, MRIQCChoice.all):
                 from .utils.bids_validation import run_bids_validation
                 run_bids_validation(input_dir, work_dir)
