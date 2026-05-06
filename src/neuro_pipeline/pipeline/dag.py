@@ -165,7 +165,8 @@ class DAGExecutor:
         execution_order = self.build_dag(requested_tasks)
 
         # Validate all scripts exist before submitting anything
-        self._validate_all_scripts(project_config)
+        if not dry_run:
+            self._validate_all_scripts(project_config)
 
         typer.echo("\nDAG execution plan:")
         for task_name in execution_order:
@@ -248,6 +249,9 @@ class DAGExecutor:
         from pathlib import Path
         from .utils.hpc_utils import get_script_with_validation
         scripts_dir = (project_config or {}).get('scripts_dir', 'scripts/template')
+
+        if not Path(scripts_dir).exists():
+            return
 
         missing: List[str] = []
         for node in self.nodes.values():

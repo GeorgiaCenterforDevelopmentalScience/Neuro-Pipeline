@@ -17,7 +17,7 @@ from .utils.config_utils import (
 from .utils.job_db import log_pipeline_execution, update_pipeline_execution
 import shutil
 
-app = typer.Typer()
+app = typer.Typer(pretty_exceptions_enable=False)
 config: dict = {}
 
 from .utils.detect_subjects import parse_subjects_input as _parse_subjects
