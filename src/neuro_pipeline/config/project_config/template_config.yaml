@@ -114,15 +114,25 @@ tasks:
     environ: ["afni_24.3.06"]
     censor_motion: "0.3"
     censor_outliers: "0.05"
+    bandpass_low: "0.01"
+    bandpass_high: "999"
 
   ica_task_postprocess:
+    afni_dset: "all_runs"
     environ: ["afni_24.3.06","fsl_6.0.7.14"]
 
   ica_rest_preprocess:
+    remove_TRs: 6
     template: "HaskinsPeds_NL_template1.0_SSW.nii"
+    blur_size: 4.0
     environ: ["afni_24.3.06"]
+    censor_motion: "0.2"
+    censor_outliers: "0.05"
+    bandpass_low: "0.01"
+    bandpass_high: "999"
 
   ica_rest_postprocess:
+    afni_dset: "all_runs"
     environ: ["afni_24.3.06","fsl_6.0.7.14"]
 
   mriqc_preprocess:
